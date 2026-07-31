@@ -6,7 +6,7 @@
 import { ITEMS, item, itemName, EQUIP_SLOTS, SLOT_LABEL, SLOT_GLYPH,
          BONUS_KEYS, DEF_KEYS, OTHER_KEYS } from '../data/items.js';
 import { SKILLS, SKILL_BY_ID, levelProgress, xpForLevel, levelForXp, MAX_LEVEL } from '../data/skills.js';
-import { QUESTS, QUEST_BY_ID, DONE, TOTAL_QP } from '../data/quests.js';
+import { QUESTS, QUEST_BY_ID, DONE, totalQp } from '../data/quests.js';
 import { VIGILS, VIGIL_BY_ID, SPELLS, SPELL_BY_ID, conflicts } from '../data/magic.js';
 import { STYLES } from '../game/combat.js';
 import { fmt, fmtStack, escapeHtml, clamp } from '../util.js';
@@ -318,7 +318,7 @@ export class Panels {
       `Combat level <b>${combatLvl(s)}</b><br>` +
       `Total level <b>${totalLevel(s)}</b><br>` +
       `Total XP <b>${fmt(totalXp(s))}</b><br>` +
-      `Quest points <b>${questPoints(s)}/${TOTAL_QP}</b>`;
+      `Quest points <b>${questPoints(s)}/${totalQp()}</b>`;
     this.panel.appendChild(total);
   }
 
@@ -330,7 +330,7 @@ export class Panels {
 
     this.panel.appendChild(el('div', 'panel-head', 'Quest Journal'));
     this.panel.appendChild(el('div', 'panel-sub',
-      `${questPoints(s)} of ${TOTAL_QP} quest points`));
+      `${questPoints(s)} of ${totalQp()} quest points`));
 
     for (const q of QUESTS) {
       const st = questStage(s, q.id);
@@ -610,6 +610,15 @@ export class Panels {
     this.panel.appendChild(info);
 
     const acts = el('div', 'set-actions');
+
+    const news = el('button', 'btn', 'Ward bulletins');
+    news.addEventListener('click', () => {
+      import('./patchnotes.js').then(async m => {
+        try { await m.showPatchNotes(await m.fetchAllNotes(), { all: true }); }
+        catch { log(s, 'No ward bulletins have been posted.', 'system'); }
+      });
+    });
+    acts.append(news);
 
     const logout = el('button', 'btn danger', 'Log out');
     logout.addEventListener('click', () => {

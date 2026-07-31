@@ -28,6 +28,10 @@ COPY --chown=node:node index.html  ./
 COPY --chown=node:node css/    ./css/
 COPY --chown=node:node js/     ./js/
 COPY --chown=node:node server/ ./server/
+# Content packs and the bulletin. Both ends read these: the map is generated
+# from them at boot and never transmitted, so an image missing this directory
+# would be an image playing a different game to the one it serves.
+COPY --chown=node:node content/ ./content/
 
 USER node
 

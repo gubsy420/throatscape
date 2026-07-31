@@ -190,6 +190,15 @@ export class Net {
         s.bus.emit('private', msg);
         break;
 
+      case 'trade':
+        s.trade = msg.open ? msg : null;
+        s.bus.emit('trade', msg);
+        break;
+
+      case 'tradereq':
+        s.bus.emit('tradereq', msg);
+        break;
+
       case 'teleport':
         s.player.x = s.player.ix = msg.x;
         s.player.y = s.player.iy = msg.y;
@@ -385,6 +394,11 @@ export class Net {
   addFriend(name)            { this.send({ t: 'friend', op: 'add', name }); }
   delFriend(name)            { this.send({ t: 'friend', op: 'del', name }); }
   tell(name, text)           { this.send({ t: 'tell', name, text }); }
+  tradeRequest(uid)          { this.send({ t: 'trade', op: 'req', u: uid }); }
+  tradeOffer(idx, n)         { this.send({ t: 'trade', op: 'offer', idx, n }); }
+  tradeWithdraw(idx, n)      { this.send({ t: 'trade', op: 'withdraw', idx, n }); }
+  tradeAccept(stage)         { this.send({ t: 'trade', op: 'accept', stage }); }
+  tradeDecline()             { this.send({ t: 'trade', op: 'decline' }); }
 }
 
 /** id -> total held, so two packs can be compared for what arrived. */

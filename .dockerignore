@@ -16,3 +16,7 @@ docker-compose.yml
 README.md
 LICENSE
 data
+
+# The content pipeline runs in CI, never in the running game
+tools
+content/AUTHORING.md

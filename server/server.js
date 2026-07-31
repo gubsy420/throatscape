@@ -16,6 +16,7 @@ import { fileURLToPath } from 'node:url';
 import { initStore, readPlayer, writePlayer, DATA_DIR } from './store.js';
 import { Accounts, keyFor } from './accounts.js';
 import { Sim, TICK_MS } from './sim.js';
+import { loadContent, loadedPacks } from '../js/data/content.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.resolve(__dirname, '..');
@@ -39,6 +40,16 @@ const MIME = {
    ============================================================ */
 
 initStore();
+
+/*
+ * Content packs go in before anything reads the game data, and certainly
+ * before the world is generated: the map is produced from these definitions
+ * at both ends and never transmitted, so a server running a pack the client
+ * has not loaded would be a server nobody can walk around in.
+ */
+await loadContent();
+const patchNotes = await readPatchNotes();
+
 const accounts = new Accounts();
 await accounts.load();
 const sim = new Sim(accounts);
@@ -127,7 +138,14 @@ server.on('upgrade', (req, socket) => {
   socket.on('error', () => drop(client));
   socket.on('close', () => drop(client));
 
-  send(client, { t: 'hello', players: sim.playerCount, accounts: accounts.count });
+  send(client, {
+    t: 'hello',
+    players: sim.playerCount,
+    accounts: accounts.count,
+    // the login screen shows the notes when this is newer than what the
+    // browser remembers having read
+    patch: patchNotes
+  });
 });
 
 function drop(client) {
@@ -319,6 +337,24 @@ async function authenticate(client, msg) {
   broadcastSystem(`${account.name} has arrived on the ward.`);
 }
 
+/* ---------------- patch notes ------------------------------- */
+
+/**
+ * Only the newest few entries travel with the greeting; the client fetches
+ * the whole file if the player asks to read further back.
+ */
+async function readPatchNotes() {
+  try {
+    const raw = await fs.promises.readFile(path.join(ROOT, 'content/patchnotes.json'), 'utf8');
+    const all = JSON.parse(raw);
+    const list = Array.isArray(all) ? all : all.entries || [];
+    if (!list.length) return null;
+    return { latest: list[0].version, entries: list.slice(0, 3) };
+  } catch {
+    return null;
+  }
+}
+
 /* ---------------- persistence ------------------------------- */
 
 async function savePlayer(session) {
@@ -375,6 +411,12 @@ server.listen(PORT, HOST, () => {
   console.log('  Throatscape is open.');
   console.log(`  Play at   http://localhost:${PORT}`);
   console.log(`  Data in   ${DATA_DIR}`);
+  const packs = loadedPacks();
+  if (packs.length) {
+    const newest = packs[packs.length - 1];
+    console.log(`  Content   ${packs.length} pack${packs.length === 1 ? '' : 's'}` +
+                ` — newest: ${newest.title || newest.id}`);
+  }
   console.log('  Ctrl+C to close the ward.');
   if (HOST === '0.0.0.0') {
     console.log('');

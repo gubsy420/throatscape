@@ -36,6 +36,7 @@ import { makeQuestApi, questHook } from '../js/game/questapi.js';
 import { craft, buy, sell, findRecipe } from '../js/game/economy.js';
 import { MAX_FRIENDS } from '../js/game/state.js';
 import { keyFor, NAME_RE } from './accounts.js';
+import { Trades, TRADE_RANGE } from './trade.js';
 
 bindVigilData(MagicData);
 
@@ -57,6 +58,8 @@ class Session {
     this.dialogue = null;
     this.lastSave = 0;
     this.chatTtl = 0;
+    this.trade = null;         // the Trade this session is in, if any
+    this.tradeReq = null;      // an outstanding request to someone else
 
     const st = saved ? deserialize(saved) : createState(name);
     st.name = name;
@@ -103,7 +106,37 @@ class Session {
 
   get p() { return this.state.player; }
 
-  serialize() { return serialize(this.state); }
+  /**
+   * Items sitting in a trade offer are saved as if they were still in the
+   * pack. They belong to this player either way, and a crash between the
+   * offer and the handshake must not be able to eat them. Anything that will
+   * not fit back into 28 slots is put in the vault rather than dropped.
+   */
+  serialize() {
+    const data = serialize(this.state);
+    const escrow = this.sim.trades.escrowOf(this);
+    if (!escrow.length) return data;
+
+    for (const e of escrow) {
+      const stack = ITEMS[e.id]?.stack;
+      const slot = stack ? data.inventory.findIndex(s => s && s[0] === e.id) : -1;
+      if (slot >= 0) { data.inventory[slot][1] += e.n; continue; }
+
+      let left = e.n;
+      while (left > 0) {
+        const free = data.inventory.indexOf(null);
+        if (free < 0) break;
+        const take = stack ? left : 1;
+        data.inventory[free] = [e.id, take];
+        left -= take;
+      }
+      if (left > 0) {
+        const b = data.bank.find(x => x[0] === e.id);
+        if (b) b[1] += left; else data.bank.push([e.id, left]);
+      }
+    }
+    return data;
+  }
 }
 
 /* ============================================================
@@ -122,6 +155,7 @@ export class Sim {
     this.fx = [];                   // public hitsplats for this tick
     this.objectChanges = [];        // scenery depletion changes this tick
     this.objState = new Map();      // object -> depleted|open bits, for diffing
+    this.trades = new Trades(this);
 
     // spawnNpcs writes into state.npcs, so lend it a shim
     const shim = { npcs: [] };
@@ -145,6 +179,9 @@ export class Sim {
   remove(key) {
     const s = this.sessions.get(key);
     if (!s) return null;
+    // hand the escrow back before anything else, so the save that follows
+    // this includes it in the pack rather than in a trade that no longer exists
+    if (s.trade) this.trades.close(s.trade, `${s.name} went off shift.`);
     for (const n of this.npcs) if (n.targetKey === key) { n.targetKey = null; n.path = []; }
     this.sessions.delete(key);
     this.announceToFriends(key, s.name, false);
@@ -206,6 +243,7 @@ export class Sim {
       }
     }
 
+    this.trades.tick();
     this.tickNpcs();
     this.tickDoors();
     tickGround({ ground: this.ground });
@@ -656,6 +694,14 @@ export class Sim {
         break;
 
       case 'tell': this.whisper(s, msg.name, msg.text); break;
+
+      case 'trade':
+        if (msg.op === 'req') this.trades.request(s, msg.u);
+        else if (msg.op === 'offer') this.trades.offer(s, int(msg.idx), int(msg.n) ?? 1);
+        else if (msg.op === 'withdraw') this.trades.withdraw(s, int(msg.idx), int(msg.n) ?? 1);
+        else if (msg.op === 'accept') this.trades.accept(s, int(msg.stage));
+        else if (msg.op === 'decline') this.trades.decline(s);
+        break;
 
       case 'use':    useItem(st, int(msg.idx)); break;
       case 'equip':  equipFromSlot(st, int(msg.idx)); break;

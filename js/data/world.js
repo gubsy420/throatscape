@@ -3,9 +3,20 @@
    ============================================================ */
 
 import { fbm, hash2, makeRng, clamp } from '../util.js';
+// Content packs add places, creatures and resources to the map. The import
+// cycle with content.js is deliberate: neither module reads the other while
+// it is being evaluated, only later when buildWorld and applyPack are called.
+import { CONTENT } from './content.js';
 
-export const W = 192;
-export const H = 192;
+/**
+ * The Throat as first surveyed. The map grows east and south as new ground is
+ * opened up - never north or west, because every tile coordinate in every
+ * saved game is measured from this origin and must keep meaning what it meant.
+ */
+export const BASE_W = 192;
+export const BASE_H = 192;
+/** Empty ground kept beyond the furthest region, so the edge is a drop. */
+const MARGIN = 6;
 
 /* ---------------- Tiles ------------------------------------- */
 
@@ -40,25 +51,61 @@ export const TILE_INFO = {
  * The regions tile the playable area edge to edge - any gap between two
  * rectangles becomes impassable VOID and cuts the world in half, so the
  * bounds below are deliberately flush. Overlaps resolve to the first match.
+ *
+ * `terrain` is the recipe the ground is mixed from: two noise fields, one
+ * coarse and one fine, and a short list of rules tried in order. The first
+ * rule that matches wins and `base` fills in everywhere else. Writing it as
+ * data rather than as a switch is what lets a content pack open new ground
+ * without anyone editing this file.
  */
 export const REGIONS = [
   { id: 'lumbrisdale', name: 'Lumbrisdale',   x: 6,   y: 124, w: 58,  h: 60, base: T.TURF,  tint: '#8a666a', safe: true,
-    blurb: 'The last working ward in the Throat.' },
+    blurb: 'The last working ward in the Throat.',
+    terrain: { rules: [{ tile: T.BILE, coarse: { below: 0.27 } }] } },
   { id: 'wilds',       name: 'The Palate Wilds', x: 64, y: 112, w: 56, h: 72, base: T.TURF, tint: '#7a5a5e',
-    blurb: 'Open ground between the two lights.' },
+    blurb: 'Open ground between the two lights.',
+    terrain: { rules: [{ tile: T.BILE, coarse: { below: 0.33 } },
+                       { tile: T.MOSS, fine: { above: 0.68 } }] } },
   { id: 'vellumhaven', name: 'Vellumhaven',   x: 120, y: 122, w: 64,  h: 62, base: T.STONE, tint: '#8d867f', safe: true,
-    blurb: 'City of ledgers, guilds and expensive mercy.' },
+    blurb: 'City of ledgers, guilds and expensive mercy.',
+    terrain: { rules: [{ tile: T.CHALK, coarse: { below: 0.30 } },
+                       { tile: T.MOSS, fine: { above: 0.74 } }] } },
   { id: 'fen',         name: 'The Bogged Fen', x: 6,  y: 50,  w: 66,  h: 74, base: T.BOG,   tint: '#5a5f49',
-    blurb: 'Standing bile and things that live in it.' },
+    blurb: 'Standing bile and things that live in it.',
+    terrain: { rules: [{ tile: T.BILE, coarse: { below: 0.42 } },
+                       { tile: T.BOG,  coarse: { below: 0.55 } },
+                       { tile: T.MOSS, fine: { above: 0.62 } }] } },
   { id: 'gullet',      name: 'The Gullet Road', x: 72, y: 50, w: 46,  h: 62, base: T.BLOOD, tint: '#6b3f44',
-    blurb: 'A long red corridor. Nothing good uses it.' },
+    blurb: 'A long red corridor. Nothing good uses it.',
+    terrain: { rules: [{ tile: T.BILE, coarse: { below: 0.30 } },
+                       { tile: T.TURF, fine: { above: 0.66 } }] } },
   { id: 'uvula',       name: 'Uvula Heights',  x: 118, y: 50, w: 66,  h: 72, base: T.CHALK, tint: '#b8ab99',
-    blurb: 'Pale cliffs above the whole aching throat.' },
+    blurb: 'Pale cliffs above the whole aching throat.',
+    terrain: { rules: [{ tile: T.CAVEWALL, coarse: { below: 0.30 } },
+                       { tile: T.STONE, fine: { above: 0.70 } }] } },
   { id: 'larynx',      name: 'The Larynx Deep', x: 6,  y: 6,  w: 178, h: 44, base: T.CAVE,  tint: '#55464e',
-    blurb: 'Where the Throat still makes sound.' }
+    blurb: 'Where the Throat still makes sound.',
+    terrain: { rules: [{ tile: T.CAVEWALL, coarse: { below: 0.40 } },
+                       { tile: T.BLOOD, fine: { above: 0.74 } }] } }
 ];
 
+/** How many regions shipped with the game, before anything was opened up. */
+export const BASE_REGION_COUNT = REGIONS.length;
+
 export const regionById = id => REGIONS.find(r => r.id === id);
+
+/** The map is as big as it needs to be to hold every region, plus a drop. */
+export function worldSize() {
+  let w = BASE_W, h = BASE_H;
+  for (const r of REGIONS) {
+    w = Math.max(w, r.x + r.w + MARGIN);
+    h = Math.max(h, r.y + r.h + MARGIN);
+  }
+  return { w, h };
+}
+
+/** Tiles by name, so a content pack can say "TURF" instead of a magic number. */
+export const TILE_BY_NAME = T;
 
 /* ---------------- Scenery object types ---------------------- */
 
@@ -148,9 +195,28 @@ export const OBJ = {
     examine: 'One of far too many.' }
 };
 
+/**
+ * Runs a region's terrain recipe against the two noise fields. Rules are
+ * tried in order and the first that matches wins, so a recipe reads top to
+ * bottom like a set of instructions: deepest thing first, speckle last.
+ */
+function mixTerrain(R, coarse, fine) {
+  for (const rule of R.terrain?.rules || []) {
+    const c = rule.coarse, f = rule.fine;
+    if (c && !(c.below === undefined ? true : coarse < c.below)) continue;
+    if (c && !(c.above === undefined ? true : coarse > c.above)) continue;
+    if (f && !(f.below === undefined ? true : fine < f.below)) continue;
+    if (f && !(f.above === undefined ? true : fine > f.above)) continue;
+    if (!c && !f) continue;
+    return rule.tile;
+  }
+  return R.base;
+}
+
 /* ---------------- Build ------------------------------------- */
 
 export function buildWorld() {
+  const { w: W, h: H } = worldSize();
   const tiles = new Uint8Array(W * H);
   const regionGrid = new Uint8Array(W * H).fill(255);
   const objects = [];
@@ -175,35 +241,10 @@ export function buildWorld() {
       regionGrid[idx(x, y)] = r;
 
       const R = REGIONS[r];
-      let t = R.base;
-      const n = fbm(x * 0.055, y * 0.055, r * 71, 3);
-      const n2 = fbm(x * 0.14, y * 0.14, 400 + r, 2);
-
-      switch (R.id) {
-        case 'fen':
-          t = n < 0.42 ? T.BILE : n < 0.55 ? T.BOG : n2 > 0.62 ? T.MOSS : T.BOG;
-          break;
-        case 'wilds':
-          t = n < 0.33 ? T.BILE : n2 > 0.68 ? T.MOSS : T.TURF;
-          break;
-        case 'lumbrisdale':
-          t = n < 0.27 ? T.BILE : T.TURF;
-          break;
-        case 'gullet':
-          t = n < 0.30 ? T.BILE : n2 > 0.66 ? T.TURF : T.BLOOD;
-          break;
-        case 'uvula':
-          t = n < 0.30 ? T.CAVEWALL : n2 > 0.70 ? T.STONE : T.CHALK;
-          break;
-        case 'larynx':
-          t = n < 0.40 ? T.CAVEWALL : n2 > 0.74 ? T.BLOOD : T.CAVE;
-          break;
-        case 'vellumhaven':
-          // flagstones, worn patches, and moss in the joints
-          t = n < 0.30 ? T.CHALK : n2 > 0.74 ? T.MOSS : T.STONE;
-          break;
-      }
-      tiles[idx(x, y)] = t;
+      // one coarse field for the big shapes, one fine for the speckle
+      const coarse = fbm(x * 0.055, y * 0.055, r * 71, 3);
+      const fine = fbm(x * 0.14, y * 0.14, 400 + r, 2);
+      tiles[idx(x, y)] = mixTerrain(R, coarse, fine);
     }
   }
 
@@ -479,6 +520,65 @@ export function buildWorld() {
   mobScatter('plague_monk', 'uvula', 14, [T.CHALK, T.STONE]);
   mobScatter('plague_monk', 'larynx', 8, [T.CAVE]);
   mobScatter('larynx_howler', 'larynx', 14, [T.CAVE, T.BLOOD]);
+
+  /* --- Content packs -------------------------------------- */
+
+  /**
+   * Everything the packs add goes in last, on top of a finished map, so a
+   * pack can never move a road or bury a bank booth. Anything that will not
+   * fit is quietly skipped rather than corrupting the world - the validator
+   * is what is supposed to catch that, long before this runs.
+   */
+  const tileOf = name => (typeof name === 'number' ? name : T[String(name).toUpperCase()]);
+
+  /*
+   * Roads joining new ground to old, cut before anything is built on either
+   * side. New ground that cannot be walked to is new ground nobody will ever
+   * see, so this runs first and the validator checks afterwards that a route
+   * really does exist.
+   */
+  for (const l of CONTENT.links) {
+    road(l.x1, l.y1, l.x2, l.y2, l.w || 3, tileOf(l.tile) ?? T.PATH);
+  }
+
+  for (const site of CONTENT.sites) {
+    const R = regionById(site.region);
+    if (!R) continue;
+    const inRegion = (x, y, w = 1, h = 1) =>
+      x >= R.x && y >= R.y && x + w <= R.x + R.w && y + h <= R.y + R.h;
+    if (!inRegion(site.x, site.y, site.w, site.h)) continue;
+
+    if (site.ground) rect(site.x, site.y, site.w, site.h, tileOf(site.ground) ?? R.base);
+    if (site.path) road(site.path.x1, site.path.y1, site.path.x2, site.path.y2, site.path.w || 3);
+
+    const b = site.building;
+    if (b && inRegion(b.x, b.y, b.w, b.h)) {
+      building(b.x, b.y, b.w, b.h, b.doors || [], tileOf(b.floor) ?? T.FLOOR, site.name);
+    }
+    for (const o of site.objects || []) {
+      addObj(o.type, o.x, o.y, o.text ? { text: o.text } : {});
+    }
+    for (const sp of site.spawns || []) {
+      if (inB(sp.x, sp.y)) npcSpawns.push({ npc: sp.npc, x: sp.x, y: sp.y });
+    }
+    if (site.sign) {
+      addObj('sign', site.sign.x, site.sign.y, { text: site.sign.text || site.name });
+    }
+  }
+
+  for (const s of CONTENT.scatter) {
+    if (!regionById(s.region)) continue;
+    scatter(s.type, s.region, s.count, (s.allow || []).map(tileOf).filter(t => t !== undefined));
+  }
+
+  for (const s of CONTENT.spawns) {
+    if (s.x !== undefined && s.y !== undefined) {
+      if (inB(s.x, s.y)) npcSpawns.push({ npc: s.npc, x: s.x, y: s.y });
+      continue;
+    }
+    if (!regionById(s.region)) continue;
+    mobScatter(s.npc, s.region, s.count, (s.allow || []).map(tileOf).filter(t => t !== undefined));
+  }
 
   /* --- walkability cache ---------------------------------- */
   const blocked = new Uint8Array(W * H);

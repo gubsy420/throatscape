@@ -17,6 +17,8 @@ import { Panels } from './ui/panels.js';
 import { Windows } from './ui/windows.js';
 import { Net, TOKEN_KEY, TICK_MS } from './net.js';
 import { COLOURS, MOTIONS } from './game/chatfx.js';
+import { loadContent } from './data/content.js';
+import { showPatchNotes, markPatchSeen, latestSeen } from './ui/patchnotes.js';
 
 const COLOUR_NAMES = Object.keys(COLOURS);
 const MOTION_NAMES = Object.keys(MOTIONS);
@@ -25,6 +27,7 @@ const $ = s => document.querySelector(s);
 
 let world = null;
 let game = null;
+let patch = null;               // the bulletin the server greeted us with
 
 /* ============================================================
    Boot
@@ -33,6 +36,7 @@ let game = null;
 const BOOT_STEPS = [
   'Warming the autoclave…',
   'Folding gauze…',
+  'Reading the day\'s orders…',
   'Mapping the Throat…',
   'Waking the patients…',
   'Counting the ledger…'
@@ -45,7 +49,10 @@ async function boot() {
   for (let i = 0; i < BOOT_STEPS.length; i++) {
     status.textContent = BOOT_STEPS[i];
     fill.style.width = ((i + 1) / (BOOT_STEPS.length + 1) * 100) + '%';
-    if (i === 2) world = buildWorld();
+    // content packs first: the map is generated from the data, so it cannot
+    // be built until every pack that adds to it has been read
+    if (i === 2) await loadContent().catch(e => console.warn('[content]', e.message));
+    if (i === 3) world = buildWorld();
     await wait(90);
   }
   if (!world) world = buildWorld();
@@ -132,6 +139,10 @@ async function showLogin() {
     statusEl.textContent = m.players
       ? `${m.players} nurse${m.players === 1 ? '' : 's'} on shift.`
       : 'The ward is quiet.';
+
+    // shown once per update, here on the way in rather than over a fight
+    patch = m.patch || null;
+    if (patch && patch.latest && patch.latest !== latestSeen()) showPatchNotes(patch);
   });
 
   state.bus.on('authfail', m => {
@@ -259,6 +270,11 @@ function probe(game, sx, sy) {
   const { state, world, renderer } = game;
   const t = renderer.screenToTile(sx, sy);
 
+  // people first: another nurse standing on a herb patch is still the thing
+  // you meant to click on
+  for (const o of state.others.values()) {
+    if (o.x === t.x && o.y === t.y) return { kind: 'player', ref: o, x: t.x, y: t.y };
+  }
   for (const n of state.npcs) {
     const d = NPCS[n.id];
     const sz = d.size || 1;
@@ -284,6 +300,7 @@ function labelFor(hit) {
         ? { verb: 'Attack', name: `${d.name} (level ${d.lvl})` }
         : { verb: d.talk ? 'Talk to' : 'Examine', name: d.name };
     }
+    case 'player':  return { verb: 'Trade with', name: hit.ref.name };
     case 'ground': return { verb: 'Take', name: itemName(hit.ref.id) };
     case 'obj':    return { verb: OBJ[hit.ref.type].act || 'Examine', name: OBJ[hit.ref.type].name };
     default:       return { verb: 'Walk here', name: '' };
@@ -361,6 +378,9 @@ function doDefault(game, hit) {
       if (NPCS[hit.ref.id].hostile) net.attack(hit.ref.uid);
       else net.talk(hit.ref.uid);
       break;
+    case 'player':
+      net.tradeRequest(hit.ref.id);
+      break;
     case 'ground':
       net.pickup(hit.ref.x, hit.ref.y, hit.ref.id);
       break;
@@ -384,6 +404,17 @@ function contextEntries(game, hit) {
     if (d.shop) out.push({ label: 'Trade with', obj: d.name, run: () => net.talk(n.uid) });
     if (d.bank) out.push({ label: 'Bank with', obj: d.name, run: () => net.talk(n.uid) });
     out.push({ label: 'Examine', obj: d.name, run: () => log(state, d.examine) });
+  } else if (hit.kind === 'player') {
+    const o = hit.ref;
+    out.push({ label: 'Trade with', obj: o.name, run: () => net.tradeRequest(o.id) });
+    out.push({ label: 'Message', obj: o.name, run: () => {
+      const box = document.getElementById('chat-input');
+      box.value = `/tell "${o.name}" `;
+      box.focus();
+    } });
+    out.push({ label: 'Add friend', obj: o.name, run: () => net.addFriend(o.name) });
+    out.push({ label: 'Examine', obj: o.name, run: () =>
+      log(state, `${o.name} — another nurse, still upright.`) });
   } else if (hit.kind === 'ground') {
     const g = hit.ref;
     out.push({ label: 'Take', obj: itemName(g.id), run: () => net.pickup(g.x, g.y, g.id) });
@@ -441,8 +472,9 @@ function command(game, cmd) {
 
   switch (name.toLowerCase()) {
     case 'help':
-      log(state, 'Commands: /tell <name> <message>, /r <message>, /add <name>, ' +
-                 '/remove <name>, /friends, /where, /players, /effects, /logout', 'system');
+      log(state, 'Commands: /tell <name> <message>, /r <message>, /trade <name>, ' +
+                 '/add <name>, /remove <name>, /friends, /where, /players, ' +
+                 '/effects, /patch, /logout', 'system');
       log(state, 'Names with a space need quotes: /tell "Nurse Vell" hello.', 'system');
       break;
     case 'effects':
@@ -463,6 +495,12 @@ function command(game, cmd) {
       net.tell(who, args);
       break;
     }
+    case 'trade': {
+      const who = args.trim().replace(/^"|"$/g, '');
+      if (!who) { log(state, 'Usage: /trade <name>', 'system'); break; }
+      net.tradeRequest(who);
+      break;
+    }
     case 'add': case 'friend':
       if (args.trim()) net.addFriend(args.trim());
       else log(state, 'Usage: /add <name>', 'system');
@@ -478,6 +516,12 @@ function command(game, cmd) {
         : 'Your friends list is empty.', 'system');
       break;
     }
+    case 'patch': case 'news': case 'notes':
+      import('./ui/patchnotes.js').then(async m => {
+        try { await m.showPatchNotes(await m.fetchAllNotes(), { all: true }); }
+        catch { log(state, 'No ward bulletins have been posted.', 'system'); }
+      });
+      break;
     case 'where': {
       const r = world.regionAt(state.player.x, state.player.y);
       log(state, `You are at ${state.player.x}, ${state.player.y} in ${r ? r.name : 'nowhere'}.`, 'system');
@@ -508,6 +552,21 @@ function wireServerUi(game) {
     if (m.close) windows.closeDialogue();
     else windows.showDialogue(m);
   });
+
+  state.bus.on('trade', m => {
+    if (m.open) windows.openTrade(m);
+    else windows.closeTrade();
+  });
+
+  /*
+   * A request is an invitation, not an interface: it drops into the chat log
+   * with a way to answer, so being asked mid-fight cannot cost you anything.
+   */
+  state.bus.on('tradereq', m => {
+    toast(state, `${m.name} wishes to trade.`);
+    log(state, `${m.name} wishes to trade with you — click them, or type /trade "${m.name}".`, 'system');
+  });
+
   state.bus.on('disconnected', () => windows.closeAll());
 }
 

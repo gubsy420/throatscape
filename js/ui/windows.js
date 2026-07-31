@@ -36,8 +36,20 @@ export class Windows {
   get anyOpen() { return !!this.overlay || !!this.dlg; }
 
   closeAll() {
-    this.closeOverlay();
+    this.dismiss();
     this.closeDialogue();
+  }
+
+  /**
+   * Closing a window on purpose, as opposed to tearing it down to rebuild it.
+   * Only this path runs the window's parting shot - walking away from a trade
+   * has to decline it, and rebuilding the window every time an offer changes
+   * must not.
+   */
+  dismiss() {
+    const open = this._open;
+    this.closeOverlay();
+    if (open && open.onClose) open.onClose();
   }
 
   closeOverlay() {
@@ -52,6 +64,7 @@ export class Windows {
     else if (kind === 'shop') this.openShop(arg);
     else if (kind === 'make') this.openMake(arg);
     else if (kind === 'guide') this.openSkillGuide(arg);
+    else if (kind === 'trade') this.openTrade(this.state.trade);
   }
 
   /* ---------------- shell ----------------------------------- */
@@ -75,7 +88,7 @@ export class Windows {
     const close = document.createElement('div');
     close.className = 'win-close';
     close.textContent = '✕';
-    close.addEventListener('click', () => this.closeOverlay());
+    close.addEventListener('click', () => this.dismiss());
     head.appendChild(close);
 
     const body = document.createElement('div');
@@ -90,7 +103,7 @@ export class Windows {
       win.appendChild(n);
     }
     ov.appendChild(win);
-    ov.addEventListener('mousedown', e => { if (e.target === ov) this.closeOverlay(); });
+    ov.addEventListener('mousedown', e => { if (e.target === ov) this.dismiss(); });
     this.stage.appendChild(ov);
     this.overlay = ov;
     return body;
@@ -212,6 +225,141 @@ export class Windows {
       cols.append(left, right);
       body.appendChild(cols);
     }, `${s.bank.length} of 320 vault slots used`, { kind: 'bank' });
+  }
+
+  /* ---------------- trade ----------------------------------- */
+
+  /**
+   * The two-screen trade. The server owns every number on it; this only draws
+   * what it was last told and reports clicks, which is why an offer that
+   * changed on the other side of the ward turns up here without being asked
+   * for.
+   */
+  openTrade(t) {
+    if (!t || !t.open) return;
+    const s = this.state;
+    const mine = (t.mine || []).map(e => ({ id: e[0], n: e[1] }));
+    const theirs = (t.theirs || []).map(e => ({ id: e[0], n: e[1] }));
+    const stage2 = t.stage === 2;
+
+    const title = stage2
+      ? `Confirm trade with ${t.with}`
+      : `Trading with ${t.with}`;
+
+    const body = this.frame(title, body => {
+      const cols = document.createElement('div');
+      cols.className = 'trade-cols';
+
+      cols.appendChild(this.tradeSide('Your offer', mine, !stage2, t));
+      cols.appendChild(this.tradeSide(`${t.with}'s offer`, theirs, false, t));
+      body.appendChild(cols);
+
+      /* -- screen one keeps your pack in reach -- */
+      if (!stage2) {
+        body.appendChild(sub('Your pack — click to offer one, right-click for more'));
+        const inv = document.createElement('div');
+        inv.className = 'inv-grid trade-inv';
+        s.inventory.forEach((it, i) => {
+          if (!it) { inv.appendChild(emptySlot()); return; }
+          const def = ITEMS[it.id];
+          const d = slotEl(it.id, it.n);
+          if (def.questItem || def.untradeable) d.classList.add('untradeable');
+          d.addEventListener('pointerenter', e => this.hud.itemTip(e, it.id, it.n));
+          d.addEventListener('pointermove', e => this.hud.moveItemTip(e));
+          d.addEventListener('pointerleave', () => this.hud.hideItemTip());
+          d.addEventListener('click', () => this.net.tradeOffer(i, 1));
+          d.addEventListener('contextmenu', e => {
+            e.preventDefault();
+            this.qtyMenu(e, def, 'Offer', n => this.net.tradeOffer(i, n), it.n);
+          });
+          inv.appendChild(d);
+        });
+        body.appendChild(inv);
+      } else {
+        body.appendChild(note(
+          'Look carefully. Once you both accept this screen the items change hands.'));
+      }
+
+      /* -- acceptance -- */
+      const row = document.createElement('div');
+      row.className = 'trade-actions';
+
+      const status = document.createElement('div');
+      status.className = 'trade-status';
+      status.innerHTML =
+        `<span class="${t.iAccept ? 'yes' : 'no'}">You: ${t.iAccept ? 'accepted' : 'waiting'}</span>` +
+        `<span class="${t.theyAccept ? 'yes' : 'no'}">${escapeHtml(t.with)}: ${t.theyAccept ? 'accepted' : 'waiting'}</span>`;
+
+      const accept = document.createElement('button');
+      accept.className = 'btn primary';
+      accept.textContent = stage2 ? 'Accept trade' : 'Accept';
+      accept.disabled = !!t.iAccept;
+      accept.addEventListener('click', () => {
+        accept.disabled = true;
+        this.net.tradeAccept(t.stage);
+      });
+
+      const decline = document.createElement('button');
+      decline.className = 'btn danger';
+      decline.textContent = 'Decline';
+      decline.addEventListener('click', () => this.net.tradeDecline());
+
+      row.append(status, accept, decline);
+      body.appendChild(row);
+    },
+    stage2
+      ? `Screen two of two — nothing has moved yet.`
+      : `${t.with} has ${t.theirFree} free slot${t.theirFree === 1 ? '' : 's'}.`,
+    { kind: 'trade', onClose: () => this.net.tradeDecline() });
+
+    // wider than the other interfaces, because it has to show two packs at once
+    body.parentElement.classList.add('trade-window');
+  }
+
+  /** The server ended the trade; take the window down without declining again. */
+  closeTrade() {
+    if (this._open && this._open.kind === 'trade') this.closeOverlay();
+  }
+
+  tradeSide(heading, entries, editable, t) {
+    const col = document.createElement('div');
+    col.appendChild(sub(heading));
+    const grid = document.createElement('div');
+    grid.className = 'trade-grid';
+
+    entries.forEach((e, i) => {
+      const def = ITEMS[e.id];
+      const d = slotEl(e.id, e.n, true);
+      d.addEventListener('pointerenter', ev => this.hud.itemTip(ev, e.id, e.n));
+      d.addEventListener('pointermove', ev => this.hud.moveItemTip(ev));
+      d.addEventListener('pointerleave', () => this.hud.hideItemTip());
+      if (editable) {
+        d.addEventListener('click', () => this.net.tradeWithdraw(i, 1));
+        d.addEventListener('contextmenu', ev => {
+          ev.preventDefault();
+          this.qtyMenu(ev, def, 'Take back', n => this.net.tradeWithdraw(i, n), e.n);
+        });
+      }
+      grid.appendChild(d);
+    });
+    // a fixed number of empty slots, so the panel does not jump about
+    for (let i = entries.length; i < 12; i++) grid.appendChild(emptySlot());
+    col.appendChild(grid);
+
+    const total = entries.reduce((a, e) => a + (ITEMS[e.id]?.value || 0) * e.n, 0);
+    col.appendChild(el('div', 'trade-total',
+      entries.length ? `${entries.length} lot${entries.length === 1 ? '' : 's'} · about ${fmt(total)} gp` : 'Nothing offered'));
+    return col;
+  }
+
+  /** 1 / 5 / 10 / All, the quantities every interface in the game offers. */
+  qtyMenu(e, def, verb, run, max) {
+    const r = this.stage.getBoundingClientRect();
+    const entries = [1, 5, 10].filter(n => n <= max || n === 1)
+      .map(n => ({ label: `${verb} ${n}`, obj: n === 1 ? def.name : '', run: () => run(n) }));
+    entries.push({ label: `${verb} all`, obj: '', run: () => run(max) });
+    entries.push({ label: 'Examine', obj: def.name, run: () => log(this.state, def.examine || def.name) });
+    this.hud.openCtx(e.clientX - r.left, e.clientY - r.top, entries);
   }
 
   /* ---------------- shop ------------------------------------ */

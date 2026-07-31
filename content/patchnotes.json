@@ -1,0 +1,76 @@
+[
+  {
+    "version": "2026.07.31.1",
+    "date": "2026-07-31",
+    "title": "The Cartilage Rings",
+    "beat": "expansion",
+    "notes": [
+      "content: The map has grown. East of the Larynx Deep, past the cave road, the Throat opens into the Cartilage Rings — pale ribs of the stuff, standing in rows.",
+      "content: Two things live out there: ring gnawers, and whatever a chondral warden used to be. Neither is for a nurse who is still counting their first hundred.",
+      "content: Cartilage seams can be mined at Delving 45 for shards. The chondral wardens drop a splint worth carrying.",
+      "content: A waystation stands on the road in. It has a bed and a brazier and nobody in it."
+    ]
+  },
+  {
+    "version": "2026.07.31",
+    "date": "2026-07-31",
+    "title": "The Sounding",
+    "beat": "quest",
+    "notes": [
+      "content: New quest — The Sounding. Sister Lull keeps a listening post in the Larynx Deep, south of the cave road. She has been there long enough to stop hearing it.",
+      "content: The post is on the map now, with a bed, a brazier and somebody in it.",
+      "content: Ward deafeners can be earned from the quest — a hood for anyone working where the Throat is loud."
+    ]
+  },
+  {
+    "version": "0.5.0",
+    "date": "2026-07-31",
+    "title": "Trading, and a bulletin board",
+    "notes": [
+      "feature: Nurses can trade with each other. Click another nurse, or type /trade <name>. They have to ask you back before anything opens, the way it always worked.",
+      "feature: The trade has two screens. Offer, both accept, then a confirmation showing exactly what is about to change hands — and any change at all sends you both back to the first screen.",
+      "feature: Offered items leave your pack and are held until the trade settles. Declining, walking apart, dying or logging out all give them straight back.",
+      "feature: This bulletin. It appears once when the ward has changed, and /patch brings it back.",
+      "content: The ward can now take deliveries — new creatures, kit, recipes, quests and places arrive as content packs without the game being rebuilt around them."
+    ]
+  },
+  {
+    "version": "0.4.0",
+    "date": "2026-07-30",
+    "title": "Walking, tooltips and skill guides",
+    "notes": [
+      "fix: Nurses walk instead of sliding. Arms and legs swing in opposition, and which foot leads alternates properly even at a run.",
+      "feature: Hovering an item shows what it is, where it is worn, what it does, what it is worth, and — in red — any requirement you cannot meet.",
+      "feature: Clicking a skill opens what it unlocks, level by level, read straight from the game's own data."
+    ]
+  },
+  {
+    "version": "0.3.0",
+    "date": "2026-07-30",
+    "title": "Friends, whispers and coloured chat",
+    "notes": [
+      "feature: A friends list that tells you who is on shift, and tells them when you arrive.",
+      "feature: Whispers — /tell <name> <message> and /r to reply. Names with spaces go in quotes.",
+      "feature: Chat effects. Prefix a message with a colour and a motion: rainbow:wave:the ward is bleeding. /effects lists them all.",
+      "fix: A save written the instant before a reconnect can no longer be read back stale."
+    ]
+  },
+  {
+    "version": "0.2.0",
+    "date": "2026-07-30",
+    "title": "Sound, animation and slower resources",
+    "notes": [
+      "feature: Music that follows you between regions, and sound effects for everything the ward does. All of it synthesised at runtime; there is not an audio file in the repository.",
+      "feature: Attack animations for nurses and for the things attacking them, gathering animations, and doors that swing.",
+      "balance: Gathering and node respawn take meaningfully longer. Resources were popping back before you had walked away."
+    ]
+  },
+  {
+    "version": "0.1.0",
+    "date": "2026-07-29",
+    "title": "The ward opens",
+    "notes": [
+      "feature: Throatscape moves onto the server. Accounts, passwords and saved progress, one authoritative world, and everybody in it at once."
+    ]
+  }
+]

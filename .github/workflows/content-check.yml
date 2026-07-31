@@ -1,0 +1,49 @@
+name: Content check
+
+# Every pack in the repository still validates, and the game still plays.
+# Runs on anything that touches the game or its content, so a hand-written
+# change gets exactly the same gate as a generated one.
+
+on:
+  push:
+    branches: [main]
+    paths: ['content/**', 'js/**', 'server/**', 'tools/**']
+  pull_request:
+    paths: ['content/**', 'js/**', 'server/**', 'tools/**']
+  workflow_dispatch:
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Every pack validates
+        run: |
+          if [ -n "$(ls -A content/packs 2>/dev/null)" ]; then
+            node tools/validate.mjs --all
+          else
+            echo "no packs yet"
+          fi
+
+      - name: The game still plays
+        run: node tools/smoke.mjs
+
+      - name: The bulletin is well formed
+        run: |
+          node -e "
+            const list = require('./content/patchnotes.json');
+            if (!Array.isArray(list) || !list.length) throw new Error('no bulletins');
+            for (const e of list) {
+              if (!e.version || !e.date || !e.title || !Array.isArray(e.notes)) {
+                throw new Error('malformed entry: ' + JSON.stringify(e).slice(0, 120));
+              }
+            }
+            const versions = list.map(e => e.version);
+            if (new Set(versions).size !== versions.length) throw new Error('duplicate versions');
+            console.log(list.length + ' bulletins, newest ' + versions[0]);
+          "

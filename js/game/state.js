@@ -57,6 +57,7 @@ export function createState(name) {
     projectiles: [],
     target: null,
     action: null,
+    trade: null,                 // the open trade, as the server last described it
     hoverObj: null,
     moveMarker: null,
     snapCam: true,
@@ -228,6 +229,30 @@ export function canHold(state, id, n = 1) {
   if (!def) return false;
   if (def.stack) return freeSlots(state) > 0 || state.inventory.some(s => s && s.id === id);
   return freeSlots(state) >= n;
+}
+
+/**
+ * True if a whole parcel would fit at once — the question a trade has to ask
+ * before it moves anything, since handing over half of an agreed offer would
+ * be worse than refusing it.
+ */
+export function canHoldAll(state, entries) {
+  let free = freeSlots(state);
+  const held = new Set(state.inventory.filter(Boolean).map(s => s.id));
+  for (const e of entries || []) {
+    const def = ITEMS[e.id];
+    if (!def) return false;
+    if (def.stack) {
+      if (held.has(e.id)) continue;
+      if (free < 1) return false;
+      free--;
+      held.add(e.id);
+    } else {
+      if (free < e.n) return false;
+      free -= e.n;
+    }
+  }
+  return true;
 }
 
 /* ---------------- equipment --------------------------------- */

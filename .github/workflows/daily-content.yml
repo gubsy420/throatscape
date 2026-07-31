@@ -1,0 +1,190 @@
+name: Daily content
+
+# One delivery a day, written by Claude, gated by the validator and the smoke
+# test, published only if both pass. What kind of delivery it is depends on the
+# state of the game world, not on the calendar - see tools/beat.mjs.
+
+on:
+  schedule:
+    - cron: '20 3 * * *'          # 03:20 UTC, a quiet hour
+  workflow_dispatch:
+    inputs:
+      beat:
+        description: 'Force a beat (bestiary, arsenal, resource, boss, quest, expansion)'
+        required: false
+        type: string
+      dry_run:
+        description: 'Write and test the pack, but do not publish it'
+        required: false
+        type: boolean
+        default: false
+
+concurrency:
+  group: daily-content
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+  pull-requests: write
+  issues: write
+
+jobs:
+  deliver:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      # Work out what the world is short of before Claude is involved at all.
+      # If this fails, nothing else should run.
+      - name: Decide today's beat
+        id: beat
+        run: |
+          node tools/beat.mjs --beat "${{ inputs.beat }}" --out brief.json
+          node -e "
+            const b = require('./brief.json');
+            const out = require('fs');
+            out.appendFileSync(process.env.GITHUB_OUTPUT, 'beat=' + b.beat + '\n');
+            out.appendFileSync(process.env.GITHUB_OUTPUT, 'reason=' + b.reason + '\n');
+            console.log('beat   ', b.beat);
+            console.log('why    ', b.reason);
+            console.log('target ', b.target.name, '(levels ' + b.target.combatLevelBand.join('-') + ')');
+            console.log('budget ', JSON.stringify(b.budget));
+          "
+
+      - name: Confirm the game is healthy before adding to it
+        run: node tools/smoke.mjs --no-server
+
+      - name: Write the delivery
+        id: write
+        uses: anthropics/claude-code-action@v1
+        with:
+          claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          claude_args: >-
+            --allowedTools "Read,Write,Edit,Glob,Grep,Bash(node:*),Bash(cat:*),Bash(ls:*),Bash(git diff:*),Bash(git status:*)"
+            --max-turns 60
+          prompt: |
+            You are writing today's content delivery for Throatscape, a browser
+            MMORPG set in a hospital inside a body called Xavin's Throat.
+
+            Read `content/AUTHORING.md` first. It is the complete brief: the
+            file format, the tone, and what the gate will and will not accept.
+            Follow it exactly.
+
+            Today's assignment is in `brief.json` at the repository root. It
+            names the beat, the region to aim at, the level band, and the exact
+            numeric ceilings the validator enforces. Read it before writing
+            anything. Today's beat is **${{ steps.beat.outputs.beat }}**, because
+            ${{ steps.beat.outputs.reason }}
+
+            Before you write, read `js/data/items.js` and `js/data/npcs.js` and
+            match their voice. Plain, dry, a little grim, written the way a
+            tired nurse on a night shift would name things. No fantasy
+            vocabulary, no exclamation marks, no winking at the player.
+
+            Write exactly one file:
+              content/packs/$(date -u +%Y-%m-%d)-<short-name>.json
+
+            Then get it through the gate, fixing the pack until both pass:
+              node tools/validate.mjs content/packs/<your-file>.json
+              node tools/smoke.mjs content/packs/<your-file>.json
+
+            Rules that are not negotiable:
+              - Only edit files under content/packs/. Nothing else in the
+                repository may change. If the gate reports a problem that
+                appears to be a bug in the game rather than in your pack, stop,
+                leave the pack in place, and say so in your final message.
+              - Do not weaken, skip or edit the validator or the smoke test.
+              - Do not run tools/publish.mjs. A later step does that.
+              - `beat` in the pack must be "${{ steps.beat.outputs.beat }}".
+
+            Finish by printing a two-line summary: what you added, and what a
+            player will notice.
+
+      # The gate again, from outside Claude's session, so a pack that was
+      # never actually checked cannot reach the game.
+      - name: Find the pack
+        id: pack
+        run: |
+          file=$(git status --porcelain content/packs | awk '{print $2}' | head -1)
+          if [ -z "$file" ]; then
+            echo "no pack was written" >&2
+            exit 1
+          fi
+          echo "file=$file" >> "$GITHUB_OUTPUT"
+          echo "Wrote $file"
+
+      - name: Nothing outside content/packs may have changed
+        run: |
+          if git status --porcelain -- . ':!content/packs' | grep -q .; then
+            echo "The delivery touched files outside content/packs:" >&2
+            git status --porcelain -- . ':!content/packs' >&2
+            exit 1
+          fi
+
+      - name: Validate
+        run: node tools/validate.mjs "${{ steps.pack.outputs.file }}"
+
+      - name: Smoke test
+        run: node tools/smoke.mjs "${{ steps.pack.outputs.file }}"
+
+      - name: Publish
+        if: ${{ !inputs.dry_run }}
+        run: node tools/publish.mjs "${{ steps.pack.outputs.file }}"
+
+      - name: Smoke test again, as the game will actually load it
+        if: ${{ !inputs.dry_run }}
+        run: node tools/smoke.mjs
+
+      - name: Commit
+        if: ${{ !inputs.dry_run }}
+        run: |
+          git config user.name  "throatscape-content"
+          git config user.email "noreply@github.com"
+          git add content/
+          title=$(node -e "console.log(require('./${{ steps.pack.outputs.file }}').title)")
+          git commit -m "Content: ${title}" \
+                     -m "Beat: ${{ steps.beat.outputs.beat }} — ${{ steps.beat.outputs.reason }}" \
+                     -m "Written by Claude, gated by tools/validate.mjs and tools/smoke.mjs." \
+                     -m "Co-Authored-By: Claude <noreply@anthropic.com>"
+          git push
+
+      - name: Upload the pack and the brief either way
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: delivery-${{ github.run_id }}
+          path: |
+            brief.json
+            content/packs/
+          if-no-files-found: ignore
+          retention-days: 14
+
+      - name: Open an issue if the delivery failed
+        if: failure()
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const beat = '${{ steps.beat.outputs.beat }}' || 'unknown';
+            await github.rest.issues.create({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              title: `Daily content failed (${beat}) — ${new Date().toISOString().slice(0, 10)}`,
+              labels: ['content-pipeline'],
+              body: [
+                `The ${beat} delivery did not make it through the gate.`,
+                '',
+                `Run: ${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}`,
+                '',
+                'The brief and whatever was written are attached to the run as an artifact.',
+                'Nothing was published, so the live game is unchanged.'
+              ].join('\n')
+            });

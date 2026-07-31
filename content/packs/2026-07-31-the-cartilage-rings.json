@@ -1,0 +1,156 @@
+{
+  "id": "the_cartilage_rings",
+  "version": "2026.07.31.1",
+  "date": "2026-07-31",
+  "beat": "expansion",
+  "title": "The Cartilage Rings",
+  "summary": "The Throat goes on past the Larynx Deep. Somebody kept a waystation out there.",
+  "author": "hand-written, as the worked example of an expansion for content/AUTHORING.md",
+
+  "notes": [
+    "content: The map has grown. East of the Larynx Deep, past the cave road, the Throat opens into the Cartilage Rings — pale ribs of the stuff, standing in rows.",
+    "content: Two things live out there: ring gnawers, and whatever a chondral warden used to be. Neither is for a nurse who is still counting their first hundred.",
+    "content: Cartilage seams can be mined at Delving 45 for shards. The chondral wardens drop a splint worth carrying.",
+    "content: A waystation stands on the road in. It has a bed and a brazier and nobody in it."
+  ],
+
+  "regions": [
+    {
+      "id": "rings",
+      "name": "The Cartilage Rings",
+      "x": 184, "y": 6, "w": 48, "h": 44,
+      "base": "CHALK",
+      "tint": "#9a9186",
+      "blurb": "Pale rings of it, standing in rows, going on.",
+      "terrain": {
+        "rules": [
+          { "tile": "CAVEWALL", "coarse": { "below": 0.34 } },
+          { "tile": "STONE", "fine": { "above": 0.72 } },
+          { "tile": "MOSS", "fine": { "below": 0.24 } }
+        ]
+      },
+      "links": [
+        { "x1": 176, "y1": 28, "x2": 204, "y2": 28, "w": 4 }
+      ]
+    }
+  ],
+
+  "objects": [
+    {
+      "id": "cartilage_seam",
+      "name": "Cartilage seam",
+      "act": "Mine",
+      "skill": "delving",
+      "level": 45,
+      "xp": 250,
+      "yield": "cartilage_shard",
+      "tool": "delving",
+      "respawn": 110,
+      "art": "rock",
+      "c": "#ded9cb",
+      "examine": "It gives under the pick, then stops giving. Like a knuckle."
+    }
+  ],
+
+  "items": [
+    {
+      "id": "cartilage_shard",
+      "name": "Cartilage shard",
+      "stack": true,
+      "value": 70,
+      "examine": "Pale, faintly warm, and it squeaks against the teeth.",
+      "art": { "k": "ore", "c": "#ded9cb" }
+    },
+    {
+      "id": "ring_splint",
+      "name": "Ring splint",
+      "slot": "shield",
+      "value": 3000,
+      "req": { "warding": 35 },
+      "examine": "A section of ring, strapped to the arm. It was load-bearing once.",
+      "b": { "dStab": 26, "dSlash": 28, "dCrush": 25, "dRange": 26, "dMagic": -4 },
+      "art": { "k": "shield", "c": "#ded9cb" }
+    }
+  ],
+
+  "npcs": [
+    {
+      "id": "ring_gnawer",
+      "name": "Ring gnawer",
+      "hostile": true,
+      "lvl": 58,
+      "stats": { "att": 56, "str": 58, "def": 52, "hp": 105 },
+      "bon": { "atk": 50, "str": 54, "def": 46 },
+      "examine": "It has been eating the rings. You can hear which ones.",
+      "art": { "k": "crawler", "c": "#a89a86" },
+      "wander": 5,
+      "aggroRange": 6,
+      "speed": 4,
+      "respawn": 32,
+      "drops": [
+        { "id": "thick_bones", "n": [1, 1], "weight": 100 },
+        { "id": "coins", "n": [300, 1200], "weight": 42 },
+        { "id": "cartilage_shard", "n": [1, 3], "weight": 20 },
+        { "id": "chalk_lump", "n": [1, 3], "weight": 14 },
+        { "id": "steel_bar", "n": [1, 2], "weight": 10 },
+        { "id": null, "weight": 24 }
+      ]
+    },
+    {
+      "id": "chondral_warden",
+      "name": "Chondral warden",
+      "hostile": true,
+      "lvl": 70,
+      "stats": { "att": 62, "str": 64, "def": 58, "hp": 120 },
+      "bon": { "atk": 58, "str": 60, "def": 54 },
+      "examine": "Still walking its round. The round is nine rings long and it has forgotten the tenth.",
+      "art": { "k": "brute", "c": "#8f8676" },
+      "wander": 6,
+      "aggroRange": 7,
+      "speed": 5,
+      "respawn": 45,
+      "drops": [
+        { "id": "gasper_skull", "n": [1, 1], "weight": 100 },
+        { "id": "coins", "n": [500, 1400], "weight": 40 },
+        { "id": "cartilage_shard", "n": [2, 6], "weight": 22 },
+        { "id": "ring_splint", "n": [1, 1], "weight": 6 },
+        { "id": "bloodstone_ore", "n": [1, 3], "weight": 12 },
+        { "id": "greater_salve", "n": [1, 3], "weight": 10 },
+        { "id": null, "weight": 20 }
+      ]
+    }
+  ],
+
+  "sites": [
+    {
+      "id": "ring_waystation",
+      "name": "The Ring Waystation",
+      "region": "rings",
+      "x": 196, "y": 24, "w": 11, "h": 9,
+      "ground": "STONE",
+      "building": {
+        "x": 198, "y": 25, "w": 7, "h": 5,
+        "floor": "FLOOR",
+        "doors": [{ "x": 201, "y": 29 }]
+      },
+      "objects": [
+        { "type": "bed", "x": 199, "y": 26 },
+        { "type": "crate", "x": 203, "y": 26 },
+        { "type": "brazier", "x": 197, "y": 31 }
+      ],
+      "sign": {
+        "x": 205, "y": 31,
+        "text": "RING WAYSTATION — nine rings kept. Tenth not found."
+      }
+    }
+  ],
+
+  "spawns": [
+    { "npc": "ring_gnawer", "region": "rings", "count": 14, "allow": ["CHALK", "STONE"] },
+    { "npc": "chondral_warden", "region": "rings", "count": 8, "allow": ["CHALK", "MOSS"] }
+  ],
+
+  "scatter": [
+    { "type": "cartilage_seam", "region": "rings", "count": 16, "allow": ["CHALK", "STONE"] }
+  ]
+}

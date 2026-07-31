@@ -1,0 +1,141 @@
+{
+  "id": "the_sounding",
+  "version": "2026.07.31",
+  "date": "2026-07-31",
+  "beat": "quest",
+  "title": "The Sounding",
+  "summary": "Somebody has been keeping a listening post in the Larynx Deep, and would like to be relieved of it.",
+  "author": "hand-written, as the worked example for content/AUTHORING.md",
+
+  "notes": [
+    "content: New quest — The Sounding. Sister Lull keeps a listening post in the Larynx Deep, south of the cave road. She has been there long enough to stop hearing it.",
+    "content: The post is on the map now, with a bed, a brazier and somebody in it.",
+    "content: Ward deafeners can be earned from the quest — a hood for anyone working where the Throat is loud."
+  ],
+
+  "items": [
+    {
+      "id": "sounding_rod",
+      "name": "Sounding rod",
+      "value": 0,
+      "questItem": true,
+      "examine": "Hold it to the wall and the Throat tells you where it hurts.",
+      "art": { "k": "staff", "c": "#ded3bb" }
+    },
+    {
+      "id": "ward_deafeners",
+      "name": "Ward deafeners",
+      "slot": "head",
+      "value": 2200,
+      "req": { "warding": 30 },
+      "examine": "Waxed felt over both ears. You will miss things. That is the idea.",
+      "b": { "dStab": 12, "dSlash": 13, "dCrush": 12, "dRange": 12, "dMagic": 6, "vigil": 2 },
+      "art": { "k": "mask", "c": "#c6ced6" }
+    }
+  ],
+
+  "npcs": [
+    {
+      "id": "sister_lull",
+      "name": "Sister Lull",
+      "hostile": false,
+      "examine": "Watches your mouth when you speak, and has done for years.",
+      "art": { "k": "humanoid", "c": "#d9c0e0", "hat": "#e8dcc8" },
+      "talk": "the_sounding"
+    }
+  ],
+
+  "sites": [
+    {
+      "id": "listening_post",
+      "name": "The Listening Post",
+      "region": "larynx",
+      "x": 104, "y": 22, "w": 11, "h": 9,
+      "ground": "CAVE",
+      "building": {
+        "x": 106, "y": 23, "w": 7, "h": 5,
+        "floor": "FLOOR",
+        "doors": [{ "x": 109, "y": 27 }]
+      },
+      "objects": [
+        { "type": "bed", "x": 107, "y": 24 },
+        { "type": "crate", "x": 111, "y": 24 },
+        { "type": "brazier", "x": 105, "y": 29 }
+      ],
+      "spawns": [
+        { "npc": "sister_lull", "x": 109, "y": 29 },
+        { "npc": "patient_row", "x": 107, "y": 25 }
+      ],
+      "sign": {
+        "x": 113, "y": 29,
+        "text": "LISTENING POST — keep your voice down. She is working."
+      }
+    }
+  ],
+
+  "quests": [
+    {
+      "id": "the_sounding",
+      "name": "The Sounding",
+      "difficulty": "Experienced",
+      "length": "Short",
+      "qp": 2,
+      "start": "Speak to Sister Lull at the listening post, south of the cave road in the Larynx Deep.",
+      "desc": "The Throat has been quieter on one side for eleven weeks. Sister Lull has been listening to it alone, and can no longer hear well enough to be sure.",
+      "reqs": { "skills": { "vigil": 15 }, "quests": ["ward_duties"] },
+
+      "dialogue": {
+        "tree": "the_sounding",
+        "intro": [
+          "Speak up. No — face me when you do it. I read mouths now; the ears went years ago.",
+          "The east side of the Deep has gone quiet. Not quieter. Quiet. Eleven weeks of it.",
+          "The monks are packing the chambers. They think a silent Throat is a healed one."
+        ],
+        "accept": "Then I will unpack them.",
+        "refuse": "I am not going down there.",
+        "briefing": "Five of them, to start. Then find my sounding rod — I dropped it in the rubble and I could not hear it fall.",
+        "nudge": "Not finished. I would know; it is still quiet.",
+        "finish": [
+          "There. Say something. Anything.",
+          "That is the Throat, not you. It has been eleven weeks. Take the deafeners — you will want them now that it is loud again."
+        ],
+        "after": "Still sounding. I still cannot hear it, but I can feel it in the floor.",
+        "locked": "Come back when you have kept a vigil or two. This is not a place to learn in."
+      },
+
+      "steps": [
+        {
+          "kind": "kill",
+          "npc": "plague_monk",
+          "count": 5,
+          "text": "Clear five plague monks out of the resonating chambers.",
+          "tick": "One fewer hand doing the packing.",
+          "done": "That is enough of them. Now for the rod."
+        },
+        {
+          "kind": "search",
+          "obj": "rubble",
+          "item": "sounding_rod",
+          "text": "Search the rubble in the Deep for Sister Lull's sounding rod.",
+          "done": "The rod, under a fall of chalk. Still humming."
+        },
+        {
+          "kind": "fetch",
+          "item": "ironblood_ore",
+          "count": 4,
+          "text": "Bring four ironblood ore to the post — Lull wants the chambers re-lined.",
+          "done": "That will line the worst of them."
+        }
+      ],
+
+      "reportText": "The chambers are clear and the rod is found. Sister Lull will want to hear about it, in her fashion.",
+      "doneText": "The east side of the Larynx Deep is making sound again. Sister Lull cannot hear it, and stood in it for a long time anyway.",
+
+      "rewards": {
+        "qp": 2,
+        "xp": { "vigil": 2400, "delving": 900, "warding": 700 },
+        "items": [["coins", 1800], ["ward_deafeners", 1]]
+      }
+    }
+  ]
+}

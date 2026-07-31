@@ -205,7 +205,8 @@ export const QUESTS = [
 ];
 
 export const QUEST_BY_ID = Object.fromEntries(QUESTS.map(q => [q.id, q]));
-export const TOTAL_QP = QUESTS.reduce((a, q) => a + q.qp, 0);
+/** Live, because content packs may add quests after this module is evaluated. */
+export const totalQp = () => QUESTS.reduce((a, q) => a + q.qp, 0);
 
 /* ============================================================
    Dialogue

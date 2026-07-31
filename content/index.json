@@ -1,0 +1,8 @@
+{
+  "contentVersion": 1,
+  "note": "Packs are applied in the order listed. Every pack is additive: nothing here may change or remove anything that already exists in the game.",
+  "packs": [
+    "packs/2026-07-31-the-sounding.json",
+    "packs/2026-07-31-the-cartilage-rings.json"
+  ]
+}

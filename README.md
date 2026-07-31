@@ -176,11 +176,12 @@ nothing needs configuring on that side.
 | Drag inventory items | Rearrange your pack |
 | Hover an item | Its stats, its requirement, and what it is |
 | Click a skill | Everything it unlocks, level by level |
+| Click another nurse | Offer them a trade |
 
 Right-click an inventory item and choose **Use**, then click a target, to use one thing
 on another — that is how you dress a patient's wound.
 
-Chat commands: `/help`, `/where`, `/players`, `/effects`, `/logout`.
+Chat commands: `/help`, `/where`, `/players`, `/effects`, `/patch`, `/logout`.
 
 ### Talking to people
 
@@ -204,6 +205,22 @@ Colours are `red`, `green`, `cyan`, `purple`, `white`, `yellow`, `flash1`–`fla
 `glow` and `rainbow`; motions are `wave`, `wave2`, `shake` and `slide`. One of each,
 in either order. Anything else stays part of the message, so `note: fetch the gauze`
 says exactly that. `/effects` prints the list in game.
+
+### Trading
+
+Click another nurse, or type `/trade <name>`. Nothing opens until they ask you
+back — the same handshake the old games used, and the reason nobody can shove a
+window in front of you mid-fight.
+
+The trade has two screens. On the first you both put things up and both press
+Accept; on the second you are shown exactly what is about to change hands and
+have to accept again. Any change at all — one coin added or taken back — drops
+both acceptances and returns you both to the first screen.
+
+Offered items leave your pack the moment you offer them and are held until the
+trade settles. Every way out gives them back: declining, walking more than four
+tiles apart, dying, logging out, or the server restarting under you. Quest items
+cannot be offered at all.
 
 ### Getting started
 
@@ -255,7 +272,8 @@ not allow sound before you have touched the page, so the first click starts it.
 
 ## The world of Xavin's Throat
 
-A 192 × 192 tile map in seven regions, all walkable end to end:
+A map that starts at 192 × 192 tiles in seven regions, all walkable end to end,
+and grows eastward and southward as new ground is opened up:
 
 - **Lumbrisdale** — the starting town. Mercy House, bank, forge, apothecary, chapel.
 - **The Palate Wilds** — open ground with hacklings and feral patients.
@@ -264,8 +282,109 @@ A 192 × 192 tile map in seven regions, all walkable end to end:
 - **The Gullet Road** — a long red corridor. Nothing good uses it.
 - **Uvula Heights** — chalk cliffs, plague monks, the Chapel of the Uvula.
 - **The Larynx Deep** — the dark at the top, and the boss who never left her shift.
+- **The Cartilage Rings** — pale rings standing in rows, east of the Deep. The
+  first ground opened by the content pipeline.
 
-Five quests, twelve quest points, ending with *The Choking Matron*.
+Six quests, fourteen quest points. The hand-written arc ends with *The Choking
+Matron*; everything after that arrives a day at a time.
+
+---
+
+## Content, a day at a time
+
+The game grows on its own. Once a day a GitHub Action asks what the world is
+short of, has Claude write it, puts it through a gate, and publishes it only if
+it passes. Players see a bulletin on the login screen the next time they log in.
+
+### What arrives, and when
+
+Nothing is on a calendar. `tools/beat.mjs` takes a census of the newest region —
+what lives there, what can be gathered there, whether anything waits at the end
+of it, whether anybody has a reason to go — and asks for whichever of those is
+missing. Only when the newest ground has all four is the map allowed to grow
+again, and then the cycle starts over in the new place.
+
+| Beat | Brings | Roughly |
+| --- | --- | --- |
+| `bestiary` | A handful of new creatures | often |
+| `arsenal` | A weapon or a piece of armour, and its recipe | often |
+| `resource` | Something to gather, and something to make from it | every few days |
+| `boss` | One large thing in a lair, with a drop worth the trip | rarely |
+| `quest` | A reason to visit what has been added lately | rarely |
+| `expansion` | A whole new region, joined to the edge of the map | rarest |
+
+The cadence and the size of each delivery live in `content/schedule.json`. Edit
+that file and nothing else to change how fast the game grows.
+
+### What a delivery is
+
+One JSON file in `content/packs/`. **Data, never code.** A pack can add items,
+scenery, creatures, recipes, shop stock, skills, quests and regions; it cannot
+change or remove anything that already exists. Quests arrive as a list of steps —
+`kill`, `fetch`, `search`, `treat` — which `js/data/content.js` compiles into the
+same hooks a hand-written quest uses. No behaviour in this game is ever written
+by the pipeline, only numbers, names and prose.
+
+That is what makes the whole thing safe to run unattended: the worst a bad pack
+can do is add something nobody likes, and the worst a malicious one can do is
+fail to load.
+
+`content/AUTHORING.md` is the complete brief, and the two packs in
+`content/packs/` are worked examples — one quest, one map expansion.
+
+### The gate
+
+Nothing ships that has not passed both, twice: once inside the authoring session
+and again from outside it, so a pack that was never actually checked cannot reach
+the game.
+
+```
+node tools/validate.mjs content/packs/whatever.json
+node tools/smoke.mjs    content/packs/whatever.json
+```
+
+**`validate.mjs`** checks that the pack is additive only; that everything it
+mentions exists (drops, ingredients, quest targets, spawn regions, art shapes);
+that it only contains what its beat allows; that nothing exceeds the best thing
+already in the game at the same level by more than 15%; and that the world still
+builds afterwards, with every creature, node, site, quest giver and region
+reachable on foot from the ward.
+
+**`smoke.mjs`** boots the real simulation and plays it. It finds each new
+creature and kills it, gathers each new node, makes each new recipe, wears each
+new item, and takes each new quest from the first line of dialogue through to the
+reward. Then it boots the actual server and connects a real WebSocket client to
+it. If any of that cannot be done, the pack does not ship.
+
+### Growing the map
+
+New regions attach to the **east or south edge only**. Every coordinate in every
+saved game is measured from the same origin, so opening ground to the north or
+west would move every player in the world by the width of the new region.
+
+Terrain is a recipe rather than a special case — a base tile and a short list of
+noise rules — so a pack can open new ground without anyone editing `world.js`.
+The seven original regions were converted to the same format, and the map they
+generate is byte-for-byte what it was before.
+
+### Running it yourself
+
+```
+node tools/beat.mjs                       # what does the world need today?
+node tools/beat.mjs --beat expansion      # ask for something specific
+node tools/validate.mjs --all             # re-check every pack that has shipped
+node tools/smoke.mjs                      # play the whole game headlessly
+node tools/publish.mjs content/packs/x.json
+```
+
+The workflow is `.github/workflows/daily-content.yml`. It needs one secret,
+`CLAUDE_CODE_OAUTH_TOKEN` (from `claude setup-token`), or `ANTHROPIC_API_KEY`
+instead. Without it the scheduled job fails and opens an issue; the live game is
+untouched. `workflow_dispatch` takes a `beat` to force and a `dry_run` flag that
+writes and tests a pack without publishing it.
+
+If a delivery fails the gate, nothing is published, the pack and the brief are
+attached to the run as an artifact, and an issue is opened saying so.
 
 ---
 
@@ -304,6 +423,7 @@ docker-compose.yml      one service, one named volume, healthcheck, log rotation
 server/
   server.js             static files, RFC 6455 socket, the auth gate, the tick loop
   sim.js                the authoritative world: players, NPCs, ground, snapshots
+  trade.js              the two-screen trade, and the escrow that makes it safe
   accounts.js           registration, scrypt hashing, sessions, login throttling
   store.js              atomic JSON reads and writes under DATA_DIR
 js/
@@ -312,6 +432,7 @@ js/
   net.js                the protocol: intents out, snapshots folded into the replica
   data/
     world.js            tiles, regions, terrain generation, town layouts, scenery
+    content.js          content packs: applying them, and compiling their quests
     items.js            every item, with stats and procedural art descriptors
     skills.js           skill definitions and the XP curve
     npcs.js             monsters, stats, drop tables, shopkeepers
@@ -333,8 +454,21 @@ js/
     audio.js            synthesised effects and a generative score per region
   ui/
     hud.js              chat, orbs, tooltips, context menu
-    panels.js           the seven sidebar tabs
-    windows.js          dialogue, bank, shop, production interfaces
+    panels.js           the eight sidebar tabs
+    windows.js          dialogue, bank, shop, trade, production interfaces
+    patchnotes.js       the ward bulletin, shown once per update
+content/
+  index.json            the load order; every pack the game applies at boot
+  schedule.json         how often each kind of delivery may happen, and how big
+  patchnotes.json       every bulletin, newest first
+  AUTHORING.md          the complete brief for whoever writes a pack
+  packs/*.json          the deliveries themselves
+tools/
+  beat.mjs              decides what the world needs next, and writes the brief
+  validate.mjs          the gate: shape, references, scope, balance, reachability
+  smoke.mjs             plays the new content headlessly, then over a real socket
+  publish.mjs           load order and bulletin, for packs that passed
+  lib.mjs               shared plumbing and the balance curves
 ```
 
 ---
