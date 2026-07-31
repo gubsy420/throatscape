@@ -29,8 +29,10 @@ Then open **http://localhost:8080**, pick *New nurse*, and choose a name and a
 password of at least eight characters.
 
 The server needs Node 18+ and installs nothing — it serves the static client, runs
-the world, and holds the accounts, all on one port. Set `PORT` to move it and
-`DATA_DIR` to move the save files (default `./data`).
+the world, and holds the accounts, all on one port. Set `PORT` to move it,
+`DATA_DIR` to move the save files (default `./data`), and `PUBLIC_URL` to pin
+the address used in link previews (it is worked out from the request
+otherwise).
 
 Open a second browser window (or another machine on your network) to see other nurses
 walking around and to chat with them. One account can only be logged in once; a second
@@ -124,6 +126,34 @@ project has no dependencies to install.
 nurse goes with it. Session tokens are saved alongside the accounts, so restarting
 the container to pick up a new image does not throw logged-in players back to the
 password prompt — they reconnect on their own within a few seconds.
+
+### Link previews
+
+Sharing the URL anywhere that unfurls links — Discord, Slack, iMessage,
+Twitter, Signal — shows a card with the wordmark, a description and a shot of
+the ward. The tags are in `index.html` and the image is `assets/preview.jpg`.
+
+Crawlers will not resolve a relative image URL, so the tags have to carry an
+absolute one, and a container has no way of knowing its own public address.
+The server therefore fills `%ORIGIN%` in from the request: `X-Forwarded-Host`
+and `X-Forwarded-Proto` if a proxy set them, `CF-Visitor` if Cloudflare did,
+otherwise the `Host` header. Behind a Cloudflare tunnel that works with no
+configuration at all.
+
+Pin it if you would rather not depend on headers:
+
+```
+PUBLIC_URL=https://throatscape.example.com
+```
+
+The `Host` header comes from the client, so anything that is not a plain
+hostname is refused and the tags fall back to relative URLs rather than
+reflecting whatever was sent.
+
+To change the picture, take a screenshot of the game 1200x630 or larger at
+roughly 1.91:1 and replace `assets/preview.jpg`. Sharing platforms cache
+aggressively; Discord and Slack key on the URL, so append `?v=2` to the
+`og:image` tag or use their debugger to refresh.
 
 ### Putting it on the internet
 
@@ -417,6 +447,7 @@ interpolates between ticks at full frame rate.
 
 ```
 index.html              markup for the boot, login and game shells
+assets/preview.jpg      the 1200x630 card shown when the URL is shared
 css/style.css           the whole interface
 Dockerfile              58 MB alpine image, non-root, read-only rootfs, /data volume
 docker-compose.yml      one service, one named volume, healthcheck, log rotation

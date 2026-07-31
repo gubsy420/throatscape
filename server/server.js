@@ -24,6 +24,40 @@ const PORT = Number(process.env.PORT) || 8080;
 const HOST = process.env.HOST || '0.0.0.0';
 const MAX_PLAYERS = Number(process.env.MAX_PLAYERS) || 100;
 
+/**
+ * Where this instance lives, as the outside world sees it. Only used to fill
+ * in the link-preview tags, which have to carry absolute URLs - most crawlers
+ * will not resolve a relative one.
+ *
+ * Set PUBLIC_URL to pin it. Otherwise it is read from the request, which is
+ * what makes the previews work behind a Cloudflare tunnel or any other proxy
+ * without the container being told its own address.
+ */
+const PUBLIC_URL = String(process.env.PUBLIC_URL || '').trim().replace(/\/+$/, '');
+const HOST_RE = /^[a-z0-9]([a-z0-9.-]*[a-z0-9])?(:\d{1,5})?$/i;
+
+function originFor(req) {
+  if (PUBLIC_URL) return PUBLIC_URL;
+
+  // proxies append rather than replace, so the first hop is the client's
+  const first = h => String(h || '').split(',')[0].trim();
+  const host = first(req.headers['x-forwarded-host']) || first(req.headers.host);
+  // the Host header is attacker-controlled; anything unusual and we give up
+  // rather than reflecting it into the page
+  if (!HOST_RE.test(host || '')) return '';
+
+  let proto = first(req.headers['x-forwarded-proto']).toLowerCase();
+  if (!proto) {
+    // Cloudflare sends this even when x-forwarded-proto is missing
+    try { proto = JSON.parse(req.headers['cf-visitor'] || '{}').scheme || ''; }
+    catch { proto = ''; }
+  }
+  if (proto !== 'http' && proto !== 'https') {
+    proto = /^(localhost|127\.|\[?::1)/i.test(host) ? 'http' : 'https';
+  }
+  return `${proto}://${host}`;
+}
+
 const MIME = {
   '.html': 'text/html; charset=utf-8',
   '.js': 'text/javascript; charset=utf-8',
@@ -31,6 +65,9 @@ const MIME = {
   '.json': 'application/json; charset=utf-8',
   '.svg': 'image/svg+xml',
   '.png': 'image/png',
+  '.jpg': 'image/jpeg',
+  '.jpeg': 'image/jpeg',
+  '.webp': 'image/webp',
   '.ico': 'image/x-icon',
   '.woff2': 'font/woff2'
 };
@@ -85,11 +122,23 @@ const server = http.createServer((req, res) => {
       res.writeHead(404, { 'Content-Type': 'text/plain' }).end('Not found');
       return;
     }
+
+    let body = data;
+    if (urlPath === '/index.html') {
+      // the only templated file in the project: the preview tags need to know
+      // the address this request came in on
+      body = data.toString('utf8').replaceAll('%ORIGIN%', originFor(req));
+    }
+
+    const ext = path.extname(filePath).toLowerCase();
     res.writeHead(200, {
-      'Content-Type': MIME[path.extname(filePath).toLowerCase()] || 'application/octet-stream',
-      'Cache-Control': 'no-cache'
+      'Content-Type': MIME[ext] || 'application/octet-stream',
+      // the page changes with every content delivery; the artwork does not
+      'Cache-Control': ext === '.jpg' || ext === '.png' || ext === '.webp'
+        ? 'public, max-age=86400'
+        : 'no-cache'
     });
-    res.end(data);
+    res.end(body);
   });
 });
 

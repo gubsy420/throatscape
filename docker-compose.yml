@@ -23,6 +23,10 @@ services:
       PORT: 8080
       HOST: 0.0.0.0
       DATA_DIR: /data
+      # Only used for the link-preview tags. Leave it unset and the server
+      # reads the public address off the request, which is what you want
+      # behind a Cloudflare tunnel or any other reverse proxy.
+      # PUBLIC_URL: https://throatscape.example.com
 
     # Accounts and player saves. This is the only thing worth backing up, and
     # the only writable path in the container.
