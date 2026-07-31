@@ -23,5 +23,7 @@ build/
 tmp/
 *.tmp
 
-# Server-side player data - never commit accounts or saves
-data/
+# Server-side player data - never commit accounts or saves.
+# The leading slash matters: without it this also matches js/data/, and a new
+# file in there would be silently left out of every commit and every image.
+/data/
