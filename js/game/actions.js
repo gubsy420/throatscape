@@ -11,7 +11,7 @@ import {
   addXp, baseLevel, effLevel, addItem, removeItem, removeSlot, invCount, hasItem,
   canHold, freeSlots, log, toast, floater, meetsReq, equipFromSlot
 } from './state.js';
-import { npcBlocks, npcAt } from './combat.js';
+import { npcBlocks, tileBlocked, npcAt } from './combat.js';
 import { makeQuestApi, questHook } from './questapi.js';
 
 /* ---------------- movement ---------------------------------- */
@@ -20,7 +20,7 @@ export function walkTo(state, world, tx, ty, adjacentOk = false) {
   const p = state.player;
   if (p.dead) return;
   const path = findPath(p.x, p.y, tx, ty,
-    (x, y) => world.isWalkable(x, y) && !npcBlocks(state, x, y));
+    (x, y) => world.isWalkable(x, y) && !tileBlocked(state, x, y));
   if (adjacentOk && path.length && path[path.length - 1].x === tx && path[path.length - 1].y === ty) {
     path.pop();
   }
@@ -37,11 +37,11 @@ export function movePlayer(state, world) {
   for (let i = 0; i < steps; i++) {
     const next = p.path[0];
     if (!next) break;
-    if (!world.isWalkable(next.x, next.y) || npcBlocks(state, next.x, next.y)) {
+    if (!world.isWalkable(next.x, next.y) || tileBlocked(state, next.x, next.y)) {
       // something moved into the way; recompute once
       const goal = p.path[p.path.length - 1];
       p.path = findPath(p.x, p.y, goal.x, goal.y,
-        (x, y) => world.isWalkable(x, y) && !npcBlocks(state, x, y));
+        (x, y) => world.isWalkable(x, y) && !tileBlocked(state, x, y));
       if (!p.path.length) break;
       continue;
     }

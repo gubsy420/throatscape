@@ -126,7 +126,22 @@ button, input { font-family: inherit; font-size: inherit; color: inherit; }
   border-color: #d4586b; font-weight: 700;
 }
 .login-error { color: var(--danger); min-height: 1.2em; margin: 12px 0 0; font-size: 12px; }
-.login-foot { margin: 14px 0 0; font-size: 11px; color: #7c6a72; }
+.login-status { color: var(--bile); min-height: 1.2em; margin: 2px 0 0; font-size: 12px; }
+.login-foot { margin: 14px 0 0; font-size: 11px; color: #7c6a72; line-height: 1.7; }
+.login-warn { color: var(--gold); }
+
+#auth-tabs { display: flex; gap: 4px; margin: 0 0 16px; }
+.auth-tab {
+  flex: 1; padding: 7px 0; cursor: pointer; font-size: 13px;
+  background: #241119; border: 1px solid #4a2b36; border-radius: 5px;
+  color: var(--bone-dim); transition: background .12s, color .12s;
+}
+.auth-tab:hover { background: #331b25; }
+.auth-tab.active { background: var(--rose-dim); border-color: var(--rose); color: #fff; font-weight: 700; }
+
+#auth-form .btn.primary { width: 100%; }
+#auth-form .btn[disabled] { opacity: .5; cursor: wait; }
+.field[hidden] { display: none; }
 
 /* ---------- Game shell -------------------------------------- */
 

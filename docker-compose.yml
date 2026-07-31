@@ -22,9 +22,13 @@ services:
     environment:
       PORT: 8080
       HOST: 0.0.0.0
+      DATA_DIR: /data
 
-    # Player progress lives in each browser's localStorage and the server keeps
-    # nothing on disk, so the filesystem can be sealed shut.
+    # Accounts and player saves. This is the only thing worth backing up, and
+    # the only writable path in the container.
+    volumes:
+      - throatscape-data:/data
+
     read_only: true
     tmpfs:
       - /tmp
@@ -43,3 +47,6 @@ services:
       options:
         max-size: "10m"
         max-file: "3"
+
+volumes:
+  throatscape-data:

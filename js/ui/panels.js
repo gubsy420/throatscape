@@ -13,10 +13,8 @@ import { fmt, fmtStack, escapeHtml, clamp } from '../util.js';
 import { iconImg } from '../engine/icons.js';
 import {
   baseLevel, effLevel, skillXp, totalLevel, totalXp, combatLvl, questPoints,
-  questStage, questDone, canStartQuest, equipBonuses, unequip, equipFromSlot,
-  invCount, log, save, clearSave, meetsReq
+  questStage, questDone, equipBonuses, invCount, log
 } from '../game/state.js';
-import { useItem, useItemOn, dropItem } from '../game/actions.js';
 import { makeQuestApi } from '../game/questapi.js';
 
 const TABS = [
@@ -30,10 +28,11 @@ const TABS = [
 ];
 
 export class Panels {
-  constructor(state, world, hud) {
+  constructor(state, world, hud, net) {
     this.state = state;
     this.world = world;
     this.hud = hud;
+    this.net = net;
     this.active = 'inventory';
     this.questOpen = null;
     this.strip = document.getElementById('tab-strip');
@@ -138,13 +137,13 @@ export class Panels {
       d.addEventListener('click', e => {
         e.stopPropagation();
         if (s.useSel != null && s.useSel !== i) {
-          useItemOn(s, this.world, s.useSel, { kind: 'item', idx: i });
+          this.net.useOnItem(s.useSel, i);
           s.useSel = null;
           this.render();
           return;
         }
         if (s.useSel === i) { s.useSel = null; this.render(); return; }
-        useItem(s, i);
+        this.net.useItem(i);
       });
 
       d.addEventListener('contextmenu', e => {
@@ -168,12 +167,7 @@ export class Panels {
       e.preventDefault();
       d.classList.remove('drop-target');
       const from = parseInt(e.dataTransfer.getData('text/plain'), 10);
-      if (Number.isInteger(from) && from !== i) {
-        const t = s.inventory[from];
-        s.inventory[from] = s.inventory[i];
-        s.inventory[i] = t;
-        this.render();
-      }
+      if (Number.isInteger(from) && from !== i) this.net.swap(from, i);
     });
 
     return d;
@@ -186,13 +180,13 @@ export class Panels {
     const rect = document.getElementById('stage').getBoundingClientRect();
     const x = e.clientX - rect.left, y = e.clientY - rect.top;
 
-    if (def.slot) entries.push({ label: 'Wear', obj: def.name, run: () => equipFromSlot(s, i) });
-    if (def.heal) entries.push({ label: 'Eat', obj: def.name, run: () => useItem(s, i) });
-    if (def.potion) entries.push({ label: 'Drink', obj: def.name, run: () => useItem(s, i) });
-    if (def.buryXp) entries.push({ label: 'Bury', obj: def.name, run: () => useItem(s, i) });
+    if (def.slot) entries.push({ label: 'Wear', obj: def.name, run: () => this.net.equip(i) });
+    if (def.heal) entries.push({ label: 'Eat', obj: def.name, run: () => this.net.useItem(i) });
+    if (def.potion) entries.push({ label: 'Drink', obj: def.name, run: () => this.net.useItem(i) });
+    if (def.buryXp) entries.push({ label: 'Bury', obj: def.name, run: () => this.net.useItem(i) });
     entries.push({ label: 'Use', obj: def.name, run: () => { s.useSel = i; this.render(); } });
     if (!def.questItem) {
-      entries.push({ label: 'Drop', obj: def.name, run: () => { dropItem(s, i); this.render(); } });
+      entries.push({ label: 'Drop', obj: def.name, run: () => this.net.drop(i) });
     }
     entries.push({ label: 'Examine', obj: def.name, run: () => log(s, def.examine || def.name) });
 
@@ -228,12 +222,12 @@ export class Panels {
             d.appendChild(q);
           }
           d.title = ITEMS[id].name;
-          d.addEventListener('click', () => { unequip(s, slot); this.render(); });
+          d.addEventListener('click', () => this.net.unequip(slot));
           d.addEventListener('contextmenu', ev => {
             ev.preventDefault();
             const rect = document.getElementById('stage').getBoundingClientRect();
             this.hud.openCtx(ev.clientX - rect.left, ev.clientY - rect.top, [
-              { label: 'Remove', obj: ITEMS[id].name, run: () => { unequip(s, slot); this.render(); } },
+              { label: 'Remove', obj: ITEMS[id].name, run: () => this.net.unequip(slot) },
               { label: 'Examine', obj: ITEMS[id].name, run: () => log(s, ITEMS[id].examine) }
             ]);
           });
@@ -270,11 +264,7 @@ export class Panels {
       const b2 = el('div', 'pbtn' + (s.attackStyle === key ? ' on' : ''));
       b2.textContent = st.icon;
       b2.title = st.name + ' — trains ' + st.xp.map(x => SKILL_BY_ID[x].name).join(', ');
-      b2.addEventListener('click', () => {
-        s.attackStyle = key;
-        log(s, `Attack style: ${st.name}.`);
-        this.render();
-      });
+      b2.addEventListener('click', () => this.net.style(key));
       styleRow.appendChild(b2);
     }
     this.panel.appendChild(styleRow);
@@ -423,19 +413,7 @@ export class Panels {
       const b = el('div', 'pbtn' + (locked ? ' locked' : '') + (on ? ' on' : ''));
       b.innerHTML = v.icon + `<span class="plvl">${v.level}</span>`;
       b.title = `${v.name} (level ${v.level})\n${v.desc}`;
-      if (!locked) {
-        b.addEventListener('click', () => {
-          if (on) {
-            s.vigil.active = s.vigil.active.filter(x => x !== v.id);
-          } else {
-            if (s.vigil.points <= 0) { log(s, 'I have no vigil left. I should rest at an altar.', 'bad'); return; }
-            s.vigil.active = s.vigil.active.filter(x => !conflicts(x, v.id));
-            s.vigil.active.push(v.id);
-            log(s, `You begin ${v.name}.`, 'good');
-          }
-          this.render();
-        });
-      }
+      if (!locked) b.addEventListener('click', () => this.net.vigil(v.id));
       grid.appendChild(b);
     }
     this.panel.appendChild(grid);
@@ -480,16 +458,8 @@ export class Panels {
   }
 
   castSpell(sp) {
-    const s = this.state;
-    if (sp.kind === 'attack' || sp.kind === 'drain') {
-      s.autocast = s.autocast === sp.id ? null : sp.id;
-      log(s, s.autocast ? `Autocasting ${sp.name}.` : 'Autocast cleared.');
-      this.render();
-      return;
-    }
-    const ok = Object.entries(sp.runes).every(([r, n]) => invCount(s, r) >= n);
-    if (!ok) { log(s, 'I do not have the runes for that.', 'bad'); return; }
-    s.bus.emit('castutility', sp);
+    if (sp.kind === 'attack' || sp.kind === 'drain') this.net.autocast(sp.id);
+    else this.net.castUtility(sp.id);
   }
 
   /* ============ settings =================================== */
@@ -507,52 +477,32 @@ export class Panels {
       sw.querySelector('input').addEventListener('change', e => {
         s.settings[key] = e.target.checked;
         onChange && onChange(e.target.checked);
-        save(s);
+        try { localStorage.setItem('throatscape.settings', JSON.stringify(s.settings)); } catch {}
       });
       row.append(el('span', '', label), sw);
       this.panel.appendChild(row);
     };
 
-    toggle('Connect to other nurses', 'multiplayer', v => s.bus.emit('netToggle', v));
     toggle('Show hover tooltips', 'showTooltips');
     toggle('Reduced effects', 'lowDetail', v => s.bus.emit('detail', v));
 
     const info = el('div', 'hint');
     info.style.margin = '12px 0';
-    const mins = Math.floor(s.playtime / 60);
     info.innerHTML =
       `Nurse <b>${escapeHtml(s.name)}</b><br>` +
-      `Playtime: ${Math.floor(mins / 60)}h ${mins % 60}m<br>` +
-      `Combat level ${combatLvl(s)} &middot; Total level ${totalLevel(s)}`;
+      `Combat level ${combatLvl(s)} &middot; Total level ${totalLevel(s)}<br>` +
+      `<span style="color:#7c6a72">Progress is kept on the server and saves itself.</span>`;
     this.panel.appendChild(info);
 
     const acts = el('div', 'set-actions');
 
-    const saveBtn = el('button', 'btn', 'Save now');
-    saveBtn.addEventListener('click', () => {
-      save(s);
-      log(s, 'Progress saved.', 'good');
+    const logout = el('button', 'btn danger', 'Log out');
+    logout.addEventListener('click', () => {
+      this.net.logout();
+      location.reload();
     });
 
-    const exportBtn = el('button', 'btn', 'Export save');
-    exportBtn.addEventListener('click', () => s.bus.emit('export'));
-
-    const wipe = el('button', 'btn danger', 'Delete this nurse');
-    wipe.addEventListener('click', () => {
-      if (wipe.dataset.armed) {
-        clearSave();
-        location.reload();
-      } else {
-        wipe.dataset.armed = '1';
-        wipe.textContent = 'Really delete? Click again';
-        setTimeout(() => {
-          delete wipe.dataset.armed;
-          wipe.textContent = 'Delete this nurse';
-        }, 4000);
-      }
-    });
-
-    acts.append(saveBtn, exportBtn, wipe);
+    acts.append(logout);
     this.panel.appendChild(acts);
   }
 }

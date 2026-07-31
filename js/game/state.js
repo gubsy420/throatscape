@@ -41,7 +41,8 @@ export function createState(name) {
     equipment: {},
     bank: [],
     quests: {},
-    vigil: { points: 10, max: 10, active: [] },
+    // vigil points track the vigil level, which starts at 1
+    vigil: { points: 1, max: 1, active: [] },
     attackStyle: 'accurate',
     autocast: null,
 

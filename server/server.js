@@ -1,9 +1,10 @@
 /* ============================================================
    Throatscape server
    ------------------------------------------------------------
-   Serves the client and runs a small presence/chat relay.
-   No dependencies: the WebSocket layer (RFC 6455) is implemented
-   here directly on top of the raw upgrade socket.
+   Serves the client, owns the authoritative game world, and
+   holds the accounts. The WebSocket layer (RFC 6455) is
+   implemented here directly on the upgrade socket, so the whole
+   project installs nothing.
    ============================================================ */
 
 import http from 'node:http';
@@ -12,10 +13,15 @@ import path from 'node:path';
 import crypto from 'node:crypto';
 import { fileURLToPath } from 'node:url';
 
+import { initStore, readPlayer, writePlayer, DATA_DIR } from './store.js';
+import { Accounts, keyFor } from './accounts.js';
+import { Sim, TICK_MS } from './sim.js';
+
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.resolve(__dirname, '..');
 const PORT = Number(process.env.PORT) || 8080;
 const HOST = process.env.HOST || '0.0.0.0';
+const MAX_PLAYERS = Number(process.env.MAX_PLAYERS) || 100;
 
 const MIME = {
   '.html': 'text/html; charset=utf-8',
@@ -27,6 +33,15 @@ const MIME = {
   '.ico': 'image/x-icon',
   '.woff2': 'font/woff2'
 };
+
+/* ============================================================
+   Boot
+   ============================================================ */
+
+initStore();
+const accounts = new Accounts();
+await accounts.load();
+const sim = new Sim();
 
 /* ============================================================
    Static files
@@ -42,9 +57,14 @@ const server = http.createServer((req, res) => {
   }
   if (urlPath === '/') urlPath = '/index.html';
 
+  if (urlPath === '/health') {
+    res.writeHead(200, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ ok: true, players: sim.playerCount, accounts: accounts.count, tick: sim.tick }));
+    return;
+  }
+
   const filePath = path.join(ROOT, urlPath);
-  // never serve outside the project directory
-  if (!filePath.startsWith(ROOT + path.sep) && filePath !== path.join(ROOT, 'index.html')) {
+  if (!filePath.startsWith(ROOT + path.sep)) {
     res.writeHead(403).end('Forbidden');
     return;
   }
@@ -67,14 +87,10 @@ const server = http.createServer((req, res) => {
    ============================================================ */
 
 const GUID = '258EAFA5-E914-47DA-95CA-C5AB0DC85B11';
-const clients = new Map();          // id -> client
-let nextId = 1;
+const clients = new Set();
 
 server.on('upgrade', (req, socket) => {
-  if (new URL(req.url, 'http://x').pathname !== '/ws') {
-    socket.destroy();
-    return;
-  }
+  if (new URL(req.url, 'http://x').pathname !== '/ws') { socket.destroy(); return; }
   const key = req.headers['sec-websocket-key'];
   if (!key) { socket.destroy(); return; }
 
@@ -88,21 +104,18 @@ server.on('upgrade', (req, socket) => {
   socket.setNoDelay(true);
 
   const client = {
-    id: nextId++,
     socket,
-    name: 'Nurse',
-    x: 30, y: 152,
-    joined: false,
+    ip: req.socket.remoteAddress || 'unknown',
+    session: null,           // set once authenticated
     buffer: Buffer.alloc(0),
-    alive: true,
+    msgCount: 0,
     lastMsg: Date.now(),
-    msgCount: 0
+    authBusy: false
   };
-  clients.set(client.id, client);
+  clients.add(client);
 
   socket.on('data', chunk => {
     client.buffer = Buffer.concat([client.buffer, chunk]);
-    // a socket that never sends a valid frame should not eat memory
     if (client.buffer.length > 1 << 20) { drop(client); return; }
     let frame;
     while ((frame = readFrame(client.buffer))) {
@@ -114,22 +127,26 @@ server.on('upgrade', (req, socket) => {
   socket.on('error', () => drop(client));
   socket.on('close', () => drop(client));
 
-  send(client, { t: 'welcome', id: client.id, count: clients.size });
+  send(client, { t: 'hello', players: sim.playerCount, accounts: accounts.count });
 });
 
 function drop(client) {
-  if (!clients.has(client.id)) return;
-  clients.delete(client.id);
+  if (!clients.has(client)) return;
+  clients.delete(client);
   try { client.socket.destroy(); } catch {}
-  if (client.joined) {
-    broadcast({ t: 'left', id: client.id });
-    console.log(`[-] ${client.name} left (${clients.size} online)`);
+
+  if (client.session) {
+    const s = client.session;
+    savePlayer(s).catch(e => console.warn(`[save] ${s.key}: ${e.message}`));
+    sim.remove(s.key);
+    client.session = null;
+    console.log(`[-] ${s.name} left (${sim.playerCount} online)`);
+    broadcastSystem(`${s.name} has gone off shift.`);
   }
 }
 
 /* ---------------- framing ----------------------------------- */
 
-/** Decodes one frame from the head of `buf`, or null if incomplete. */
 function readFrame(buf) {
   if (buf.length < 2) return null;
   const fin = (buf[0] & 0x80) !== 0;
@@ -185,123 +202,210 @@ function encodeFrame(data, opcode = 0x1) {
 }
 
 function send(client, obj) {
-  if (!client.alive) return;
-  try {
-    client.socket.write(encodeFrame(JSON.stringify(obj)));
-  } catch {
-    drop(client);
-  }
+  try { client.socket.write(encodeFrame(JSON.stringify(obj))); }
+  catch { drop(client); }
 }
 
-function broadcast(obj, except) {
-  const frame = encodeFrame(JSON.stringify(obj));
-  for (const c of clients.values()) {
-    if (c.id === except) continue;
-    try { c.socket.write(frame); } catch { drop(c); }
+function broadcastSystem(text) {
+  for (const c of clients) if (c.session) send(c, { t: 'msg', text, cls: 'system' });
+}
+
+function broadcastChat(from, text) {
+  for (const c of clients) {
+    if (!c.session) continue;
+    send(c, { t: 'chat', who: from, text });
   }
 }
 
 /* ---------------- protocol ---------------------------------- */
 
-function handleFrame(client, frame) {
+async function handleFrame(client, frame) {
   if (frame.opcode === 0x8) { drop(client); return; }
-  if (frame.opcode === 0x9) {                     // ping -> pong
+  if (frame.opcode === 0x9) {
     try { client.socket.write(encodeFrame(frame.payload, 0xA)); } catch {}
     return;
   }
   if (frame.opcode !== 0x1) return;
 
-  /* light rate limit: 30 messages per second, sustained */
   const now = Date.now();
   if (now - client.lastMsg > 1000) { client.lastMsg = now; client.msgCount = 0; }
-  if (++client.msgCount > 30) return;
+  if (++client.msgCount > 40) return;
 
   let msg;
   try { msg = JSON.parse(frame.payload.toString('utf8')); } catch { return; }
   if (!msg || typeof msg.t !== 'string') return;
 
-  switch (msg.t) {
-    case 'join': {
-      client.name = sanitizeName(msg.name);
-      client.x = clampInt(msg.x, 0, 191, 30);
-      client.y = clampInt(msg.y, 0, 191, 152);
-      client.joined = true;
-      broadcast({ t: 'join', id: client.id, name: client.name }, client.id);
-      console.log(`[+] ${client.name} joined (${clients.size} online)`);
-      break;
+  /* -------- unauthenticated -------- */
+  if (!client.session) {
+    if (msg.t === 'register' || msg.t === 'login' || msg.t === 'resume') {
+      if (client.authBusy) return;
+      client.authBusy = true;
+      try { await authenticate(client, msg); }
+      catch (e) {
+        console.warn('[auth]', e.message);
+        send(client, { t: 'authfail', error: 'Something went wrong. Try again.' });
+      }
+      client.authBusy = false;
     }
-    case 'move':
-      client.x = clampInt(msg.x, 0, 191, client.x);
-      client.y = clampInt(msg.y, 0, 191, client.y);
-      break;
+    return;
+  }
 
-    case 'chat': {
-      const text = String(msg.text ?? '').slice(0, 120).replace(/[\x00-\x1f\x7f]/g, '');
-      if (!text.trim()) break;
-      broadcast({ t: 'chat', id: client.id, name: client.name, text });
-      break;
+  /* -------- authenticated -------- */
+  const s = client.session;
+
+  if (msg.t === 'chat') {
+    const text = String(msg.text ?? '').slice(0, 120).replace(/[\x00-\x1f\x7f]/g, '').trim();
+    if (!text) return;
+    sim.setChat(s, text);
+    broadcastChat(s.name, text);
+    return;
+  }
+
+  if (msg.t === 'logout') {
+    if (msg.token) accounts.revoke(String(msg.token));
+    drop(client);
+    return;
+  }
+
+  sim.handle(s, msg);
+}
+
+async function authenticate(client, msg) {
+  if (sim.playerCount >= MAX_PLAYERS) {
+    send(client, { t: 'authfail', error: 'The ward is full. Try again shortly.' });
+    return;
+  }
+
+  let account = null;
+  let token = null;
+
+  if (msg.t === 'register') {
+    const res = await accounts.register(msg.name, msg.password);
+    if (res.error) { send(client, { t: 'authfail', error: res.error }); return; }
+    account = res;
+    token = accounts.issue(res.key);
+    console.log(`[*] new account: ${res.name}`);
+  } else if (msg.t === 'login') {
+    const res = await accounts.login(msg.name, msg.password, client.ip);
+    if (res.error) { send(client, { t: 'authfail', error: res.error }); return; }
+    account = res;
+    token = res.token;
+  } else {
+    const res = accounts.resume(msg.token);
+    if (!res) { send(client, { t: 'authfail', error: 'Session expired. Please log in.', expired: true }); return; }
+    account = res;
+    token = String(msg.token);
+  }
+
+  // one live session per account: kick the older connection
+  const existing = sim.get(account.key);
+  if (existing) {
+    for (const c of clients) {
+      if (c.session && c.session.key === account.key) {
+        send(c, { t: 'kicked', reason: 'You logged in from somewhere else.' });
+        drop(c);
+      }
     }
   }
+
+  const saved = await readPlayer(account.key);
+  const session = sim.add(account.key, account.name, saved);
+  client.session = session;
+
+  send(client, { t: 'auth', name: account.name, token });
+  send(client, sim.initPacket(session));
+
+  console.log(`[+] ${account.name} joined (${sim.playerCount} online)`);
+  broadcastSystem(`${account.name} has arrived on the ward.`);
 }
 
-function sanitizeName(raw) {
-  const s = String(raw ?? '').replace(/[^A-Za-z0-9 _-]/g, '').trim().slice(0, 12);
-  return s.length >= 2 ? s : 'Nurse';
+/* ---------------- persistence ------------------------------- */
+
+async function savePlayer(session) {
+  await writePlayer(session.key, session.serialize());
 }
 
-function clampInt(v, lo, hi, fallback) {
-  const n = Number(v);
-  if (!Number.isFinite(n)) return fallback;
-  return Math.max(lo, Math.min(hi, Math.round(n)));
+async function saveAll() {
+  for (const c of clients) {
+    if (!c.session) continue;
+    try { await savePlayer(c.session); }
+    catch (e) { console.warn(`[save] ${c.session.key}: ${e.message}`); }
+  }
+  await accounts.save();
 }
 
-/* ---------------- presence broadcast ------------------------ */
+/* ============================================================
+   Main loop
+   ============================================================ */
 
-const presenceTimer = setInterval(() => {
-  const joined = [...clients.values()].filter(c => c.joined);
-  if (!joined.length) return;
-  const players = joined.map(c => ({ id: c.id, name: c.name, x: c.x, y: c.y }));
-  broadcast({ t: 'state', players });
-}, 300);
+let ticking = false;
+const tickTimer = setInterval(() => {
+  if (ticking) return;                    // never overlap a slow tick
+  ticking = true;
+  try {
+    sim.step();
+    for (const c of clients) {
+      if (!c.session) continue;
+      const out = c.session.outbox;
+      if (!out.length) continue;
+      for (const m of out) send(c, m);
+      out.length = 0;
+    }
+  } catch (e) {
+    console.error('[tick]', e);
+  }
+  ticking = false;
+}, TICK_MS);
 
-/* keep-alive ping so dead sockets get collected */
+/* periodic autosave, staggered off the tick */
+const saveTimer = setInterval(() => {
+  saveAll().catch(e => console.warn('[autosave]', e.message));
+}, 30_000);
+
+const sweepTimer = setInterval(() => accounts.sweep(), 60 * 60 * 1000);
+
 const pingTimer = setInterval(() => {
-  for (const c of clients.values()) {
+  for (const c of clients) {
     try { c.socket.write(encodeFrame(Buffer.alloc(0), 0x9)); } catch { drop(c); }
   }
-}, 25000);
+}, 25_000);
 
 server.listen(PORT, HOST, () => {
   console.log('');
   console.log('  Throatscape is open.');
-  console.log(`  Play at  http://localhost:${PORT}`);
+  console.log(`  Play at   http://localhost:${PORT}`);
+  console.log(`  Data in   ${DATA_DIR}`);
   console.log('  Ctrl+C to close the ward.');
+  if (HOST === '0.0.0.0') {
+    console.log('');
+    console.log('  Note: accounts are sent over this connection in the clear.');
+    console.log('  Put the server behind HTTPS before exposing it to the internet.');
+  }
   console.log('');
 });
 
 /* ---------------- graceful shutdown ------------------------- */
 
-/**
- * Containers stop the process with SIGTERM. Node installs no default handler
- * for it when running as PID 1, so without this `docker stop` would sit through
- * its whole timeout before killing us.
- */
 let closing = false;
-function shutdown(signal) {
+async function shutdown(signal) {
   if (closing) return;
   closing = true;
   console.log(`\n  ${signal} received - closing the ward.`);
 
-  clearInterval(presenceTimer);
+  clearInterval(tickTimer);
+  clearInterval(saveTimer);
+  clearInterval(sweepTimer);
   clearInterval(pingTimer);
 
-  for (const c of [...clients.values()]) {
+  try { await saveAll(); console.log('  Players saved.'); }
+  catch (e) { console.warn('  Save failed:', e.message); }
+
+  for (const c of [...clients]) {
     try { c.socket.end(); } catch {}
-    clients.delete(c.id);
+    clients.delete(c);
   }
 
   server.close(() => process.exit(0));
-  // do not hang forever on a socket that will not close
   setTimeout(() => process.exit(0), 3000).unref();
 }
 

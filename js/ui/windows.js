@@ -2,34 +2,28 @@
    Overlay windows - dialogue, bank, shop, and production
    ============================================================ */
 
-import { DIALOGUE, QUEST_BY_ID } from '../data/quests.js';
-import { NPCS } from '../data/npcs.js';
 import { ITEMS, itemName } from '../data/items.js';
 import { RECIPES, STATION_TITLE, STATION_SKILL } from '../data/recipes.js';
 import { SHOPS, buyPrice, sellPrice } from '../data/shops.js';
 import { SKILL_BY_ID } from '../data/skills.js';
-import { fmt, fmtStack, escapeHtml, clamp, chance } from '../util.js';
+import { fmt, fmtStack, escapeHtml } from '../util.js';
 import { iconImg } from '../engine/icons.js';
-import {
-  addItem, removeItem, invCount, canHold, freeSlots, addXp, baseLevel,
-  bankDeposit, bankDepositAll, bankWithdraw, log, toast, floater
-} from '../game/state.js';
-import { makeQuestApi } from '../game/questapi.js';
+import { invCount, baseLevel, log } from '../game/state.js';
 
 export class Windows {
-  constructor(state, world, hud, panels) {
+  constructor(state, world, hud, panels, net) {
     this.state = state;
     this.world = world;
     this.hud = hud;
     this.panels = panels;
+    this.net = net;
     this.stage = document.getElementById('stage');
     this.overlay = null;
     this.dlg = null;
     this.qty = 1;
 
-    state.bus.on('openbank', () => this.openBank());
-    state.bus.on('openshop', id => this.openShop(id));
-    state.bus.on('openmake', st => this.openMake(st));
+    // Which interface to open is the server's call; main.js routes that.
+    // These only keep an already-open window in step with new state.
     state.bus.on('inv', () => this.refreshOpen());
     state.bus.on('bank', () => this.refreshOpen());
 
@@ -96,66 +90,46 @@ export class Windows {
 
   /* ---------------- dialogue -------------------------------- */
 
-  openDialogue(npcId) {
-    const d = NPCS[npcId];
-    if (!d || !d.talk) return false;
-    const tree = DIALOGUE[d.talk];
-    if (!tree) return false;
+  /**
+   * Dialogue is resolved on the server, because choosing an option can start
+   * a quest or hand over an item. The client only paints the node it is sent
+   * and reports which option was clicked.
+   */
+  showDialogue(msg) {
+    if (!this.dlg) {
+      const box = document.createElement('div');
+      box.id = 'dialogue';
+      box.innerHTML =
+        `<div class="dlg-head">
+           <div class="dlg-face"></div>
+           <div class="dlg-name"></div>
+         </div>
+         <div class="dlg-text"></div>
+         <ul class="dlg-opts"></ul>
+         <div class="dlg-cont" hidden>Click to continue &rsaquo;</div>`;
+      this.stage.appendChild(box);
+      this.dlg = box;
+    }
 
-    this.closeDialogue();
-    this.tree = tree;
-    this.npcDef = d;
-    this.g = makeQuestApi(this.state);
+    this.dlg.querySelector('.dlg-face').textContent = msg.face === 'patient' ? '🛏️' : '🧑‍⚕️';
+    this.dlg.querySelector('.dlg-name').textContent = msg.npc || '';
+    this.dlg.querySelector('.dlg-text').textContent = msg.text || '';
 
-    const box = document.createElement('div');
-    box.id = 'dialogue';
-    box.innerHTML =
-      `<div class="dlg-head">
-         <div class="dlg-face">${d.art?.k === 'patient' ? '🛏️' : '🧑‍⚕️'}</div>
-         <div class="dlg-name">${escapeHtml(d.name)}</div>
-       </div>
-       <div class="dlg-text"></div>
-       <ul class="dlg-opts"></ul>
-       <div class="dlg-cont" hidden>Click to continue &rsaquo;</div>`;
-    this.stage.appendChild(box);
-    this.dlg = box;
-
-    const startId = typeof tree.start === 'function' ? tree.start(this.g) : tree.start;
-    this.gotoNode(startId);
-    return true;
-  }
-
-  gotoNode(id) {
-    if (!id || id === 'end') return this.closeDialogue();
-    const node = this.tree.nodes[id];
-    if (!node) return this.closeDialogue();
-
-    if (node.act) node.act(this.g);
-
-    const text = typeof node.text === 'function' ? node.text(this.g) : node.text;
-    if (!text) return this.gotoNode(node.to);      // pure action nodes fall through
-
-    const t = this.dlg.querySelector('.dlg-text');
     const opts = this.dlg.querySelector('.dlg-opts');
     const cont = this.dlg.querySelector('.dlg-cont');
-    t.textContent = text;
     opts.innerHTML = '';
 
-    const choices = (node.opts || []).filter(o => !o.if || o.if(this.g));
-    if (choices.length) {
+    if (msg.opts && msg.opts.length) {
       cont.hidden = true;
-      for (const o of choices) {
+      for (const o of msg.opts) {
         const li = document.createElement('li');
-        li.textContent = typeof o.label === 'function' ? o.label(this.g) : o.label;
-        li.addEventListener('click', () => {
-          if (o.act) o.act(this.g);
-          this.gotoNode(o.to);
-        });
+        li.textContent = o.label;
+        li.addEventListener('click', () => this.net.dialogue(o.i));
         opts.appendChild(li);
       }
     } else {
       cont.hidden = false;
-      cont.onclick = () => this.gotoNode(node.to);
+      cont.onclick = () => this.net.dialogue(null);
     }
   }
 
@@ -183,15 +157,15 @@ export class Windows {
       }
       s.bank.forEach((b, i) => {
         const d = slotEl(b.id, b.n, true);
-        d.addEventListener('click', () => bankWithdraw(s, i, 1));
+        d.addEventListener('click', () => this.net.bank('wd', { idx: i, n: 1 }));
         d.addEventListener('contextmenu', e => {
           e.preventDefault();
           const r = this.stage.getBoundingClientRect();
           this.hud.openCtx(e.clientX - r.left, e.clientY - r.top, [
-            { label: 'Withdraw 1', obj: itemName(b.id), run: () => bankWithdraw(s, i, 1) },
-            { label: 'Withdraw 5', obj: '', run: () => bankWithdraw(s, i, 5) },
-            { label: 'Withdraw 10', obj: '', run: () => bankWithdraw(s, i, 10) },
-            { label: 'Withdraw all', obj: '', run: () => bankWithdraw(s, i, b.n) },
+            { label: 'Withdraw 1', obj: itemName(b.id), run: () => this.net.bank('wd', { idx: i, n: 1 }) },
+            { label: 'Withdraw 5', obj: '', run: () => this.net.bank('wd', { idx: i, n: 5 }) },
+            { label: 'Withdraw 10', obj: '', run: () => this.net.bank('wd', { idx: i, n: 10 }) },
+            { label: 'Withdraw all', obj: '', run: () => this.net.bank('wd', { idx: i, n: b.n }) },
             { label: 'Examine', obj: itemName(b.id), run: () => log(s, ITEMS[b.id].examine || '') }
           ]);
         });
@@ -206,14 +180,14 @@ export class Windows {
       s.inventory.forEach((it, i) => {
         if (!it) { inv.appendChild(emptySlot()); return; }
         const d = slotEl(it.id, it.n);
-        d.addEventListener('click', () => bankDeposit(s, i, 1));
+        d.addEventListener('click', () => this.net.bank('dep', { idx: i, n: 1 }));
         d.addEventListener('contextmenu', e => {
           e.preventDefault();
           const r = this.stage.getBoundingClientRect();
           this.hud.openCtx(e.clientX - r.left, e.clientY - r.top, [
-            { label: 'Deposit 1', obj: itemName(it.id), run: () => bankDeposit(s, i, 1) },
-            { label: 'Deposit 5', obj: '', run: () => bankDeposit(s, i, 5) },
-            { label: 'Deposit all', obj: '', run: () => bankDepositAll(s, it.id) }
+            { label: 'Deposit 1', obj: itemName(it.id), run: () => this.net.bank('dep', { idx: i, n: 1 }) },
+            { label: 'Deposit 5', obj: '', run: () => this.net.bank('dep', { idx: i, n: 5 }) },
+            { label: 'Deposit all', obj: '', run: () => this.net.bank('depall', { id: it.id }) }
           ]);
         });
         inv.appendChild(d);
@@ -225,10 +199,7 @@ export class Windows {
       depAll.style.width = '100%';
       depAll.style.marginTop = '8px';
       depAll.textContent = 'Deposit everything';
-      depAll.addEventListener('click', () => {
-        const ids = [...new Set(s.inventory.filter(Boolean).map(x => x.id))];
-        for (const id of ids) bankDepositAll(s, id);
-      });
+      depAll.addEventListener('click', () => this.net.bank('depeverything'));
       right.appendChild(depAll);
 
       cols.append(left, right);
@@ -258,14 +229,14 @@ export class Windows {
         const price = buyPrice(shop, def.value);
         const d = slotEl(itemId, stockN, true);
         d.title = `${def.name}\n${fmt(price)} gp\n\n${def.examine || ''}`;
-        d.addEventListener('click', () => this.buy(shop, itemId, 1));
+        d.addEventListener('click', () => this.net.buy(shop.id, itemId, 1));
         d.addEventListener('contextmenu', e => {
           e.preventDefault();
           const r = this.stage.getBoundingClientRect();
           this.hud.openCtx(e.clientX - r.left, e.clientY - r.top, [
-            { label: 'Buy 1', obj: def.name, run: () => this.buy(shop, itemId, 1) },
-            { label: 'Buy 5', obj: '', run: () => this.buy(shop, itemId, 5) },
-            { label: 'Buy 10', obj: '', run: () => this.buy(shop, itemId, 10) },
+            { label: 'Buy 1', obj: def.name, run: () => this.net.buy(shop.id, itemId, 1) },
+            { label: 'Buy 5', obj: '', run: () => this.net.buy(shop.id, itemId, 5) },
+            { label: 'Buy 10', obj: '', run: () => this.net.buy(shop.id, itemId, 10) },
             { label: `Value: ${fmt(price)} gp`, obj: '', run: () => {} },
             { label: 'Examine', obj: def.name, run: () => log(s, def.examine || '') }
           ]);
@@ -284,14 +255,14 @@ export class Windows {
         const price = def.questItem ? 0 : sellPrice(shop, def.value);
         const d = slotEl(it.id, it.n);
         d.title = `${def.name}\nSells for ${fmt(price)} gp`;
-        d.addEventListener('click', () => this.sell(shop, i, 1));
+        d.addEventListener('click', () => this.net.sell(shop.id, i, 1));
         d.addEventListener('contextmenu', e => {
           e.preventDefault();
           const r = this.stage.getBoundingClientRect();
           this.hud.openCtx(e.clientX - r.left, e.clientY - r.top, [
-            { label: 'Sell 1', obj: def.name, run: () => this.sell(shop, i, 1) },
-            { label: 'Sell 5', obj: '', run: () => this.sell(shop, i, 5) },
-            { label: 'Sell all', obj: '', run: () => this.sell(shop, i, it.n) },
+            { label: 'Sell 1', obj: def.name, run: () => this.net.sell(shop.id, i, 1) },
+            { label: 'Sell 5', obj: '', run: () => this.net.sell(shop.id, i, 5) },
+            { label: 'Sell all', obj: '', run: () => this.net.sell(shop.id, i, it.n) },
             { label: 'Examine', obj: def.name, run: () => log(s, def.examine || '') }
           ]);
         });
@@ -303,40 +274,6 @@ export class Windows {
       body.appendChild(cols);
     }, `${shop.greeting}   —   You have ${fmt(invCount(s, 'coins'))} gp`);
   }
-
-  buy(shop, itemId, n) {
-    const s = this.state;
-    const def = ITEMS[itemId];
-    const price = buyPrice(shop, def.value);
-    let bought = 0;
-    for (let i = 0; i < n; i++) {
-      if (invCount(s, 'coins') < price) break;
-      if (!canHold(s, itemId, 1)) break;
-      removeItem(s, 'coins', price);
-      addItem(s, itemId, 1);
-      bought++;
-    }
-    if (!bought) {
-      log(s, invCount(s, 'coins') < price ? "I can't afford that." : 'My inventory is full.', 'bad');
-      return;
-    }
-    log(s, `You buy ${bought > 1 ? bought + ' x ' : ''}${def.name} for ${fmt(price * bought)} gp.`);
-  }
-
-  sell(shop, idx, n) {
-    const s = this.state;
-    const it = s.inventory[idx];
-    if (!it) return;
-    const def = ITEMS[it.id];
-    if (def.questItem) { log(s, 'They will not take that. Nor should they.', 'bad'); return; }
-    const price = sellPrice(shop, def.value);
-    const amount = Math.min(n, it.n);
-    removeItem(s, it.id, amount);
-    addItem(s, 'coins', price * amount);
-    log(s, `You sell ${amount > 1 ? amount + ' x ' : ''}${def.name} for ${fmt(price * amount)} gp.`);
-  }
-
-  /* ---------------- production ------------------------------ */
 
   openMake(station) {
     const s = this.state;
@@ -387,7 +324,7 @@ export class Windows {
 
         row.append(ic, bodyDiv, xp);
         if (levelOk && haveAll) {
-          row.addEventListener('click', () => this.make(station, r));
+          row.addEventListener('click', () => this.net.craft(station, r.out, this.qty));
         } else if (!levelOk) {
           row.addEventListener('click', () =>
             log(s, `I need ${SKILL_BY_ID[skill].name} level ${r.level} for that.`, 'bad'));
@@ -398,46 +335,6 @@ export class Windows {
     }, `${SKILL_BY_ID[skill].name} level ${lvl}`);
   }
 
-  make(station, r) {
-    const s = this.state;
-    const skill = STATION_SKILL[station];
-    let target = this.qty === 'All' ? 999 : this.qty;
-    let made = 0, burnt = 0;
-
-    while (made + burnt < target) {
-      const haveAll = Object.entries(r.need).every(([id, n]) => invCount(s, id) >= n);
-      if (!haveAll) break;
-      if (baseLevel(s, skill) < r.level) break;
-      if (freeSlots(s) <= 0 && !ITEMS[r.out].stack) break;
-
-      for (const [id, n] of Object.entries(r.need)) removeItem(s, id, n);
-
-      /* cooking can go wrong right up until you stop burning things */
-      if (r.burn !== undefined) {
-        const lvl = baseLevel(s, skill);
-        const stopAt = r.burnFrom + 20;
-        const burnChance = lvl >= stopAt ? 0
-          : clamp((r.burn / 100) * (1 - (lvl - r.level) / (stopAt - r.level)), 0, 0.6);
-        if (chance(burnChance)) {
-          addItem(s, 'burnt_offering', 1);
-          burnt++;
-          continue;
-        }
-      }
-
-      addItem(s, r.out, r.count);
-      addXp(s, skill, r.xp);
-      made++;
-    }
-
-    if (!made && !burnt) { log(s, 'I have nothing to work with.', 'bad'); return; }
-    if (made) {
-      log(s, `You make ${made * r.count > 1 ? made * r.count + ' x ' : ''}${ITEMS[r.out].name}.`, 'good');
-      floater(s, s.player.x, s.player.y, `+${Math.round(r.xp * made)} ${SKILL_BY_ID[skill].name}`, '#7fbf8f');
-    }
-    if (burnt) log(s, `You burn ${burnt} of them. The ward will not mind.`, 'bad');
-    this.openMake(station);
-  }
 }
 
 /* ---------------- helpers ----------------------------------- */

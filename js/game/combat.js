@@ -57,6 +57,14 @@ export function npcAt(state, x, y) {
 /** Blocked by living NPCs, so entities do not stack. */
 export const npcBlocks = (state, x, y) => !!npcAt(state, x, y);
 
+/**
+ * Blocked by anything that occupies a tile. On the server `state.occupied`
+ * additionally reports other players; in the browser it is absent, because
+ * the client does not decide who may stand where.
+ */
+export const tileBlocked = (state, x, y) =>
+  npcBlocks(state, x, y) || (state.occupied ? state.occupied(x, y) : false);
+
 /* ---------------- rolls ------------------------------------- */
 
 const roll = max => Math.floor(Math.random() * (max + 1));
@@ -153,7 +161,7 @@ export function playerAttackTick(state, world) {
     // walk into range
     if (!p.path.length) {
       const path = findPath(p.x, p.y, n.x, n.y,
-        (x, y) => world.isWalkable(x, y) && !npcBlocks(state, x, y));
+        (x, y) => world.isWalkable(x, y) && !tileBlocked(state, x, y));
       if (path.length) { path.pop(); p.path = path; }
     }
     return;

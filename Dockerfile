@@ -8,9 +8,15 @@ FROM node:22-alpine
 
 ENV NODE_ENV=production \
     PORT=8080 \
-    HOST=0.0.0.0
+    HOST=0.0.0.0 \
+    DATA_DIR=/data
 
 WORKDIR /app
+
+# Accounts and player saves live here. Mount a volume over it, or the world
+# is forgotten when the container is replaced.
+RUN mkdir -p /data && chown node:node /data
+VOLUME ["/data"]
 
 # Copy only what the game needs. The static server hands out anything beneath
 # its root, so the Dockerfile, README and git history deliberately stay out of
