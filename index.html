@@ -1,0 +1,97 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<title>Throatscape</title>
+<link rel="stylesheet" href="css/style.css">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'><text y='14' font-size='14'>&#129656;</text></svg>">
+</head>
+<body>
+
+<div id="boot">
+  <div class="boot-inner">
+    <h1 class="boot-logo">Throat<span>scape</span></h1>
+    <p class="boot-tag">A nurse's tale from the world of Xavin's Throat</p>
+    <div id="boot-bar"><div id="boot-fill"></div></div>
+    <p id="boot-status">Warming the autoclave&hellip;</p>
+  </div>
+</div>
+
+<div id="login" hidden>
+  <div class="login-panel">
+    <h1 class="boot-logo small">Throat<span>scape</span></h1>
+    <p class="login-blurb">
+      The Throat is choking. Physicians fled. Only you carry the kit.
+    </p>
+    <label class="field">
+      <span>Nurse name</span>
+      <input id="login-name" type="text" maxlength="12" autocomplete="off" spellcheck="false" placeholder="Nightingale">
+    </label>
+    <div class="login-row">
+      <button id="btn-play" class="btn primary">Enter the Throat</button>
+      <button id="btn-continue" class="btn" hidden>Continue saved nurse</button>
+    </div>
+    <div class="login-row small-row">
+      <label class="check"><input id="opt-multiplayer" type="checkbox" checked> Connect to other nurses</label>
+    </div>
+    <p id="login-error" class="login-error"></p>
+    <p class="login-foot">Left-click to walk &amp; interact &middot; Right-click for more options &middot; Progress saves locally</p>
+  </div>
+</div>
+
+<div id="game" hidden>
+
+  <div id="stage">
+    <canvas id="view"></canvas>
+
+    <div id="hud-top-left">
+      <div id="hud-name"></div>
+      <div id="hud-region"></div>
+    </div>
+
+    <div id="hud-orbs">
+      <div class="orb" id="orb-hp" title="Vitality">
+        <svg viewBox="0 0 40 40"><circle class="orb-bg" cx="20" cy="20" r="17"/><circle class="orb-fill hp" cx="20" cy="20" r="17"/></svg>
+        <span class="orb-val">10</span>
+      </div>
+      <div class="orb" id="orb-vigil" title="Vigil">
+        <svg viewBox="0 0 40 40"><circle class="orb-bg" cx="20" cy="20" r="17"/><circle class="orb-fill vigil" cx="20" cy="20" r="17"/></svg>
+        <span class="orb-val">1</span>
+      </div>
+      <div class="orb" id="orb-run" title="Run energy">
+        <svg viewBox="0 0 40 40"><circle class="orb-bg" cx="20" cy="20" r="17"/><circle class="orb-fill run" cx="20" cy="20" r="17"/></svg>
+        <span class="orb-val">100</span>
+      </div>
+    </div>
+
+    <div id="tooltip"></div>
+    <div id="ctxmenu" hidden><div class="ctx-title">Choose option</div><ul id="ctx-list"></ul></div>
+    <div id="toasts"></div>
+    <div id="levelup" hidden><div class="lu-inner"><div class="lu-icon"></div><div class="lu-text"></div></div></div>
+  </div>
+
+  <div id="chatbox">
+    <div id="chat-tabs">
+      <button class="chat-tab active" data-filter="all">All</button>
+      <button class="chat-tab" data-filter="game">Game</button>
+      <button class="chat-tab" data-filter="public">Public</button>
+      <button class="chat-tab" data-filter="quest">Quest</button>
+    </div>
+    <div id="chat-log"></div>
+    <div id="chat-entry">
+      <span id="chat-prompt"></span>
+      <input id="chat-input" type="text" maxlength="120" autocomplete="off" placeholder="Press Enter to chat">
+    </div>
+  </div>
+
+  <div id="sidebar">
+    <div id="tab-strip"></div>
+    <div id="panel"></div>
+  </div>
+
+</div>
+
+<script type="module" src="js/main.js"></script>
+</body>
+</html>

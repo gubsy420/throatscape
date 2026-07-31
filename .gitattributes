@@ -1,0 +1,8 @@
+# Normalise to LF in the repository so clones are identical on every platform
+# and files copied into the Linux container never arrive with CRLF.
+* text=auto eol=lf
+
+*.png binary
+*.jpg binary
+*.ico binary
+*.woff2 binary

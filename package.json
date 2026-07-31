@@ -1,0 +1,14 @@
+{
+  "name": "throatscape",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Throatscape - a browser MMORPG about a nurse adventurer in the world of Xavin's Throat",
+  "type": "module",
+  "scripts": {
+    "start": "node server/server.js",
+    "dev": "node server/server.js"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}

@@ -1,0 +1,17 @@
+# Everything the running game does not need. The Dockerfile copies paths
+# explicitly, so this is a second line of defence rather than the only one.
+.git
+.gitignore
+.github
+node_modules
+*.log
+.env
+.env.*
+.vscode
+.idea
+*.code-workspace
+Dockerfile
+.dockerignore
+docker-compose.yml
+README.md
+LICENSE
