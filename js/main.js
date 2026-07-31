@@ -11,9 +11,11 @@ import { NPCS } from './data/npcs.js';
 import { ITEMS, itemName } from './data/items.js';
 import { createState, log, toast } from './game/state.js';
 import { Renderer } from './engine/render.js';
+import { Renderer3D } from './engine/render3d.js';
+import { supported as glSupported } from './engine/gl/gl.js';
 import { Audio } from './engine/audio.js';
 import { Hud } from './ui/hud.js';
-import { Panels } from './ui/panels.js';
+import { Panels, loadSettings } from './ui/panels.js';
 import { Windows } from './ui/windows.js';
 import { Net, TOKEN_KEY, TICK_MS } from './net.js';
 import { COLOURS, MOTIONS } from './game/chatfx.js';
@@ -187,10 +189,43 @@ async function showLogin() {
    Game
    ============================================================ */
 
+/**
+ * The world is drawn in 3D where the browser can manage it. The flat renderer
+ * is kept, not as a relic but as the answer for a machine without WebGL2 and
+ * for anyone who prefers the overhead view - it is one setting away either
+ * way, and neither of them can fail into a black screen.
+ */
+function makeRenderer(state) {
+  const view = $('#view'), overlay = $('#overlay');
+  const flat = () => {
+    overlay.hidden = true;
+    return new Renderer(view, world);
+  };
+  if (state.settings.flatView) return flat();
+  if (!glSupported()) {
+    log(state, 'This browser has no WebGL2, so the Throat is drawn flat.', 'system');
+    return flat();
+  }
+  try {
+    overlay.hidden = false;
+    return new Renderer3D(view, overlay, world);
+  } catch (e) {
+    console.warn('[render] falling back to the flat view:', e.message);
+    log(state, 'The 3D view would not start, so the Throat is drawn flat.', 'system');
+    return flat();
+  }
+}
+
 function startGame(state, net) {
   $('#game').hidden = false;
 
-  const renderer = new Renderer($('#view'), world);
+  /*
+   * Settings before anything else: which renderer to build is one of them,
+   * and the panel that normally loads them is built after the renderer.
+   */
+  loadSettings(state);
+
+  const renderer = makeRenderer(state);
   const hud = new Hud(state);
   const audio = new Audio(state, world);
   const panels = new Panels(state, world, hud, net, audio);
@@ -211,6 +246,10 @@ function startGame(state, net) {
 
   log(state, `Welcome to Throatscape, ${state.name}.`, 'quest');
   log(state, 'Left-click to walk and interact. Right-click for more options.', 'system');
+  if (renderer.keys) {
+    log(state, 'Arrow keys turn and tilt the camera, the wheel zooms, ' +
+               'and the compass faces you north.', 'system');
+  }
   log(state, 'Your progress is kept on the server. Speak to Orderly Punn to begin.', 'system');
 
   startLoop(game);
@@ -268,6 +307,31 @@ function startLoop(game) {
 
 function probe(game, sx, sy) {
   const { state, world, renderer } = game;
+
+  /*
+   * In 3D the cursor is a ray, not a tile. A troll standing between you and
+   * the ground is hit before the ground is, which is the whole point: with
+   * only the tile under the cursor to go on, clicking a creature's head
+   * would walk you to whatever is standing behind it.
+   */
+  if (renderer.pick) {
+    const p = renderer.pick(sx, sy);
+    if (p.ent) {
+      const r = p.ent.ref;
+      const x = p.ent.kind === 'obj' ? r.x : Math.round(r.x ?? p.x);
+      const y = p.ent.kind === 'obj' ? r.y : Math.round(r.y ?? p.y);
+      return { kind: p.ent.kind, ref: r, x, y };
+    }
+    // nothing standing up was hit, so whatever is lying on that tile wins
+    for (let i = state.ground.length - 1; i >= 0; i--) {
+      const g = state.ground[i];
+      if (g.x === p.x && g.y === p.y) return { kind: 'ground', ref: g, x: p.x, y: p.y };
+    }
+    const o = world.objectAt(p.x, p.y);
+    if (o) return { kind: 'obj', ref: o, x: p.x, y: p.y };
+    return { kind: 'tile', x: p.x, y: p.y };
+  }
+
   const t = renderer.screenToTile(sx, sy);
 
   // people first: another nurse standing on a herb patch is still the thing
@@ -321,6 +385,11 @@ function wireInput(game) {
 
   canvas.addEventListener('mousemove', e => {
     const m = local(e);
+    if (renderer.compassAt && renderer.compassAt(m.x, m.y)) {
+      state.hoverObj = null;
+      hud.showTooltip(m.x, m.y, 'Face', 'north');
+      return;
+    }
     const hit = probe(game, m.x, m.y);
     state.hoverObj = hit.kind === 'obj' ? hit.ref : null;
     const l = labelFor(hit);
@@ -336,6 +405,7 @@ function wireInput(game) {
   canvas.addEventListener('click', e => {
     if (hud.ctxOpen) { hud.closeCtx(); return; }
     const m = local(e);
+    if (renderer.compassAt && renderer.compassAt(m.x, m.y)) { renderer.faceNorth(); return; }
     const hit = probe(game, m.x, m.y);
 
     if (state.useSel != null) {
@@ -356,7 +426,36 @@ function wireInput(game) {
 
   $('#orb-run').addEventListener('click', () => net.toggleRun());
 
+  if (renderer.zoomBy) {
+    canvas.addEventListener('wheel', e => {
+      e.preventDefault();
+      renderer.zoomBy(Math.sign(e.deltaY) * 1.1);
+    }, { passive: false });
+  }
+
+  /*
+   * The arrow keys drive the camera and nothing else, so they are tracked as
+   * held rather than pressed: the camera turns however long the key was down
+   * for, which is smooth at any frame rate. Anyone typing keeps their arrows.
+   */
+  const CAMERA_KEYS = ['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown'];
+  const typing = () => {
+    const el = document.activeElement;
+    return !!el && (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA' || el.isContentEditable);
+  };
+
+  window.addEventListener('keyup', e => renderer.keys?.delete(e.key));
+  // a key held while the tab loses focus never reports its release
+  window.addEventListener('blur', () => renderer.keys?.clear());
+
   window.addEventListener('keydown', e => {
+    if (renderer.keys && CAMERA_KEYS.includes(e.key)) {
+      if (typing()) return;
+      renderer.keys.add(e.key);
+      e.preventDefault();
+      return;
+    }
+
     const chat = $('#chat-input');
     if (document.activeElement === chat) return;
     if (e.key === 'Enter') { chat.focus(); e.preventDefault(); return; }

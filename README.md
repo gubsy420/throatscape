@@ -199,6 +199,10 @@ nothing needs configuring on that side.
 | --- | --- |
 | Left-click | Walk, attack, talk, chop, mine, pick up — whatever is under the cursor |
 | Right-click | Full option menu for that thing |
+| `←` `→` | Turn the camera around you |
+| `↑` `↓` | Raise the camera overhead, or bring it down to eye level |
+| Mouse wheel | Zoom in and out |
+| Click the compass | Face north again |
 | `1`–`7` | Switch sidebar tab |
 | `Enter` | Jump to the chat box |
 | `Esc` | Cancel the current action, close windows |
@@ -466,6 +470,12 @@ server/
 js/
   main.js               boot, the login screen, input handling, the render loop
   util.js               A*, seeded noise, maths, event bus
+  engine/
+    render3d.js         the 3D view: terrain, models, picking, the frame
+    render.js           the flat overhead view, kept as the fallback
+    overlay.js          names, chat, hitsplats and the minimap, drawn over the scene
+    gl/                 matrices, shaders, meshes, the orbiting camera
+    models/             the ground, and every creature and prop, built from solids
   net.js                the protocol: intents out, snapshots folded into the replica
   data/
     world.js            tiles, regions, terrain generation, town layouts, scenery
@@ -510,6 +520,41 @@ tools/
 ```
 
 ---
+
+## How the world is drawn
+
+The Throat is drawn in 3D: low-polygon, flat-shaded, untextured, with a camera you
+orbit around yourself. That is a description of the renderer and of the games this
+one is imitating, in that order.
+
+There is no engine behind it and nothing was installed. `js/engine/gl/` is about six
+hundred lines of matrices, shaders and vertex buffers, and one shader pair serves the
+whole world: a colour per vertex, a key light, a two-colour fill from sky and ground,
+and distance fog. Every model is built at boot out of boxes, six-sided drums and cones
+by code that reads the same object and creature definitions the flat renderer read —
+so a content pack that adds a tree in a new colour gets a tree in a new colour, with
+nobody modelling anything.
+
+**The server never hears about any of it.** It still thinks in flat tiles. Walkability,
+pathfinding, ranges and every saved position mean exactly what they meant, and a player
+on the flat renderer and a player on the 3D one are standing in the same place. Height
+is a deterministic noise field computed on the client from the same hash the tile
+speckle always used, which is why it needs nothing from the wire and why two machines
+cannot disagree about it.
+
+Heights live on tile **corners**, never on tiles, so neighbouring tiles share their
+edges and the landscape has no cracks in it. Ground colour is blended per corner too,
+but only between tiles of the same kind: blend everything and a stone road dissolves
+into the turf either side of it, blend nothing and every field is a chequerboard.
+
+The interface stays flat, on a 2D canvas over the scene — names, health bars, chat,
+hitsplats, the minimap. Text pinned into the world would swim as the camera turned and
+blur as it came close; drawn here it is sharp at every angle, which is how the older
+games did it too.
+
+**If it cannot run, it does not.** No WebGL2, or a context that fails to start, and the
+original flat overhead renderer takes over with a line in the chat log saying so. It is
+also just a setting — *Settings → Flat overhead view* — for anyone who prefers it.
 
 ## How the server and client split the work
 

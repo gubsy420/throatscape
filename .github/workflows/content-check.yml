@@ -30,6 +30,9 @@ jobs:
             echo "no packs yet"
           fi
 
+      - name: The world can still be drawn
+        run: node tools/render3d.mjs
+
       - name: The game still plays
         run: node tools/smoke.mjs
 

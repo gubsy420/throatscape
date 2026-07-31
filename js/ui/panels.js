@@ -591,6 +591,15 @@ export class Panels {
 
     toggle('Show hover tooltips', 'showTooltips');
     toggle('Reduced effects', 'lowDetail', v => s.bus.emit('detail', v));
+    /*
+     * The renderer is chosen once, at startup, so switching views means
+     * starting the client again. Your session token survives a reload, so
+     * this costs a couple of seconds and puts you back where you stood.
+     */
+    toggle('Flat overhead view', 'flatView', () => {
+      saveSettings(s);
+      location.reload();
+    });
 
     this.panel.appendChild(el('div', 'panel-head', 'Sound'));
     toggle('Music', 'music', refreshAudio);
@@ -654,7 +663,7 @@ const SETTINGS_KEY = 'throatscape.settings';
  * Settings live in this browser, not on the server: how loud the music is
  * belongs to the machine you are sitting at, not to the nurse.
  */
-function loadSettings(state) {
+export function loadSettings(state) {
   try {
     const raw = localStorage.getItem(SETTINGS_KEY);
     if (raw) Object.assign(state.settings, JSON.parse(raw));

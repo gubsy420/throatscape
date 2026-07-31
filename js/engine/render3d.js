@@ -1,0 +1,642 @@
+/* ============================================================
+   The 3D renderer
+   ------------------------------------------------------------
+   Draws the Throat as a landscape rather than as a picture of
+   one. The server is untouched by any of this: it still thinks
+   in flat tiles, and every position, path and saved game means
+   exactly what it did. Height, models and the camera all live
+   on this side of the wire.
+
+   The interface, though, stays flat. Name tags, hitsplats,
+   chat and the minimap are drawn on a 2D canvas laid over the
+   scene, positioned by projecting a world point to a pixel -
+   which is how the games this one follows did it too, and why
+   their text stayed crisp while the world behind it turned.
+   ============================================================ */
+
+import { TILE, lerp, clamp, hash2 } from '../util.js';
+import { T, TILE_INFO, OBJ } from '../data/world.js';
+import { NPCS } from '../data/npcs.js';
+import { item } from '../data/items.js';
+import { drawArt } from './icons.js';
+import { parseChat, charColour, charOffset } from '../game/chatfx.js';
+
+import { getContext, makeProgram } from './gl/gl.js';
+import { m4, model as modelMatrix, limb } from './gl/mat4.js';
+import { MeshBuilder, rgb, tone } from './gl/mesh.js';
+import { Camera, PITCH_MIN, PITCH_MAX } from './gl/camera.js';
+import { Terrain, CHUNK } from './models/terrain.js';
+import { CreatureModels } from './models/creatures.js';
+import { SceneryModels } from './models/scenery.js';
+import { Overlay } from './overlay.js';
+
+const SWING_MS = 420;
+
+/** How the world is lit. One key light from the north-west, and a fill. */
+const LIGHT = (() => {
+  const v = [-0.45, 0.82, -0.36];
+  const l = Math.hypot(...v);
+  return v.map(n => n / l);
+})();
+
+/**
+ * The air, region by region. `fog` is both the colour of the far distance and
+ * the colour of the sky above it, which is what makes a horizon: there is no
+ * skybox, only the point at which everything has faded into the same colour.
+ * The deep places have that point very close, and are lit by almost nothing.
+ */
+const AIR = {
+  larynx: { fog: '#150a14', near: 5,  far: 26, light: 0.34, warm: 0.92 },
+  gullet: { fog: '#2e1015', near: 9,  far: 38, light: 0.46, warm: 1.06 },
+  fen:    { fog: '#2b3327', near: 16, far: 56, light: 0.60, warm: 0.96 },
+  uvula:  { fog: '#5f5563', near: 22, far: 74, light: 0.76, warm: 1.00 },
+  _:      { fog: '#4a3746', near: 20, far: 68, light: 0.70, warm: 1.02 }
+};
+
+export class Renderer3D {
+  constructor(canvas, overlay, world) {
+    this.canvas = canvas;
+    this.overlay = overlay;
+    this.ctx = overlay.getContext('2d');
+    this.world = world;
+
+    const gl = getContext(canvas);
+    if (!gl) throw new Error('WebGL2 is not available');
+    this.gl = gl;
+    const { prog, u } = makeProgram(gl);
+    this.prog = prog;
+    this.u = u;
+
+    this.cam = new Camera();
+    this.terrain = new Terrain(world);
+    this.creatures = new CreatureModels(gl);
+    this.scenery = new SceneryModels(gl);
+
+    this.mat = m4();
+    this.limbMat = m4();
+    this.time = 0;
+    this.lowDetail = false;
+    this.hoverTile = null;
+    this.compass = null;
+
+    this.decals = this.buildDecals();
+    this.pickup = this.buildPickup();
+    this.ui = new Overlay(this);
+
+    this.resize();
+  }
+
+  /** Held camera keys. main.js fills this; the camera reads it. */
+  get keys() { return this.cam.keys; }
+
+  /* Kept so that the flat renderer's callers still work unchanged. */
+  get ts() { return TILE; }
+  get yaw() { return this.cam.yaw; }
+  get pitch() { return this.cam.pitch; }
+  faceNorth() { this.cam.faceNorth(); }
+  zoomBy(d) { this.cam.zoomBy(d); }
+
+  resize() {
+    const r = this.canvas.getBoundingClientRect();
+    const dpr = Math.min(window.devicePixelRatio || 1, 2);
+    this.vw = Math.max(1, r.width);
+    this.vh = Math.max(1, r.height);
+    this.dpr = dpr;
+    for (const c of [this.canvas, this.overlay]) {
+      c.width = Math.max(1, Math.floor(r.width * dpr));
+      c.height = Math.max(1, Math.floor(r.height * dpr));
+    }
+    this.gl.viewport(0, 0, this.canvas.width, this.canvas.height);
+  }
+
+  /* ============================================================
+     Little shared meshes
+     ============================================================ */
+
+  /** Flat rings and markers that lie on the ground under things. */
+  buildDecals() {
+    const ring = (r0, r1, colour) => {
+      const b = new MeshBuilder();
+      const sides = 18;
+      for (let i = 0; i < sides; i++) {
+        const a0 = (i / sides) * Math.PI * 2, a1 = ((i + 1) / sides) * Math.PI * 2;
+        b.quad(
+          [Math.cos(a0) * r0, 0, Math.sin(a0) * r0],
+          [Math.cos(a0) * r1, 0, Math.sin(a0) * r1],
+          [Math.cos(a1) * r1, 0, Math.sin(a1) * r1],
+          [Math.cos(a1) * r0, 0, Math.sin(a1) * r0],
+          rgb(colour));
+      }
+      return b.build(this.gl);
+    };
+    const disc = () => {
+      const b = new MeshBuilder();
+      const sides = 12;
+      for (let i = 0; i < sides; i++) {
+        const a0 = (i / sides) * Math.PI * 2, a1 = ((i + 1) / sides) * Math.PI * 2;
+        b.tri([0, 0, 0],
+              [Math.cos(a1), 0, Math.sin(a1)],
+              [Math.cos(a0), 0, Math.sin(a0)], [0, 0, 0]);
+      }
+      return b.build(this.gl);
+    };
+    return {
+      target: ring(0.34, 0.44, '#d4586b'),
+      hover:  ring(0.40, 0.48, '#e0b357'),
+      move:   ring(0.16, 0.24, '#e8dcc8'),
+      shadow: disc()
+    };
+  }
+
+  /**
+   * A dark patch under everything that stands up. It is not a real shadow and
+   * does not try to be - it is there because without one, a model on a
+   * hillside looks like it is hovering an inch off it.
+   */
+  drawShadows(state) {
+    if (this.lowDetail) return;
+    const gl = this.gl;
+    gl.enable(gl.BLEND);
+    gl.depthMask(false);
+    gl.uniform3f(this.u.uTint, 0, 0, 0);
+    gl.uniform1f(this.u.uAlpha, 0.30);
+
+    const blob = (x, z, r) => {
+      if (!this.cam.visible(x, 0, z, r + 1)) return;
+      modelMatrix(this.mat, x, this.terrain.heightAt(x, z) + 0.02, z, 0, r);
+      gl.uniformMatrix4fv(this.u.uModel, false, this.mat);
+      this.decals.shadow.draw();
+    };
+
+    for (const n of state.npcs) {
+      if (n.dead) continue;
+      const s = NPCS[n.id]?.size || 1;
+      blob(n.rx + s / 2, n.ry + s / 2, 0.30 * s);
+    }
+    for (const o of state.others.values()) blob(o.rx + 0.5, o.ry + 0.5, 0.30);
+    blob(state.player.rx + 0.5, state.player.ry + 0.5, 0.30);
+    for (const o of this.world.objects) {
+      const d = OBJ[o.type];
+      if (!d || d.art === 'pool' || d.art === 'rubble') continue;
+      if (!this.cam.visible(o.x + 0.5, 0, o.y + 0.5, 3)) continue;
+      blob(o.x + 0.5, o.y + 0.5, 0.34);
+    }
+
+    gl.uniform1f(this.u.uAlpha, 1);
+    gl.uniform3f(this.u.uTint, 1, 1, 1);
+    gl.depthMask(true);
+    gl.disable(gl.BLEND);
+  }
+
+  /** What an item looks like lying on the floor. */
+  buildPickup() {
+    const b = new MeshBuilder();
+    b.ball(0, 0.16, 0, 0.13, '#ffffff', 2, 6);
+    return b.build(this.gl);
+  }
+
+  /* ============================================================
+     The frame
+     ============================================================ */
+
+  draw(state, alpha) {
+    const gl = this.gl;
+    this.alpha = alpha;
+    this.time += 1 / 60;
+    this._state = state;                 // picking runs between frames
+
+    const now = performance.now();
+    this.dt = this._last ? Math.min(0.1, (now - this._last) / 1000) : 1 / 60;
+    this._last = now;
+
+    this.cam.step(this.dt);
+
+    /* follow the player */
+    const p = state.player;
+    const wx = p.rx + 0.5, wz = p.ry + 0.5;
+    const wy = this.terrain.heightAt(wx, wz) + 0.9;
+    if (state.snapCam) {
+      this.cam.target[0] = wx; this.cam.target[1] = wy; this.cam.target[2] = wz;
+      state.snapCam = false;
+    } else {
+      this.cam.target[0] = lerp(this.cam.target[0], wx, 0.22);
+      this.cam.target[1] = lerp(this.cam.target[1], wy, 0.12);
+      this.cam.target[2] = lerp(this.cam.target[2], wz, 0.22);
+    }
+    this.cam.update(this.vw / this.vh);
+
+    /* air */
+    const reg = this.world.regionAt(Math.round(p.rx), Math.round(p.ry));
+    const air = AIR[reg?.id] || AIR._;
+    const fog = rgb(air.fog);
+
+    gl.viewport(0, 0, this.canvas.width, this.canvas.height);
+    gl.clearColor(fog[0], fog[1], fog[2], 1);
+    gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
+
+    gl.useProgram(this.prog);
+    gl.uniformMatrix4fv(this.u.uViewProj, false, this.cam.viewProj);
+    gl.uniform3f(this.u.uLightDir, LIGHT[0], LIGHT[1], LIGHT[2]);
+    gl.uniform1f(this.u.uAlpha, 1);
+
+    const L = air.light, w = air.warm;
+    gl.uniform3f(this.u.uSun, 0.60 * L * w, 0.57 * L, 0.50 * L);
+    gl.uniform3f(this.u.uSky, 0.92 * L, 0.90 * L, 1.00 * L);
+    gl.uniform3f(this.u.uGround, 0.62 * L * w, 0.58 * L, 0.62 * L);
+    gl.uniform3f(this.u.uFogColor, fog[0], fog[1], fog[2]);
+    gl.uniform2f(this.u.uFogRange, air.near, air.far);
+
+    this.drawTerrain();
+    this.drawShadows(state);
+    this.drawDecals(state);
+    this.drawScenery(state);
+    this.drawGround(state);
+    this.drawActors(state);
+    this.drawProjectiles(state);
+
+    this.ui.draw(state);
+  }
+
+  /** Is this screen point on the compass? Answered for the click handler. */
+  compassAt(px, py) {
+    const c = this.compass;
+    return !!c && Math.hypot(px - c.x, py - c.y) <= c.r;
+  }
+
+  /* ---------------- terrain --------------------------------- */
+
+  drawTerrain() {
+    const gl = this.gl;
+    const far = 60;                      // no point meshing what fog hides
+    const cx = this.cam.target[0], cz = this.cam.target[2];
+    const c0 = Math.floor((cx - far) / CHUNK), c1 = Math.floor((cx + far) / CHUNK);
+    const r0 = Math.floor((cz - far) / CHUNK), r1 = Math.floor((cz + far) / CHUNK);
+
+    gl.uniform3f(this.u.uTint, 1, 1, 1);
+    gl.uniform1f(this.u.uFade, 1);
+    const half = CHUNK / 2;
+    for (let j = r0; j <= r1; j++) {
+      for (let i = c0; i <= c1; i++) {
+        if (i < 0 || j < 0) continue;
+        const mx = i * CHUNK + half, mz = j * CHUNK + half;
+        // a chunk's bounding ball, generous enough to cover walls and the rim
+        if (!this.cam.visible(mx, 0, mz, CHUNK)) continue;
+        modelMatrix(this.mat, 0, 0, 0, 0, 1);
+        gl.uniformMatrix4fv(this.u.uModel, false, this.mat);
+        this.terrain.chunkMesh(gl, i, j).draw();
+      }
+    }
+  }
+
+  /* ---------------- scenery --------------------------------- */
+
+  drawScenery(state) {
+    const gl = this.gl;
+    const worked = state.gatherNode;
+    for (const o of this.world.objects) {
+      const d = OBJ[o.type];
+      if (!d) continue;
+      const x = o.x + 0.5, z = o.y + 0.5;
+      const y = this.terrain.tileHeight(o.x, o.y);
+      const m = this.scenery.get(o.type, d);
+      if (!this.cam.visible(x, y + m.height / 2, z, m.height + 1)) continue;
+
+      const depleted = o.depleted > 0;
+      gl.uniform1f(this.u.uFade, depleted ? 0.45 : 1);
+      gl.uniform3f(this.u.uTint, 1, 1, 1);
+
+      /*
+       * A tree is not planted facing the camera, and a row of identical
+       * crates all square to the grid looks placed rather than lived in.
+       * Both get a fixed turn from their own coordinates.
+       */
+      let spin = (hash2(o.x, o.y, 31) - 0.5) * 0.9;
+      if (d.art === 'door' || d.art === 'gate' || d.art === 'booth' ||
+          d.art === 'altar' || d.art === 'bed' || d.art === 'sign') {
+        spin = this.facingOf(o);
+      }
+
+      // the node you are working shudders on every blow
+      let lean = 0;
+      if (worked && worked.x === o.x && worked.y === o.y) {
+        const hit = this.swing(state.player.swingAt);
+        if (hit) lean = Math.sin(hit * 22) * (1 - hit) * 0.05;
+      }
+      const sway = this.lowDetail || !m.sway ? 0
+        : Math.sin(this.time * 0.9 + o.x * 0.6 + o.y) * m.sway;
+
+      for (const part of m.parts) {
+        modelMatrix(this.mat, x, y, z, spin, 1);
+        if (part.joint === 'hinge') {
+          limb(this.limbMat, this.mat, part.pivot[0], part.pivot[1], part.pivot[2],
+               0, -this.doorAngle(o) * 1.4);
+          gl.uniformMatrix4fv(this.u.uModel, false, this.limbMat);
+        } else if (sway || lean) {
+          limb(this.limbMat, this.mat, 0, 0, 0, sway + lean, 0);
+          gl.uniformMatrix4fv(this.u.uModel, false, this.limbMat);
+        } else {
+          gl.uniformMatrix4fv(this.u.uModel, false, this.mat);
+        }
+        part.mesh.draw();
+      }
+    }
+    gl.uniform1f(this.u.uFade, 1);
+  }
+
+  /**
+   * Which way a built thing faces. A door in a wall has to open along the
+   * wall, and a bank booth has to have its counter towards the room, so the
+   * answer comes from the tiles around it rather than from the map data.
+   */
+  facingOf(o) {
+    const key = o.x * 100000 + o.y;
+    if (!this._facing) this._facing = new Map();
+    const hit = this._facing.get(key);
+    if (hit !== undefined) return hit;
+
+    const w = this.world;
+    const solid = (dx, dy) => {
+      const t = w.tileAt(o.x + dx, o.y + dy);
+      return t === T.WALL || t === T.CAVEWALL;
+    };
+    let a = 0;
+    if (solid(-1, 0) || solid(1, 0)) a = 0;             // wall runs east-west
+    else if (solid(0, -1) || solid(0, 1)) a = Math.PI / 2;
+    else a = (hash2(o.x, o.y, 91) > 0.5 ? 0 : Math.PI / 2);
+    this._facing.set(key, a);
+    return a;
+  }
+
+  /* ---------------- things on the floor ---------------------- */
+
+  drawGround(state) {
+    const gl = this.gl;
+    gl.uniform1f(this.u.uFade, 1);
+    for (const g of state.ground) {
+      const x = g.x + 0.5, z = g.y + 0.5;
+      const y = this.terrain.tileHeight(g.x, g.y);
+      if (!this.cam.visible(x, y, z, 1)) continue;
+      const art = item(g.id)?.art;
+      const c = rgb(art?.c || '#c9bda6');
+      gl.uniform3f(this.u.uTint, c[0], c[1], c[2]);
+      gl.uniform1f(this.u.uFade, g.ttl < 60 ? 0.35 + 0.35 * Math.sin(this.time * 8) : 1);
+      modelMatrix(this.mat, x, y + Math.sin(this.time * 2.2 + g.x + g.y) * 0.03,
+                  z, this.time * 0.8, 1);
+      gl.uniformMatrix4fv(this.u.uModel, false, this.mat);
+      this.pickup.draw();
+    }
+    gl.uniform3f(this.u.uTint, 1, 1, 1);
+    gl.uniform1f(this.u.uFade, 1);
+  }
+
+  /** Rings on the ground: what is selected, hovered, and where you told yourself to go. */
+  drawDecals(state) {
+    const gl = this.gl;
+    gl.uniform3f(this.u.uTint, 1, 1, 1);
+    gl.uniform1f(this.u.uFade, 1);
+
+    const put = (mesh, tx, ty, scale = 1) => {
+      const x = tx + 0.5, z = ty + 0.5;
+      modelMatrix(this.mat, x, this.terrain.heightAt(x, z) + 0.03, z, 0, scale);
+      gl.uniformMatrix4fv(this.u.uModel, false, this.mat);
+      mesh.draw();
+    };
+
+    if (state.target && state.target.kind === 'npc' && !state.target.ref.dead) {
+      const n = state.target.ref;
+      put(this.decals.target, n.rx, n.ry, (NPCS[n.id]?.size || 1));
+    }
+    if (state.hoverObj) put(this.decals.hover, state.hoverObj.x, state.hoverObj.y);
+    if (state.moveMarker && state.moveMarker.ttl > 0) {
+      const t = 1 - state.moveMarker.ttl / 24;
+      put(this.decals.move, state.moveMarker.x, state.moveMarker.y, 0.6 + t * 1.8);
+    }
+  }
+
+  /* ---------------- people and monsters ---------------------- */
+
+  drawActors(state) {
+    const p = state.player;
+
+    for (const n of state.npcs) {
+      if (n.dead) continue;
+      const d = NPCS[n.id];
+      if (!d) continue;
+      const size = d.size || 1;
+      const m = this.creatures.get(d.art);
+      const cx = n.rx + size / 2, cz = n.ry + size / 2;
+      const y = this.terrain.heightAt(cx, cz);
+      if (!this.cam.visible(cx, y + m.height / 2, cz, m.height * size + 1)) continue;
+
+      this.drawRig(m, cx, y, cz, {
+        yaw: this.facing(n.rx, n.ry, p.rx, p.ry, n),
+        walk: this.walkPhase(n),
+        swing: this.swing(n.swingAt),
+        scale: size > 1 ? 1.5 : 1,
+        hurt: n.hurtFlash > 0
+      });
+    }
+
+    for (const o of state.others.values()) {
+      const cx = o.rx + 0.5, cz = o.ry + 0.5;
+      const y = this.terrain.heightAt(cx, cz);
+      const m = this.creatures.player(o.color || '#b8a68f', null);
+      if (!this.cam.visible(cx, y + 0.7, cz, 2.4)) continue;
+      this.drawRig(m, cx, y, cz, {
+        yaw: o.heading ?? this.headingOf(o),
+        walk: this.walkPhase(o),
+        swing: this.swing(o.swingAt)
+      });
+    }
+
+    /* the player */
+    const eq = state.equipment;
+    const body = eq.body ? (item(eq.body)?.art?.c || '#e8e0cd') : '#e8e0cd';
+    const hat = eq.head ? (item(eq.head)?.art?.c || '#ffffff') : null;
+    const cx = p.rx + 0.5, cz = p.ry + 0.5;
+    this.drawRig(this.creatures.player(body, hat), cx, this.terrain.heightAt(cx, cz), cz, {
+      yaw: this.headingOf(p),
+      walk: this.walkPhase(p),
+      swing: this.swing(p.swingAt)
+    });
+  }
+
+  /**
+   * Poses a rig and draws it. Joint names come from the model; what each one
+   * does when the body walks or swings is decided here, once, for everything.
+   */
+  drawRig(m, x, y, z, { yaw = 0, walk = 0, swing = 0, scale = 1, hurt = false }) {
+    const gl = this.gl;
+    gl.uniform3f(this.u.uTint, hurt ? 1.6 : 1, hurt ? 0.7 : 1, hurt ? 0.7 : 1);
+
+    const stride = walk ? Math.sin(walk * Math.PI * 2) : 0;
+    const bounce = walk ? Math.abs(Math.cos(walk * Math.PI * 2)) * 0.035 : 0;
+    // a swing winds up and follows through, rather than easing to a stop
+    const arm = swing ? (swing < 0.3 ? -swing / 0.3 * 1.5 : -1.5 + (swing - 0.3) / 0.7 * 2.6) : 0;
+    const idle = m.kind === 'lump' || m.kind === 'blob' || m.kind === 'beast' || m.kind === 'float';
+    const breathe = idle ? 0 : Math.sin(this.time * 1.7 + x * 3) * 0.012;
+
+    for (const part of m.parts) {
+      modelMatrix(this.mat, x, y + bounce, z, yaw, scale);
+      let sw = 0, lf = 0, px = part.pivot[0], py = part.pivot[1], pz = part.pivot[2];
+
+      switch (part.joint) {
+        case 'legL': sw = stride * 0.62; break;
+        case 'legR': sw = -stride * 0.62; break;
+        case 'armL': sw = -stride * 0.5; break;
+        case 'armR': sw = swing ? arm : stride * 0.5; break;
+        case 'torso': sw = (m.stoop || 0) + breathe; break;
+        case 'head': sw = -(m.stoop || 0) * 0.6; break;
+        case 'body':
+          // the ones with no legs bob along instead
+          py += walk ? Math.abs(Math.sin(walk * Math.PI * 2)) * 0.05 : 0;
+          sw = m.kind === 'float' ? Math.sin(this.time * 1.4) * 0.06 : 0;
+          if (m.kind === 'float') py += Math.sin(this.time * 1.9) * 0.05;
+          break;
+      }
+
+      if (sw || lf || px || py || pz) {
+        limb(this.limbMat, this.mat, px, py, pz, sw, lf);
+        gl.uniformMatrix4fv(this.u.uModel, false, this.limbMat);
+      } else {
+        gl.uniformMatrix4fv(this.u.uModel, false, this.mat);
+      }
+      part.mesh.draw();
+    }
+    gl.uniform3f(this.u.uTint, 1, 1, 1);
+  }
+
+  /** Which way something is walking, remembered so it does not snap back facing north. */
+  headingOf(e) {
+    const dx = e.x - (e.ix ?? e.x), dy = e.y - (e.iy ?? e.y);
+    if (dx || dy) e._heading = Math.atan2(dx, -dy);
+    return e._heading ?? (e.facing < 0 ? -Math.PI / 2 : Math.PI / 2);
+  }
+
+  /** A monster turns to whatever it is fighting, and otherwise walks forwards. */
+  facing(nx, ny, px, py, n) {
+    if (n.target || n.path?.length === 0) {
+      const dx = px - nx, dy = py - ny;
+      if (dx || dy) return Math.atan2(dx, -dy);
+    }
+    return this.headingOf(n);
+  }
+
+  walkPhase(e) {
+    if (e.ix === undefined || (e.ix === e.x && e.iy === e.y)) return 0;
+    const half = (e.steps || 0) % 2 ? 0.5 : 0;
+    return half + Math.min(0.999, this.alpha) * 0.5 + 0.0001;
+  }
+
+  swing(at) {
+    if (!at) return 0;
+    const t = (performance.now() - at) / SWING_MS;
+    return t > 0 && t < 1 ? t : 0;
+  }
+
+  doorAngle(o) {
+    const want = o.open ? 1 : 0;
+    if (o.anim === undefined) o.anim = want;
+    else o.anim += (want - o.anim) * Math.min(1, this.dt * 5);
+    return o.anim;
+  }
+
+  drawProjectiles(state) {
+    if (!state.projectiles.length) return;
+    const gl = this.gl;
+    for (const pr of state.projectiles) {
+      const x = pr.x + 0.5, z = pr.y + 0.5;
+      const y = this.terrain.heightAt(x, z) + 0.75;
+      const c = rgb(pr.color || '#e0b357');
+      gl.uniform3f(this.u.uTint, c[0], c[1], c[2]);
+      modelMatrix(this.mat, x, y, z, pr.angle || 0, 0.45);
+      gl.uniformMatrix4fv(this.u.uModel, false, this.mat);
+      this.pickup.draw();
+    }
+    gl.uniform3f(this.u.uTint, 1, 1, 1);
+  }
+
+  /* ============================================================
+     Picking
+     ============================================================ */
+
+  /**
+   * What is under a screen pixel. Entities are tested as upright cylinders,
+   * which is generous in exactly the way a player wants - a click near a
+   * monster's feet or head both count - and the ground is found by walking
+   * the ray down onto the heightfield.
+   */
+  pick(px, py) {
+    const { o, d } = this.cam.ray(px, py, this.vw, this.vh);
+    const hit = this.terrain.rayHit(o, d);
+    const tile = hit
+      ? { x: Math.floor(hit[0]), y: Math.floor(hit[2]) }
+      : { x: -1, y: -1 };
+    const limit = hit ? Math.hypot(hit[0] - o[0], hit[1] - o[1], hit[2] - o[2]) + 1.2 : 90;
+
+    let best = null;
+    const test = (cx, cz, radius, height, make) => {
+      const t = rayCylinder(o, d, cx, cz, radius, this.terrain.heightAt(cx, cz), height);
+      if (t !== null && t < limit && (!best || t < best.t)) best = { t, ...make() };
+    };
+
+    const state = this._state;
+    if (state) {
+      for (const p of state.others.values()) {
+        test(p.rx + 0.5, p.ry + 0.5, 0.42, 1.4, () => ({ kind: 'player', ref: p }));
+      }
+      for (const n of state.npcs) {
+        if (n.dead) continue;
+        const d2 = NPCS[n.id];
+        if (!d2) continue;
+        const s = d2.size || 1;
+        test(n.rx + s / 2, n.ry + s / 2, 0.42 * s, 1.5 * s, () => ({ kind: 'npc', ref: n }));
+      }
+    }
+    for (const ob of this.world.objects) {
+      const def = OBJ[ob.type];
+      if (!def) continue;
+      const m = this.scenery.cache.get(ob.type);
+      const h = m ? m.height : 1;
+      test(ob.x + 0.5, ob.y + 0.5, 0.44, h, () => ({ kind: 'obj', ref: ob }));
+    }
+
+    return { x: tile.x, y: tile.y, ent: best, ground: hit };
+  }
+
+  /** Kept for anything that only wants the tile, including the old callers. */
+  screenToTile(px, py) {
+    const { o, d } = this.cam.ray(px, py, this.vw, this.vh);
+    const hit = this.terrain.rayHit(o, d);
+    return hit ? { x: Math.floor(hit[0]), y: Math.floor(hit[2]) } : { x: -1, y: -1 };
+  }
+
+  /** World tile to screen pixel, for anything the overlay has to label. */
+  tileToScreen(tx, ty) {
+    const x = tx + 0.5, z = ty + 0.5;
+    const s = this.cam.toScreen(x, this.terrain.heightAt(x, z), z, this.vw, this.vh);
+    return { x: s.x - TILE / 2, y: s.y - TILE / 2 };
+  }
+}
+
+/**
+ * Where a ray enters an upright cylinder, or null. Used for every click on
+ * anything that stands up: it is cheap, it needs no per-model work, and it
+ * is forgiving in the way a mouse needs.
+ */
+function rayCylinder(o, d, cx, cz, r, baseY, height) {
+  const ox = o[0] - cx, oz = o[2] - cz;
+  const a = d[0] * d[0] + d[2] * d[2];
+  if (a < 1e-8) return null;
+  const b = 2 * (ox * d[0] + oz * d[2]);
+  const c = ox * ox + oz * oz - r * r;
+  const disc = b * b - 4 * a * c;
+  if (disc < 0) return null;
+  const sq = Math.sqrt(disc);
+  for (const t of [(-b - sq) / (2 * a), (-b + sq) / (2 * a)]) {
+    if (t < 0.05) continue;
+    const y = o[1] + d[1] * t;
+    if (y >= baseY - 0.2 && y <= baseY + height + 0.25) return t;
+  }
+  return null;
+}

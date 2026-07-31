@@ -67,6 +67,7 @@ export function createState(name) {
     settings: {
       multiplayer: true,
       lowDetail: false,
+      flatView: false,
       showTooltips: true,
       music: true,
       sfx: true,
