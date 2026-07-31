@@ -16,6 +16,10 @@ import { Hud } from './ui/hud.js';
 import { Panels } from './ui/panels.js';
 import { Windows } from './ui/windows.js';
 import { Net, TOKEN_KEY, TICK_MS } from './net.js';
+import { COLOURS, MOTIONS } from './game/chatfx.js';
+
+const COLOUR_NAMES = Object.keys(COLOURS);
+const MOTION_NAMES = Object.keys(MOTIONS);
 
 const $ = s => document.querySelector(s);
 
@@ -421,11 +425,58 @@ function wireChat(game) {
 
 function command(game, cmd) {
   const { state, net } = game;
-  const [name] = cmd.split(/\s+/);
+  const [name, ...rest] = cmd.split(/\s+/);
+  const args = rest.join(' ');
+  /**
+   * Names may contain spaces, so "Nurse Vell hello" is ambiguous. One word is
+   * the name unless it is quoted: /tell "Nurse Vell" hello.
+   */
+  const splitTarget = () => {
+    const quoted = /^"([^"]+)"\s*(.*)$/.exec(args);
+    if (quoted) return { who: quoted[1].trim(), text: quoted[2].trim() };
+    const m = /^(\S+)\s+(.+)$/.exec(args);
+    return m ? { who: m[1], text: m[2] } : { who: args.trim(), text: '' };
+  };
+
   switch (name.toLowerCase()) {
     case 'help':
-      log(state, 'Commands: /where, /players, /logout, /help', 'system');
+      log(state, 'Commands: /tell <name> <message>, /r <message>, /add <name>, ' +
+                 '/remove <name>, /friends, /where, /players, /effects, /logout', 'system');
+      log(state, 'Names with a space need quotes: /tell "Nurse Vell" hello.', 'system');
       break;
+    case 'effects':
+      log(state, 'Prefix a message with a colour and a motion, e.g. ' +
+                 '"rainbow:wave:hello". Colours: ' + COLOUR_NAMES.join(', ') +
+                 '. Motions: ' + MOTION_NAMES.join(', ') + '.', 'system');
+      break;
+    case 'tell': case 'w': case 'msg': case 'whisper': {
+      const { who, text } = splitTarget();
+      if (!who || !text) { log(state, 'Usage: /tell <name> <message>', 'system'); break; }
+      net.tell(who, text);
+      break;
+    }
+    case 'r': case 'reply': {
+      const who = net.lastWhisperFrom || net.lastWhisperTo;
+      if (!who) { log(state, 'Nobody has whispered you yet.', 'system'); break; }
+      if (!args.trim()) { log(state, 'Usage: /r <message>', 'system'); break; }
+      net.tell(who, args);
+      break;
+    }
+    case 'add': case 'friend':
+      if (args.trim()) net.addFriend(args.trim());
+      else log(state, 'Usage: /add <name>', 'system');
+      break;
+    case 'remove': case 'unfriend': case 'del':
+      if (args.trim()) net.delFriend(args.trim());
+      else log(state, 'Usage: /remove <name>', 'system');
+      break;
+    case 'friends': {
+      const on = state.friends.filter(f => f.online).map(f => f.name);
+      log(state, state.friends.length
+        ? `${on.length} of ${state.friends.length} friends on shift${on.length ? ': ' + on.join(', ') : '.'}`
+        : 'Your friends list is empty.', 'system');
+      break;
+    }
     case 'where': {
       const r = world.regionAt(state.player.x, state.player.y);
       log(state, `You are at ${state.player.x}, ${state.player.y} in ${r ? r.name : 'nowhere'}.`, 'system');
@@ -490,6 +541,7 @@ function wireAudio(game) {
   state.bus.on('bank', () => audio.play('bank'));
   state.bus.on('toast', () => audio.play('toast'));
   state.bus.on('public', () => audio.play('chat'));
+  state.bus.on('private', m => audio.play(m.dir === 'in' ? 'toast' : 'chat'));
   state.bus.on('vigil', () => audio.play('vigil'));
   state.bus.on('serverui', () => audio.play('open'));
   state.bus.on('dialogue', m => audio.play(m.close ? 'close' : 'talk'));

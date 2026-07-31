@@ -7,6 +7,7 @@ import { TILE_INFO, T, OBJ } from '../data/world.js';
 import { NPCS } from '../data/npcs.js';
 import { drawArt } from './icons.js';
 import { item } from '../data/items.js';
+import { parseChat, charColour, charOffset } from '../game/chatfx.js';
 
 const CHUNK = 16;
 
@@ -1059,8 +1060,11 @@ export class Renderer {
     ctx.restore();
   }
 
-  chatBubble(x, y, text) {
+  chatBubble(x, y, raw) {
     const ctx = this.ctx;
+    const { colour, motion, text } = parseChat(raw);
+    if (!text) return;
+
     ctx.save();
     ctx.font = '11px "Trebuchet MS", sans-serif';
     const w = ctx.measureText(text).width + 12;
@@ -1069,9 +1073,30 @@ export class Renderer {
     ctx.beginPath();
     ctx.roundRect(x - w / 2, y - 15, w, 17, 4);
     ctx.fill(); ctx.stroke();
-    ctx.fillStyle = '#fff';
-    ctx.textAlign = 'center';
-    ctx.fillText(text, x, y - 3);
+
+    if (!colour && !motion) {
+      ctx.fillStyle = '#fff';
+      ctx.textAlign = 'center';
+      ctx.fillText(text, x, y - 3);
+      ctx.restore();
+      return;
+    }
+
+    /*
+     * Per character, so a wave can travel along the word and a rainbow can
+     * run through it. Laid out left to right rather than centred, because
+     * each glyph is placed individually.
+     */
+    ctx.textAlign = 'left';
+    const t = this.time;
+    let px = x - (w - 12) / 2;
+    for (let i = 0; i < text.length; i++) {
+      const ch = text[i];
+      const off = charOffset(motion, i, t);
+      ctx.fillStyle = charColour(colour, i, t) || '#fff';
+      ctx.fillText(ch, px + off.dx, y - 3 + off.dy);
+      px += ctx.measureText(ch).width;
+    }
     ctx.restore();
   }
 

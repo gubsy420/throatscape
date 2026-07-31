@@ -34,6 +34,8 @@ import {
 } from '../js/game/actions.js';
 import { makeQuestApi, questHook } from '../js/game/questapi.js';
 import { craft, buy, sell, findRecipe } from '../js/game/economy.js';
+import { MAX_FRIENDS } from '../js/game/state.js';
+import { keyFor, NAME_RE } from './accounts.js';
 
 bindVigilData(MagicData);
 
@@ -109,7 +111,9 @@ class Session {
    ============================================================ */
 
 export class Sim {
-  constructor() {
+  /** `accounts` is only consulted to check a friend's name really exists. */
+  constructor(accounts) {
+    this.accounts = accounts || null;
     this.world = buildWorld();
     this.npcs = [];
     this.ground = [];
@@ -133,6 +137,8 @@ export class Sim {
     this.sessions.set(key, s);
     s.state.npcs = this.npcs;
     s.state.ground = this.ground;
+    this.sendFriends(s);
+    this.announceToFriends(key, name, true);
     return s;
   }
 
@@ -141,6 +147,7 @@ export class Sim {
     if (!s) return null;
     for (const n of this.npcs) if (n.targetKey === key) { n.targetKey = null; n.path = []; }
     this.sessions.delete(key);
+    this.announceToFriends(key, s.name, false);
     return s;
   }
 
@@ -506,6 +513,85 @@ export class Sim {
     s.chatTtl = 6;
   }
 
+  /* ---------------- friends and whispers ------------------ */
+
+  /**
+   * Names are immutable, so the save holds display names and the key is
+   * derived. That keeps the friends list readable in the JSON and means an
+   * offline friend can still be listed by name.
+   */
+  friendList(s) {
+    return s.state.friends.map(name => ({
+      name,
+      online: this.sessions.has(keyFor(name))
+    }));
+  }
+
+  sendFriends(s) { s.send({ t: 'friends', list: this.friendList(s) }); }
+
+  /** Tells everyone who has you listed that you came on or went off shift. */
+  announceToFriends(key, name, online) {
+    for (const other of this.sessions.values()) {
+      if (other.key === key) continue;
+      if (!other.state.friends.some(n => keyFor(n) === key)) continue;
+      other.send({ t: 'msg', cls: 'private',
+                   text: `${name} has ${online ? 'logged in' : 'logged out'}.` });
+      this.sendFriends(other);
+    }
+  }
+
+  addFriend(s, rawName) {
+    const name = String(rawName || '').trim().slice(0, 12);
+    const key = keyFor(name);
+    if (!NAME_RE.test(name)) { log(s.state, 'That is not a name.', 'bad'); return; }
+    if (key === s.key) { log(s.state, 'You cannot befriend yourself.', 'bad'); return; }
+    if (this.accounts && !this.accounts.users.has(key)) {
+      log(s.state, 'No nurse by that name.', 'bad');
+      return;
+    }
+    if (s.state.friends.some(n => keyFor(n) === key)) {
+      log(s.state, `${name} is already on your list.`);
+      return;
+    }
+    if (s.state.friends.length >= MAX_FRIENDS) {
+      log(s.state, 'Your friends list is full.', 'bad');
+      return;
+    }
+    // store the account's own capitalisation, not whatever was typed
+    const proper = this.accounts?.users.get(key)?.name || name;
+    s.state.friends.push(proper);
+    log(s.state, `${proper} added to your friends list.`);
+    this.sendFriends(s);
+  }
+
+  removeFriend(s, rawName) {
+    const key = keyFor(String(rawName || ''));
+    const i = s.state.friends.findIndex(n => keyFor(n) === key);
+    if (i < 0) return;
+    const [gone] = s.state.friends.splice(i, 1);
+    log(s.state, `${gone} removed from your friends list.`);
+    this.sendFriends(s);
+  }
+
+  /**
+   * A whisper needs no friendship in either direction - the friends list is
+   * for knowing who is about, not for permission to speak.
+   */
+  whisper(s, rawName, rawText) {
+    const text = String(rawText ?? '').slice(0, 120).replace(/[\x00-\x1f\x7f]/g, '').trim();
+    if (!text) return;
+    const name = String(rawName || '').trim();
+    const target = this.sessions.get(keyFor(name));
+    if (!target) {
+      log(s.state, `${name || 'That nurse'} is not on shift.`, 'bad');
+      return;
+    }
+    if (target === s) { log(s.state, 'Talking to yourself already?', 'bad'); return; }
+
+    target.send({ t: 'private', dir: 'in', who: s.name, text });
+    s.send({ t: 'private', dir: 'out', who: target.name, text });
+  }
+
   /* ============================================================
      Intents - everything a client is allowed to ask for
      ============================================================ */
@@ -562,6 +648,14 @@ export class Sim {
       }
 
       case 'dialogue': this.advanceDialogue(s, msg); break;
+
+      case 'friend':
+        if (msg.op === 'add') this.addFriend(s, msg.name);
+        else if (msg.op === 'del') this.removeFriend(s, msg.name);
+        else this.sendFriends(s);
+        break;
+
+      case 'tell': this.whisper(s, msg.name, msg.text); break;
 
       case 'use':    useItem(st, int(msg.idx)); break;
       case 'equip':  equipFromSlot(st, int(msg.idx)); break;

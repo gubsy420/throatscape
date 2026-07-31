@@ -4,6 +4,7 @@
 
 import { escapeHtml, clamp } from '../util.js';
 import { combatLvl } from '../game/state.js';
+import { parseChat } from '../game/chatfx.js';
 
 const $ = sel => document.querySelector(sel);
 
@@ -35,6 +36,8 @@ export class Hud {
     s.bus.on('toast', ({ text, cls }) => this.toast(text, cls));
     s.bus.on('levelup', e => this.levelUp(e));
     s.bus.on('public', ({ who, text }) => this.addLine(text, 'public', who));
+    s.bus.on('private', ({ dir, who, text }) =>
+      this.addLine(text, 'private', dir === 'in' ? `From ${who}` : `To ${who}`));
   }
 
   bindChatTabs() {
@@ -70,16 +73,46 @@ export class Hud {
   matches(cls) {
     if (this.filter === 'all') return true;
     if (this.filter === 'public') return cls === 'public';
+    if (this.filter === 'private') return cls === 'private';
     if (this.filter === 'quest') return cls === 'quest';
-    return cls !== 'public';
+    return cls !== 'public' && cls !== 'private';
   }
 
   lineEl(l) {
     const div = document.createElement('div');
     div.className = 'line ' + l.cls;
-    div.innerHTML = l.who
-      ? `<span class="who">${escapeHtml(l.who)}:</span> ${escapeHtml(l.text)}`
-      : escapeHtml(l.text);
+    if (l.who) {
+      const who = document.createElement('span');
+      who.className = 'who';
+      who.textContent = l.who + ':';
+      div.append(who, ' ');
+    }
+
+    // only players get effects; a system line saying "red:" means "red:"
+    const fx = l.cls === 'public' || l.cls === 'private'
+      ? parseChat(l.text) : { colour: null, motion: null, text: l.text };
+
+    if (!fx.colour && !fx.motion) {
+      div.append(fx.text);
+      return div;
+    }
+
+    /*
+     * One span per character with a staggered animation delay: that is what
+     * makes a wave travel along the word instead of the whole line bouncing
+     * as a block. The CSS does the moving, so an old line costs nothing.
+     */
+    const wrap = document.createElement('span');
+    wrap.className = 'fx' +
+      (fx.colour ? ' fx-' + fx.colour : '') +
+      (fx.motion ? ' fx-' + fx.motion : '');
+    [...fx.text].forEach((ch, i) => {
+      const s = document.createElement('span');
+      s.textContent = ch;
+      s.style.animationDelay = `${(-i * 0.06).toFixed(2)}s`;
+      wrap.appendChild(s);
+    });
+    div.appendChild(wrap);
     return div;
   }
 

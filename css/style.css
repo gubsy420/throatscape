@@ -313,6 +313,113 @@ button, input { font-family: inherit; font-size: inherit; color: inherit; }
 .line.good   { color: var(--cure); }
 .line.npc    { color: #d9b7ff; }
 .line .who { margin-right: 2px; }
+.line.private { color: #d9c0e0; }
+.line.private .who { color: #c08fd9; font-weight: 700; }
+
+/* ---------- friends ------------------------------------------ */
+.friend-add { display: flex; gap: 6px; margin: 6px 0 10px; }
+.friend-input {
+  flex: 1; min-width: 0; padding: 5px 7px; font: inherit; font-size: 12px;
+  color: var(--bone); background: #2a1620;
+  border: 1px solid #5b3542; border-radius: 4px;
+}
+.friend-input:focus { outline: none; border-color: var(--bile); }
+.friend-list { display: flex; flex-direction: column; gap: 2px; }
+.friend-row {
+  display: flex; align-items: center; gap: 7px;
+  padding: 5px 7px; border-radius: 4px; font-size: 12px;
+  color: #7c6a72; background: #26141d; cursor: default;
+}
+.friend-row.online { color: var(--bone); cursor: pointer; }
+.friend-row.online:hover { background: #35202b; }
+.friend-dot {
+  width: 7px; height: 7px; border-radius: 50%; flex: none; background: #4a3340;
+}
+.friend-row.online .friend-dot { background: var(--cure); box-shadow: 0 0 5px var(--cure); }
+.friend-name { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.friend-where { font-size: 10px; opacity: .7; flex: none; }
+
+/* ---------- chat effects -------------------------------------
+   One span per character, each with a staggered animation-delay,
+   so a wave travels along the word instead of the line bouncing
+   as a block. Motion and colour are separate classes and stack. */
+.fx { white-space: pre; }
+.fx > span { display: inline-block; will-change: transform; }
+
+.fx-red    > span { color: #e05a5a; }
+.fx-green  > span { color: #6fd1a5; }
+.fx-cyan   > span { color: #6fc6d1; }
+.fx-purple > span { color: #c08fd9; }
+.fx-white  > span { color: #f2ece0; }
+.fx-yellow > span { color: #e0b357; }
+
+.fx-flash1 > span { animation: fx-flash1 .6s steps(1) infinite; }
+.fx-flash2 > span { animation: fx-flash2 .6s steps(1) infinite; }
+.fx-flash3 > span { animation: fx-flash3 .6s steps(1) infinite; }
+.fx-glow   > span { animation: fx-glow 2.1s ease-in-out infinite; }
+.fx-rainbow > span { animation: fx-rainbow 4s linear infinite; }
+
+@keyframes fx-flash1 { 0% { color: #e05a5a; } 50% { color: #f2ece0; } }
+@keyframes fx-flash2 { 0% { color: #6fc6d1; } 50% { color: #3a6fa8; } }
+@keyframes fx-flash3 { 0% { color: #6fd1a5; } 50% { color: #2f7f5a; } }
+@keyframes fx-glow {
+  0%, 100% { color: hsl(200 60% 37%); }
+  50%      { color: hsl(200 60% 73%); }
+}
+@keyframes fx-rainbow {
+  0%   { color: hsl(0   78% 66%); }
+  25%  { color: hsl(90  78% 66%); }
+  50%  { color: hsl(180 78% 66%); }
+  75%  { color: hsl(270 78% 66%); }
+  100% { color: hsl(360 78% 66%); }
+}
+
+/* a colour and a motion stack, so both animations have to run at once */
+.fx-wave  > span { animation-name: fx-wave;  animation-duration: 1.2s; }
+.fx-wave2 > span { animation-name: fx-wave2; animation-duration: 1.4s; }
+.fx-shake > span { animation-name: fx-shake; animation-duration: .18s; }
+.fx-slide > span { animation-name: fx-slide; animation-duration: .9s; }
+.fx-wave > span, .fx-wave2 > span, .fx-shake > span, .fx-slide > span {
+  animation-timing-function: linear; animation-iteration-count: infinite;
+}
+.fx-rainbow.fx-wave  > span { animation-name: fx-rainbow, fx-wave;  animation-duration: 4s, 1.2s; }
+.fx-rainbow.fx-wave2 > span { animation-name: fx-rainbow, fx-wave2; animation-duration: 4s, 1.4s; }
+.fx-rainbow.fx-shake > span { animation-name: fx-rainbow, fx-shake; animation-duration: 4s, .18s; }
+.fx-rainbow.fx-slide > span { animation-name: fx-rainbow, fx-slide; animation-duration: 4s, .9s; }
+.fx-glow.fx-wave     > span { animation-name: fx-glow, fx-wave;     animation-duration: 2.1s, 1.2s; }
+.fx-glow.fx-wave2    > span { animation-name: fx-glow, fx-wave2;    animation-duration: 2.1s, 1.4s; }
+.fx-glow.fx-shake    > span { animation-name: fx-glow, fx-shake;    animation-duration: 2.1s, .18s; }
+.fx-glow.fx-slide    > span { animation-name: fx-glow, fx-slide;    animation-duration: 2.1s, .9s; }
+.fx-flash1.fx-wave   > span { animation-name: fx-flash1, fx-wave;   animation-duration: .6s, 1.2s; }
+.fx-flash2.fx-wave   > span { animation-name: fx-flash2, fx-wave;   animation-duration: .6s, 1.2s; }
+.fx-flash3.fx-wave   > span { animation-name: fx-flash3, fx-wave;   animation-duration: .6s, 1.2s; }
+
+@keyframes fx-wave {
+  0%, 100% { transform: translateY(-3px); }
+  50%      { transform: translateY(3px); }
+}
+@keyframes fx-wave2 {
+  0%   { transform: translate(-3px, 0); }
+  25%  { transform: translate(0, -3px); }
+  50%  { transform: translate(3px, 0); }
+  75%  { transform: translate(0, 3px); }
+  100% { transform: translate(-3px, 0); }
+}
+@keyframes fx-shake {
+  0%   { transform: translate(-1.4px, 1px); }
+  33%  { transform: translate(1.4px, -1px); }
+  66%  { transform: translate(-1px, -1.4px); }
+  100% { transform: translate(-1.4px, 1px); }
+}
+@keyframes fx-slide {
+  0%   { transform: translateY(7px); opacity: 0; }
+  15%  { opacity: 1; }
+  100% { transform: translateY(-7px); opacity: 0; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .fx > span { animation-name: none !important; }
+}
 
 #chat-entry { display: flex; align-items: center; gap: 5px; padding: 4px 9px; background: #241119; }
 #chat-prompt { color: var(--bile); font-weight: 700; font-size: 13px; }
@@ -333,7 +440,7 @@ button, input { font-family: inherit; font-size: inherit; color: inherit; }
 }
 
 #tab-strip {
-  display: grid; grid-template-columns: repeat(7, 1fr);
+  display: grid; grid-template-columns: repeat(8, 1fr);
   gap: 1px; padding: 3px;
   background: #1b0d13;
   border-bottom: 1px solid #4a2b36;

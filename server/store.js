@@ -64,5 +64,25 @@ export function playerFile(key) {
   return path.join(PLAYER_DIR, `${key}.json`);
 }
 
-export const readPlayer = key => readJson(playerFile(key), null);
-export const writePlayer = (key, data) => writeJson(playerFile(key), data);
+/*
+ * A player who reconnects quickly races their own logout save: the socket
+ * closes, the save starts, and the resume reads the file before the rename
+ * lands - handing back a save from before whatever they just did. Tracking
+ * the write in flight and reading only after it settles closes that window.
+ */
+const writing = new Map();               // key -> promise of the current write
+
+export async function readPlayer(key) {
+  const inFlight = writing.get(key);
+  if (inFlight) await inFlight.catch(() => {});
+  return readJson(playerFile(key), null);
+}
+
+export function writePlayer(key, data) {
+  const prev = writing.get(key) || Promise.resolve();
+  // chain rather than race, so two saves cannot interleave their renames
+  const p = prev.catch(() => {}).then(() => writeJson(playerFile(key), data));
+  writing.set(key, p);
+  p.catch(() => {}).then(() => { if (writing.get(key) === p) writing.delete(key); });
+  return p;
+}

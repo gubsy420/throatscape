@@ -41,7 +41,7 @@ const MIME = {
 initStore();
 const accounts = new Accounts();
 await accounts.load();
-const sim = new Sim();
+const sim = new Sim(accounts);
 
 /* ============================================================
    Static files

@@ -10,6 +10,7 @@ import { QUESTS, QUEST_BY_ID, DONE } from '../data/quests.js';
 import { SPAWN } from '../data/world.js';
 
 export const INV_SIZE = 28;
+export const MAX_FRIENDS = 200;
 export const BANK_SIZE = 320;
 export const SAVE_KEY = 'throatscape.save.v1';
 
@@ -40,6 +41,7 @@ export function createState(name) {
     inventory: new Array(INV_SIZE).fill(null),
     equipment: {},
     bank: [],
+    friends: [],                 // display names; the server resolves them
     quests: {},
     // vigil points track the vigil level, which starts at 1
     vigil: { points: 1, max: 1, active: [] },
@@ -411,6 +413,7 @@ export function serialize(state) {
     inventory: state.inventory.map(s => s ? [s.id, s.n] : null),
     equipment: { ...state.equipment },
     bank: state.bank.map(b => [b.id, b.n]),
+    friends: state.friends,
     quests: state.quests,
     vigilPoints: state.vigil.points,
     attackStyle: state.attackStyle,
@@ -448,6 +451,8 @@ export function deserialize(data) {
   s.bank = (data.bank || [])
     .filter(e => ITEMS[e[0]])
     .map(e => ({ id: e[0], n: e[1] }));
+  s.friends = (Array.isArray(data.friends) ? data.friends : [])
+    .filter(n => typeof n === 'string').slice(0, MAX_FRIENDS);
   s.quests = data.quests || {};
   s.vigil.max = baseLevel(s, 'vigil');
   s.vigil.points = clamp(data.vigilPoints ?? s.vigil.max, 0, s.vigil.max);

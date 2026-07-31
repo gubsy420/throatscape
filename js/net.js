@@ -179,6 +179,17 @@ export class Net {
       case 'dialogue': s.bus.emit('dialogue', msg); break;
       case 'cue':      s.bus.emit('cue', msg.name); break;
 
+      case 'friends':
+        s.friends = msg.list || [];
+        s.bus.emit('friends');
+        break;
+
+      case 'private':
+        if (msg.dir === 'out') this.lastWhisperTo = msg.who;
+        else this.lastWhisperFrom = msg.who;
+        s.bus.emit('private', msg);
+        break;
+
       case 'teleport':
         s.player.x = s.player.ix = msg.x;
         s.player.y = s.player.iy = msg.y;
@@ -369,6 +380,9 @@ export class Net {
   castUtility(id)            { this.send({ t: 'castutil', id }); }
   toggleRun()                { this.send({ t: 'run' }); }
   say(text)                  { this.send({ t: 'chat', text }); }
+  addFriend(name)            { this.send({ t: 'friend', op: 'add', name }); }
+  delFriend(name)            { this.send({ t: 'friend', op: 'del', name }); }
+  tell(name, text)           { this.send({ t: 'tell', name, text }); }
 }
 
 /** id -> total held, so two packs can be compared for what arrived. */

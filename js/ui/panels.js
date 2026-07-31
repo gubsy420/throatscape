@@ -24,6 +24,7 @@ const TABS = [
   { id: 'quests',    icon: '📜', title: 'Quest journal' },
   { id: 'vigil',     icon: '🕯️', title: 'Vigil' },
   { id: 'magic',     icon: '✨', title: 'Anatomancy' },
+  { id: 'friends',   icon: '👥', title: 'Friends' },
   { id: 'settings',  icon: '⚙️', title: 'Settings' }
 ];
 
@@ -52,6 +53,8 @@ export class Panels {
     s.bus.on('quest', () => { if (this.active === 'quests') this.render(); });
     s.bus.on('vigil', () => { if (this.active === 'vigil') this.render(); });
     s.bus.on('questcomplete', () => this.flashTab('quests'));
+    s.bus.on('friends', () => { if (this.active === 'friends') this.render(); });
+    s.bus.on('private', m => { if (m.dir === 'in') this.flashTab('friends'); });
   }
 
   buildTabs() {
@@ -462,6 +465,79 @@ export class Panels {
   castSpell(sp) {
     if (sp.kind === 'attack' || sp.kind === 'drain') this.net.autocast(sp.id);
     else this.net.castUtility(sp.id);
+  }
+
+  /* ============ friends ==================================== */
+
+  render_friends() {
+    const s = this.state;
+    this.panel.appendChild(el('div', 'panel-head', 'Friends'));
+
+    const add = el('div', 'friend-add');
+    const input = document.createElement('input');
+    input.type = 'text';
+    input.maxLength = 12;
+    input.placeholder = 'Add a nurse by name';
+    input.className = 'friend-input';
+    const submit = () => {
+      const name = input.value.trim();
+      if (!name) return;
+      this.net.addFriend(name);
+      input.value = '';
+    };
+    input.addEventListener('keydown', e => {
+      if (e.key === 'Enter') { e.preventDefault(); submit(); }
+      e.stopPropagation();                  // the number keys switch tabs
+    });
+    const btn = el('button', 'btn', 'Add');
+    btn.addEventListener('click', submit);
+    add.append(input, btn);
+    this.panel.appendChild(add);
+
+    const list = s.friends || [];
+    if (!list.length) {
+      this.panel.appendChild(el('div', 'hint',
+        'Nobody yet. Add a name here, or type /add <name> in the chat box.'));
+      return;
+    }
+
+    // on shift first, then alphabetically, so the useful half is at the top
+    const sorted = [...list].sort((a, b) =>
+      (b.online - a.online) || a.name.localeCompare(b.name));
+
+    const wrap = el('div', 'friend-list');
+    for (const f of sorted) {
+      const row = el('div', 'friend-row' + (f.online ? ' online' : ''));
+      row.append(el('span', 'friend-dot', ''), el('span', 'friend-name', f.name));
+      row.append(el('span', 'friend-where', f.online ? 'On shift' : 'Off'));
+
+      if (f.online) {
+        row.title = `Message ${f.name}`;
+        row.addEventListener('click', () => {
+          // prime the chat box rather than sending: you have not typed anything yet
+          const box = document.getElementById('chat-input');
+          box.value = `/tell ${f.name} `;
+          box.focus();
+        });
+      }
+      row.addEventListener('contextmenu', e => {
+        e.preventDefault();
+        const r = document.getElementById('stage').getBoundingClientRect();
+        this.hud.openCtx(e.clientX - r.left, e.clientY - r.top, [
+          { label: 'Message', obj: f.name, run: () => {
+            const box = document.getElementById('chat-input');
+            box.value = `/tell ${f.name} `;
+            box.focus();
+          } },
+          { label: 'Remove', obj: f.name, run: () => this.net.delFriend(f.name) }
+        ]);
+      });
+      wrap.appendChild(row);
+    }
+    this.panel.appendChild(wrap);
+
+    const on = list.filter(f => f.online).length;
+    this.panel.appendChild(el('div', 'hint', `${on} of ${list.length} on shift.`));
   }
 
   /* ============ settings =================================== */

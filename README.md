@@ -178,7 +178,30 @@ nothing needs configuring on that side.
 Right-click an inventory item and choose **Use**, then click a target, to use one thing
 on another — that is how you dress a patient's wound.
 
-Chat commands: `/help`, `/where`, `/players`, `/logout`.
+Chat commands: `/help`, `/where`, `/players`, `/effects`, `/logout`.
+
+### Talking to people
+
+`/tell <name> <message>` whispers someone — no friendship needed, they just have
+to be on shift — and `/r` replies to whoever last whispered you. Names containing
+a space need quotes: `/tell "Nurse Vell" hello`.
+
+The Friends tab keeps a list that survives logout and tells you when someone comes
+on or goes off shift. `/add <name>`, `/remove <name>`, `/friends`, or use the tab.
+Clicking a friend who is on shift primes the chat box to whisper them.
+
+Public messages take the old colour and motion prefixes, and both show up in the
+chat log *and* in the bubble over your head:
+
+```
+rainbow:wave:the ward is bleeding
+red:shake:CODE BLUE
+```
+
+Colours are `red`, `green`, `cyan`, `purple`, `white`, `yellow`, `flash1`–`flash3`,
+`glow` and `rainbow`; motions are `wave`, `wave2`, `shake` and `slide`. One of each,
+in either order. Anything else stays part of the message, so `note: fetch the gauze`
+says exactly that. `/effects` prints the list in game.
 
 ### Getting started
 
@@ -299,6 +322,7 @@ js/
     combat.js           NPC lifecycle, AI, hit resolution, death
     actions.js          movement, gathering, scenery interaction, item use
     economy.js          crafting, buying and selling as pure transitions
+    chatfx.js           the colour and motion prefixes, parsed once for both ends
     questapi.js         the narrow surface quest scripts are written against
   engine/
     render.js           terrain chunks, entities, effects, minimap
