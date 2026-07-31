@@ -26,7 +26,7 @@ import {
 import {
   spawnNpcs, npcAt, npcProfile, hitChance, playerCombatProfile,
   playerAttackTick, tickPlayerEffects, dealDamageToNpc, playerDeath,
-  bindVigilData, STYLES
+  bindVigilData, STYLES, meleeAdjacent, pathAdjacentFrom
 } from '../js/game/combat.js';
 import {
   walkTo, movePlayer, tickAction, interactObject, pickUp, dropItem,
@@ -162,8 +162,12 @@ export class Sim {
       st.tick = this.tick;
       st.player.ix = st.player.x;
       st.player.iy = st.player.y;
+      const wasAt = st.player.x * 100000 + st.player.y;
 
       movePlayer(st, this.world);
+
+      // walking away ends the conversation, the way it does in the originals
+      if (s.dialogue && st.player.x * 100000 + st.player.y !== wasAt) this.endDialogue(s);
       tickAction(st, this.world, null);
       playerAttackTick(st, this.world);
       tickPlayerEffects(st);
@@ -287,16 +291,21 @@ export class Sim {
 
       const p = target.p;
       const range = d.magic ? 5 : d.attackRange || 1;
-      const dd = cheb(n.x, n.y, p.x, p.y);
+      // a melee npc has to come round to a cardinal square, same as the player
+      const melee = !d.magic && range === 1;
+      const reach = melee
+        ? meleeAdjacent(n.x, n.y, p.x, p.y)
+        : cheb(n.x, n.y, p.x, p.y) <= range;
 
-      if (dd > range) {
+      if (!reach) {
         if (!n.path.length || this.tick % 3 === 0) {
-          n.path = findPath(n.x, n.y, p.x, p.y,
-            (x, y) => world.isWalkable(x, y) &&
-                      !(x === p.x && y === p.y) &&
-                      !this.playerAt(x, y) &&
-                      !(npcAt({ npcs: this.npcs }, x, y) && npcAt({ npcs: this.npcs }, x, y) !== n),
-            600).slice(0, 6);
+          const free = (x, y) => world.isWalkable(x, y) &&
+                                 !this.playerAt(x, y) &&
+                                 !(npcAt({ npcs: this.npcs }, x, y) &&
+                                   npcAt({ npcs: this.npcs }, x, y) !== n);
+          n.path = (melee
+            ? pathAdjacentFrom(n.x, n.y, p.x, p.y, free, 600)
+            : findPath(n.x, n.y, p.x, p.y, free, 600)).slice(0, 6);
         }
         this.stepNpc(n);
       } else {
@@ -480,7 +489,7 @@ export class Sim {
         if (x === null || y === null) return;
         clearAction(st);
         st.target = null;
-        s.dialogue = null;
+        this.closeDialogue(s);
         walkTo(st, this.world, clamp(x, 0, this.world.w - 1), clamp(y, 0, this.world.h - 1));
         break;
       }
@@ -490,6 +499,7 @@ export class Sim {
         if (!n || n.dead || !NPCS[n.id].hostile) return;
         if (cheb(st.player.x, st.player.y, n.x, n.y) > 20) return;
         clearAction(st);
+        this.closeDialogue(s);
         st.target = { kind: 'npc', ref: n };
         log(st, `You attack the ${NPCS[n.id].name.toLowerCase()}.`);
         break;
@@ -500,7 +510,7 @@ export class Sim {
         if (!o) return;
         if (cheb(st.player.x, st.player.y, o.x, o.y) > 30) return;
         st.target = null;
-        s.dialogue = null;
+        this.closeDialogue(s);
         interactObject(st, this.world, o, null);
         break;
       }
@@ -508,6 +518,7 @@ export class Sim {
       case 'pickup': {
         const g = this.ground.find(g => g.x === int(msg.x) && g.y === int(msg.y) && g.id === msg.i);
         if (!g) return;
+        this.closeDialogue(s);
         pickUp(st, this.world, g);
         break;
       }
@@ -673,7 +684,7 @@ export class Sim {
     // walk into range first, exactly as the client used to
     const self = this;
     st.action = {
-      at: { x: n.x, y: n.y }, range: 2, walkTo: { x: n.x, y: n.y },
+      at: { x: n.x, y: n.y }, range: 2, arrive: true, walkTo: { x: n.x, y: n.y },
       run() {
         st.player.facing = n.x >= st.player.x ? 1 : -1;
         if (d.bank) { st.bus.emit('openbank'); return; }
@@ -741,6 +752,13 @@ export class Sim {
     s.dialogue = null;
     s.send({ t: 'dialogue', close: true });
   }
+
+  /**
+   * Forgetting the conversation server-side is not enough - the box is drawn
+   * by the client and stays up until it is told otherwise, which is what left
+   * it hanging over the screen after walking off mid-sentence.
+   */
+  closeDialogue(s) { if (s.dialogue) this.endDialogue(s); }
 
   /* ---------------- utility spells ------------------------ */
 

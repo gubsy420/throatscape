@@ -11,7 +11,7 @@ import {
   addXp, baseLevel, effLevel, addItem, removeItem, removeSlot, invCount, hasItem,
   canHold, freeSlots, log, toast, floater, meetsReq, equipFromSlot
 } from './state.js';
-import { npcBlocks, tileBlocked, npcAt } from './combat.js';
+import { npcBlocks, tileBlocked, npcAt, pathAdjacent } from './combat.js';
 import { makeQuestApi, questHook } from './questapi.js';
 
 /* ---------------- movement ---------------------------------- */
@@ -19,12 +19,10 @@ import { makeQuestApi, questHook } from './questapi.js';
 export function walkTo(state, world, tx, ty, adjacentOk = false) {
   const p = state.player;
   if (p.dead) return;
-  const path = findPath(p.x, p.y, tx, ty,
-    (x, y) => world.isWalkable(x, y) && !tileBlocked(state, x, y));
-  if (adjacentOk && path.length && path[path.length - 1].x === tx && path[path.length - 1].y === ty) {
-    path.pop();
-  }
-  p.path = path;
+  p.path = adjacentOk
+    ? pathAdjacent(state, world, tx, ty)
+    : findPath(p.x, p.y, tx, ty,
+        (x, y) => world.isWalkable(x, y) && !tileBlocked(state, x, y));
   state.moveMarker = { x: tx, y: ty, ttl: 24 };
 }
 
@@ -64,7 +62,11 @@ export function setAction(state, world, action) {
   state.action = action;
   state.target = null;
   if (action.walkTo) {
-    walkTo(state, world, action.walkTo.x, action.walkTo.y, true);
+    // range 0 means the action happens on the tile itself - picking an item
+    // up, for instance - so walk onto it rather than stopping beside it
+    const beside = action.range !== 0;
+    if (beside && action.arrive === undefined) action.arrive = true;
+    walkTo(state, world, action.walkTo.x, action.walkTo.y, beside);
   }
 }
 
@@ -77,16 +79,22 @@ export function tickAction(state, world, ui) {
   const a = state.action;
   if (!a || p.dead) return;
 
+  /*
+   * `arrive` actions run only once the walk is finished, not the moment the
+   * target is nominally in range. Talking has a range of 2 so that an NPC
+   * behind a counter still works, but without this you would stop short and
+   * hold the conversation from across the room.
+   */
   const inRange = a.range === undefined
     ? true
-    : cheb(p.x, p.y, a.at.x, a.at.y) <= a.range;
+    : cheb(p.x, p.y, a.at.x, a.at.y) <= a.range && !(a.arrive && p.path.length);
 
   if (!inRange) {
     if (!p.path.length) {
       // could not reach it
       if (a.tries === undefined) a.tries = 0;
       if (++a.tries > 2) { state.action = null; log(state, "I can't reach that."); }
-      else walkTo(state, world, a.at.x, a.at.y, true);
+      else walkTo(state, world, a.at.x, a.at.y, a.range !== 0);
     }
     return;
   }

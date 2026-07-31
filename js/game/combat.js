@@ -143,6 +143,53 @@ export function npcProfile(n) {
   };
 }
 
+/* ---------------- standing next to things ------------------- */
+
+const CARDINALS = [[0, -1], [1, 0], [0, 1], [-1, 0]];
+
+/**
+ * Melee reaches along the cardinals only, as in the games this copies -
+ * you cannot hit a thing that is on your corner, and it cannot hit you.
+ */
+export const meleeAdjacent = (ax, ay, bx, by) =>
+  Math.abs(ax - bx) + Math.abs(ay - by) === 1;
+
+/**
+ * A path to a tile beside (tx, ty), preferring a cardinal one. findPath is
+ * best-effort - it returns the closest tile it reached when the goal is
+ * unreachable - so each candidate is checked for actually having arrived.
+ *
+ * Falls back to any adjacent tile when no cardinal one can be reached, since
+ * a crate wedged in a corner is better reached diagonally than not at all.
+ */
+export function pathAdjacentFrom(sx, sy, tx, ty, free, maxNodes) {
+  for (const [dx, dy] of CARDINALS) {
+    if (sx === tx + dx && sy === ty + dy) return [];
+  }
+
+  let best = null;
+  for (const [dx, dy] of CARDINALS) {
+    const x = tx + dx, y = ty + dy;
+    if (!free(x, y)) continue;
+    const path = findPath(sx, sy, x, y, free, maxNodes);
+    const end = path[path.length - 1];
+    if (!end || end.x !== x || end.y !== y) continue;
+    if (!best || path.length < best.length) best = path;
+  }
+  if (best) return best;
+
+  const path = findPath(sx, sy, tx, ty, free, maxNodes);
+  const end = path[path.length - 1];
+  if (end && end.x === tx && end.y === ty) path.pop();
+  return path;
+}
+
+/** pathAdjacentFrom, starting from the player and using the world's rules. */
+export function pathAdjacent(state, world, tx, ty, maxNodes) {
+  return pathAdjacentFrom(state.player.x, state.player.y, tx, ty,
+    (x, y) => world.isWalkable(x, y) && !tileBlocked(state, x, y), maxNodes);
+}
+
 /* ---------------- player attacking -------------------------- */
 
 export function playerAttackTick(state, world) {
@@ -154,15 +201,22 @@ export function playerAttackTick(state, world) {
   if (n.dead) { state.target = null; state.action = null; return; }
 
   const prof = playerCombatProfile(state);
-  const range = prof.wstyle === 'melee' ? 1 : prof.wstyle === 'ranged' ? 7 : 6;
-  const dd = cheb(p.x, p.y, n.x, n.y);
+  const melee = prof.wstyle === 'melee';
+  const range = prof.wstyle === 'ranged' ? 7 : 6;
+  const reach = melee
+    ? meleeAdjacent(p.x, p.y, n.x, n.y)
+    : cheb(p.x, p.y, n.x, n.y) <= range;
 
-  if (dd > range) {
-    // walk into range
+  if (!reach) {
+    // walk into range: melee wants a cardinal square, the rest just want closer
     if (!p.path.length) {
-      const path = findPath(p.x, p.y, n.x, n.y,
-        (x, y) => world.isWalkable(x, y) && !tileBlocked(state, x, y));
-      if (path.length) { path.pop(); p.path = path; }
+      if (melee) {
+        p.path = pathAdjacent(state, world, n.x, n.y);
+      } else {
+        const path = findPath(p.x, p.y, n.x, n.y,
+          (x, y) => world.isWalkable(x, y) && !tileBlocked(state, x, y));
+        if (path.length) { path.pop(); p.path = path; }
+      }
     }
     return;
   }
