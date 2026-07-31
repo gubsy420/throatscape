@@ -117,7 +117,7 @@ export class Sim {
     this.tick = 0;
     this.fx = [];                   // public hitsplats for this tick
     this.objectChanges = [];        // scenery depletion changes this tick
-    this.depletedState = new Map(); // object -> 0|1, for diffing
+    this.objState = new Map();      // object -> depleted|open bits, for diffing
 
     // spawnNpcs writes into state.npcs, so lend it a shim
     const shim = { npcs: [] };
@@ -169,13 +169,26 @@ export class Sim {
       st.player.iy = st.player.y;
       const wasAt = st.player.x * 100000 + st.player.y;
 
+      /*
+       * A swing is a single frame's worth of event, so the snapshot carries a
+       * pulse rather than a countdown: the shared code bumps attackAnim on the
+       * tick it strikes, and a rising edge is exactly "started swinging now".
+       */
+      const anim0 = st.player.attackAnim;
+
       movePlayer(st, this.world);
 
       // walking away ends the conversation, the way it does in the originals
       if (s.dialogue && st.player.x * 100000 + st.player.y !== wasAt) this.endDialogue(s);
       tickAction(st, this.world, null);
       playerAttackTick(st, this.world);
+      s.swung = st.player.attackAnim > anim0;
       tickPlayerEffects(st);
+
+      // the node being worked, so the client can shake it and throw chips
+      const act = st.action;
+      s.gathering = act && act.kind === 'gather' && act.obj && !st.player.path.length
+        ? act.obj : null;
 
       if (s.chatTtl > 0 && --s.chatTtl === 0) st.player.chatText = null;
 
@@ -201,13 +214,19 @@ export class Sim {
     for (const o of this.world.objects) if (o.depleted > 0) o.depleted--;
   }
 
-  /** Emits a change whenever a node flips between full and exhausted. */
+  /**
+   * Emits a change whenever a node flips between full and exhausted, or a
+   * door swings. Scenery is otherwise never transmitted - both ends generate
+   * the map - so these two bits are all the client knows about it.
+   */
   syncObjects() {
     for (const o of this.world.objects) {
-      if (!OBJ[o.type]?.skill) continue;
-      const now = o.depleted > 0 ? 1 : 0;
-      if ((this.depletedState.get(o) ?? 0) !== now) {
-        this.depletedState.set(o, now);
+      const gathered = !!OBJ[o.type]?.skill;
+      const swings = o.type === 'door' || o.type === 'gate';
+      if (!gathered && !swings) continue;
+      const now = (o.depleted > 0 ? 1 : 0) | (o.open ? 2 : 0);
+      if ((this.objState.get(o) ?? 0) !== now) {
+        this.objState.set(o, now);
         this.objectChanges.push(o);
       }
     }
@@ -351,6 +370,7 @@ export class Sim {
     const st = session.state;
     const p = st.player;
     if (p.dead) return;
+    n.swingAt = this.tick;
 
     const prof = playerCombatProfile(st);
     const npd = npcProfile(n);
@@ -391,7 +411,9 @@ export class Sim {
         style: st.attackStyle,
         cast: st.autocast,
         boosts: st.boosts,
-        c: p.chatText || null
+        c: p.chatText || null,
+        sw: s.swung ? 1 : 0,
+        gn: s.gathering ? [s.gathering.x, s.gathering.y] : null
       },
       npcs: [],
       players: [],
@@ -402,7 +424,8 @@ export class Sim {
 
     for (const n of this.npcs) {
       if (n.dead || !near(n.x, n.y)) continue;
-      snap.npcs.push({ u: n.uid, i: n.id, x: n.x, y: n.y, hp: n.hp, mx: n.maxHp });
+      snap.npcs.push({ u: n.uid, i: n.id, x: n.x, y: n.y, hp: n.hp, mx: n.maxHp,
+                       sw: n.swingAt === this.tick ? 1 : 0 });
     }
 
     for (const other of this.sessions.values()) {
@@ -412,7 +435,8 @@ export class Sim {
         b: other.state.equipment.body || null,
         h: other.state.equipment.head || null,
         w: other.state.equipment.weapon || null,
-        c: other.p.chatText || null
+        c: other.p.chatText || null,
+        sw: other.swung ? 1 : 0
       });
     }
 
@@ -422,7 +446,9 @@ export class Sim {
     }
 
     for (const o of this.objectChanges) {
-      if (near(o.x, o.y)) snap.objs.push({ x: o.x, y: o.y, d: o.depleted > 0 ? 1 : 0 });
+      if (near(o.x, o.y)) {
+        snap.objs.push({ x: o.x, y: o.y, d: o.depleted > 0 ? 1 : 0, p: o.open ? 1 : 0 });
+      }
     }
 
     for (const f of this.fx) {

@@ -294,9 +294,15 @@ function gatherTick(state, world, a) {
 
   const lvl = effLevel(state, d.skill);
   // higher level = faster success, mirroring the classic roll
-  const successChance = clamp(0.25 + (lvl - d.level) * 0.025 + toolBonus(state, d.tool), 0.15, 0.95);
+  const successChance = clamp(0.20 + (lvl - d.level) * 0.022 + toolBonus(state, d.tool), 0.12, 0.88);
 
-  if (!chance(successChance)) { a.delay = 1; return false; }
+  /*
+   * One roll every three ticks, not every other tick. Combined with the
+   * chance above that is roughly nine seconds a log at the level the node
+   * asks for, and under seven with the right tool - close to the games this
+   * is imitating, and slow enough that the swing animation is worth watching.
+   */
+  if (!chance(successChance)) { a.delay = 2; return false; }
 
   let yieldId = d.yield;
   let xp = d.xp;
@@ -320,7 +326,7 @@ function gatherTick(state, world, a) {
     obj.depleted = d.respawn;
     return true;
   }
-  a.delay = 2;
+  a.delay = 3;
   return false;                                   // pools keep going
 }
 

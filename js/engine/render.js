@@ -10,6 +10,9 @@ import { item } from '../data/items.js';
 
 const CHUNK = 16;
 
+/** How long one swing takes to play. A server tick is 600 ms; this fits inside. */
+const SWING_MS = 420;
+
 export class Renderer {
   constructor(canvas, world) {
     this.canvas = canvas;
@@ -146,6 +149,11 @@ export class Renderer {
     const ts = this.ts;
     this.time += 1 / 60;
 
+    // real elapsed time, for anything that should look the same on any display
+    const now = performance.now();
+    this.dt = this._last ? Math.min(0.1, (now - this._last) / 1000) : 1 / 60;
+    this._last = now;
+
     ctx.setTransform(this.dpr, 0, 0, this.dpr, 0, 0);
     ctx.imageSmoothingEnabled = false;
     ctx.fillStyle = '#07050a';
@@ -220,7 +228,7 @@ export class Renderer {
     if (state.moveMarker && state.moveMarker.ttl > 0) this.moveMarker(state.moveMarker);
 
     for (const e of list) {
-      if (e.kind === 'obj') this.drawObject(e.o);
+      if (e.kind === 'obj') this.drawObject(e.o, state);
       else if (e.kind === 'npc') this.drawNpc(e.n, state);
       else if (e.kind === 'other') this.drawOther(e.o);
       else this.drawPlayer(state);
@@ -401,18 +409,83 @@ export class Renderer {
 
   /* ---------------- scenery --------------------------------- */
 
-  drawObject(o) {
+  /**
+   * Doors are told when they are open, not how far. Easing towards the target
+   * here is what turns that into a swing rather than a jump cut.
+   */
+  doorAngle(o) {
+    const want = o.open ? 1 : 0;
+    if (o.anim === undefined) o.anim = want;
+    // eased against the clock, not the frame: a 144 Hz monitor should not
+    // open doors twice as fast as a 60 Hz one
+    else o.anim += (want - o.anim) * Math.min(1, this.dt * 5);
+    return o.anim;
+  }
+
+  /**
+   * Swings arrive as a timestamp and are played out here, so the motion runs
+   * at frame rate rather than stepping once per 600 ms server tick.
+   * Returns 0 when nothing is happening, otherwise 0..1 through the swing.
+   */
+  swing(at) {
+    if (!at) return 0;
+    const t = (performance.now() - at) / SWING_MS;
+    return t > 0 && t < 1 ? t : 0;
+  }
+
+  /** Rest, wind up, then follow through. Negative is drawn back. */
+  swingAngle(t) {
+    if (!t) return 0.25;
+    return t < 0.3
+      ? 0.25 - (t / 0.3) * 1.15
+      : -0.9 + ((t - 0.3) / 0.7) * 1.15;
+  }
+
+  /** The arc a weapon leaves behind it, so an unarmed swing still reads. */
+  slashArc(ctx, t, flip) {
+    if (t < 0.3) return;
+    const p = (t - 0.3) / 0.7;
+    ctx.save();
+    ctx.scale(flip, 1);
+    ctx.globalAlpha = (1 - p) * 0.55;
+    ctx.strokeStyle = '#f0e4d0';
+    ctx.lineWidth = 2 - p;
+    ctx.beginPath();
+    ctx.arc(6, -2, 12, -1.1 + p * 1.6, 0.2 + p * 1.6);
+    ctx.stroke();
+    ctx.restore();
+  }
+
+  drawObject(o, state) {
     const d = OBJ[o.type];
     if (!d) return;
     const ctx = this.ctx, ts = this.ts;
     const s = this.tileToScreen(o.x, o.y);
-    const cx = s.x + ts / 2, cy = s.y + ts / 2;
+    let cx = s.x + ts / 2, cy = s.y + ts / 2;
     const depleted = o.depleted > 0;
+
+    // the node you are working shudders on every blow, and throws chips
+    const worked = state && state.gatherNode &&
+                   state.gatherNode.x === o.x && state.gatherNode.y === o.y;
+    const hit = worked ? this.swing(state.player.swingAt) : 0;
+    if (hit) cx += Math.sin(hit * 22) * (1 - hit) * 2.5;
 
     ctx.save();
     ctx.translate(cx, cy);
     ctx.scale(ts / TILE, ts / TILE);
     if (depleted) ctx.globalAlpha = 0.4;
+
+    if (hit > 0.3 && !this.lowDetail) {
+      const p = (hit - 0.3) / 0.7;
+      ctx.save();
+      ctx.globalAlpha = 1 - p;
+      ctx.fillStyle = d.c || '#c9a68e';
+      for (let i = 0; i < 4; i++) {
+        const a = -2.4 + i * 0.55;
+        ctx.fillRect(Math.cos(a) * p * 16, Math.sin(a) * p * 14 + p * p * 10, 2, 2);
+      }
+      ctx.restore();
+    }
 
     const sway = this.lowDetail ? 0 : Math.sin(this.time * 0.9 + o.x * 0.6 + o.y) * 0.03;
 
@@ -606,15 +679,19 @@ export class Renderer {
         break;
       }
       case 'door': {
-        ctx.fillStyle = o.open ? 'rgba(90,60,50,.35)' : '#7a5a42';
-        if (o.open) {
-          ctx.fillRect(-14, -14, 6, 28);
-        } else {
-          ctx.fillRect(-13, -14, 26, 28);
-          ctx.strokeStyle = '#4a3428'; ctx.lineWidth = 1.5; ctx.strokeRect(-13, -14, 26, 28);
-          ctx.fillStyle = '#e0b357';
-          ctx.beginPath(); ctx.arc(8, 2, 2, 0, 7); ctx.fill();
-        }
+        // hinged on the left, swinging away from the corridor
+        const a = this.doorAngle(o) * 1.5;
+        ctx.fillStyle = '#4a3428';
+        ctx.fillRect(-14, -15, 3, 30);           // the frame stays put
+        ctx.save();
+        ctx.translate(-12, 0);
+        ctx.transform(Math.cos(a), 0, 0, 1, 0, 0);   // foreshorten as it swings
+        ctx.fillStyle = '#7a5a42';
+        ctx.fillRect(0, -14, 24, 28);
+        ctx.strokeStyle = '#4a3428'; ctx.lineWidth = 1.5; ctx.strokeRect(0, -14, 24, 28);
+        ctx.fillStyle = '#e0b357';
+        ctx.beginPath(); ctx.arc(19, 2, 2, 0, 7); ctx.fill();
+        ctx.restore();
         break;
       }
       case 'crate': {
@@ -659,11 +736,16 @@ export class Renderer {
         break;
       }
       case 'gate': {
+        const a = this.doorAngle(o) * 1.5;
+        ctx.save();
+        ctx.translate(-12, 0);
+        ctx.transform(Math.cos(a), 0, 0, 1, 0, 0);
         ctx.strokeStyle = '#6b625e'; ctx.lineWidth = 2.4;
-        for (let i = -1; i <= 1; i++) {
-          ctx.beginPath(); ctx.moveTo(i * 7, -14); ctx.lineTo(i * 7, 14); ctx.stroke();
+        for (let i = 0; i <= 2; i++) {
+          ctx.beginPath(); ctx.moveTo(3 + i * 9, -14); ctx.lineTo(3 + i * 9, 14); ctx.stroke();
         }
-        ctx.beginPath(); ctx.moveTo(-12, -8); ctx.lineTo(12, -8); ctx.stroke();
+        ctx.beginPath(); ctx.moveTo(0, -8); ctx.lineTo(24, -8); ctx.stroke();
+        ctx.restore();
         break;
       }
       default:
@@ -676,9 +758,16 @@ export class Renderer {
   /* ---------------- entities -------------------------------- */
 
   humanoid(ctx, sc, opts) {
-    const { body = '#c9b48f', hat, face = '#e0c0a8', bob = 0, flip = 1, scale = 1 } = opts;
+    const { body = '#c9b48f', hat, face = '#e0c0a8', bob = 0, flip = 1, scale = 1,
+            lunge = 0 } = opts;
     ctx.save();
     ctx.scale(sc / TILE, sc / TILE);
+    // a swing throws the weight forward and back again, pivoting on the feet
+    if (lunge) {
+      const push = Math.sin(lunge * Math.PI);
+      ctx.translate(flip * push * 3.5, 0);
+      ctx.rotate(flip * push * 0.16);
+    }
     ctx.scale(scale * flip, scale);
 
     ctx.fillStyle = 'rgba(0,0,0,.32)';
@@ -719,25 +808,28 @@ export class Renderer {
     const moving = p.path.length > 0;
     const bob = moving ? Math.sin(this.time * 12) * 1.2 : 0;
     const eq = state.equipment;
+    const t = this.swing(p.swingAt);
+    const flip = p.facing < 0 ? -1 : 1;
 
     this.humanoid(ctx, ts, {
       body: eq.body ? (item(eq.body)?.art?.c || '#e8e0cd') : '#e8e0cd',
       hat: eq.head ? (item(eq.head)?.art?.c || null) : '#ffffff',
-      bob, flip: p.facing < 0 ? -1 : 1
+      bob, flip, lunge: t
     });
 
-    // held weapon
+    ctx.save();
+    ctx.scale(ts / TILE, ts / TILE);
+    // the arc reads even bare-handed, which is how most nurses start
+    if (t) this.slashArc(ctx, t, flip);
+
     if (eq.weapon) {
-      ctx.save();
-      ctx.scale(ts / TILE, ts / TILE);
-      ctx.translate(p.facing < 0 ? -11 : 11, -2 + bob);
-      const sw = p.attackAnim > 0 ? -0.9 + p.attackAnim * 0.12 : 0.25;
-      ctx.rotate((p.facing < 0 ? -1 : 1) * sw);
+      ctx.translate(flip * 11, -2 + bob);
+      ctx.rotate(flip * this.swingAngle(t));
       ctx.scale(0.7, 0.7);
       ctx.translate(-8, -8);
       drawArt(ctx, item(eq.weapon)?.art || { k: 'blade' }, 16);
-      ctx.restore();
     }
+    ctx.restore();
     ctx.restore();
 
     this.nameTag(s.x + ts / 2, s.y - 4, state.name, '#7fbf8f');
@@ -750,8 +842,14 @@ export class Renderer {
     const s = this.tileToScreen(o.rx, o.ry);
     ctx.save();
     ctx.translate(s.x + ts / 2, s.y + ts / 2);
+    const t = this.swing(o.swingAt);
     this.humanoid(ctx, ts, { body: o.color || '#b8a68f', hat: '#ffffff',
-      bob: o.moving ? Math.sin(this.time * 12 + o.rx) * 1.2 : 0 });
+      bob: o.moving ? Math.sin(this.time * 12 + o.rx) * 1.2 : 0, lunge: t });
+    if (t) {
+      ctx.save(); ctx.scale(ts / TILE, ts / TILE);
+      this.slashArc(ctx, t, 1);
+      ctx.restore();
+    }
     ctx.restore();
     this.nameTag(s.x + ts / 2, s.y - 4, o.name, '#86b7e0');
     if (o.chat && o.chat.ttl > 0) this.chatBubble(s.x + ts / 2, s.y - 20, o.chat.text);
@@ -765,6 +863,18 @@ export class Renderer {
     ctx.save();
     ctx.translate(s.x + ts / 2, s.y + ts / 2);
     if (n.hurtFlash > 0) { ctx.globalAlpha = 0.6; }
+
+    /*
+     * The lunge is applied out here rather than inside each art case, so
+     * every monster in the game animates without twelve separate edits.
+     */
+    const t = this.swing(n.swingAt);
+    const dir = state.player.rx >= n.rx ? 1 : -1;
+    if (t) {
+      const push = Math.sin(t * Math.PI);
+      ctx.translate(dir * push * 4 * (ts / TILE), push * 1.5 * (ts / TILE));
+      ctx.rotate(dir * push * 0.14);
+    }
 
     const c = d.art.c || '#9a8878';
     const bob = n.path && n.path.length ? Math.sin(this.time * 10 + n.spawnX) * 1.1 : 0;
@@ -910,6 +1020,11 @@ export class Renderer {
       }
       default:
         this.humanoid(ctx, ts, { body: c, bob, scale });
+    }
+    if (t) {
+      ctx.save(); ctx.scale(ts / TILE, ts / TILE);
+      this.slashArc(ctx, t, dir);
+      ctx.restore();
     }
     ctx.restore();
 

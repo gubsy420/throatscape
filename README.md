@@ -13,8 +13,9 @@ real prerequisites, and other players wandering the same map.
 Accounts, monsters, loot, skills and quests all live **on the server**. The browser
 draws what it is told and sends what you clicked; it does not decide anything.
 
-No build step. No dependencies. No image assets — every sprite and icon in the game
-is drawn procedurally on a canvas.
+No build step. No dependencies. No assets of any kind — every sprite and icon is
+drawn procedurally on a canvas, and every sound and every bar of music is
+synthesised in the browser from oscillators and a noise buffer.
 
 ---
 
@@ -211,6 +212,22 @@ Experience follows the original curve exactly: level 99 is 13,034,431 XP.
 
 ---
 
+## Sound
+
+There are no audio files. Effects are built from oscillators and one shared noise
+buffer, and the score is generated a bar at a time from a mode, a four-chord loop
+and a tempo — so the whole soundtrack costs nothing to download.
+
+Each region has its own theme, from Lumbrisdale's tired minor to the phrygian
+dominant of the Larynx Deep, over a detuned drone and a slow lub-dub that is
+either a heart or a machine imitating one. Being attacked switches to something
+faster and darker until you are left alone again.
+
+Settings → *Music* and *Sound effects*, with volume sliders for each. Browsers do
+not allow sound before you have touched the page, so the first click starts it.
+
+---
+
 ## The world of Xavin's Throat
 
 A 192 × 192 tile map in seven regions, all walkable end to end:
@@ -286,6 +303,7 @@ js/
   engine/
     render.js           terrain chunks, entities, effects, minimap
     icons.js            procedural item icon painter
+    audio.js            synthesised effects and a generative score per region
   ui/
     hud.js              chat, orbs, tooltips, context menu
     panels.js           the seven sidebar tabs

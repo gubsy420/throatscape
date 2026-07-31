@@ -209,7 +209,10 @@ export class Net {
 
     for (const o of msg.objs || []) {
       const obj = this.world.objectAt(o.x, o.y);
-      if (obj) obj.depleted = o.d ? 1 : 0;
+      if (!obj) continue;
+      obj.depleted = o.d ? 1 : 0;
+      // doors are drawn mid-swing, so the renderer eases towards this
+      if ('p' in o) obj.open = !!o.p;
     }
 
     this.lastSnapAt = performance.now();
@@ -245,6 +248,14 @@ export class Net {
     p.moving = !!self.act;
     if (!!self.dead && !wasDead) s.bus.emit('died');
     if (moved) s.bus.emit('stepped');
+
+    /*
+     * Swings arrive as a one-tick pulse and are played out locally against the
+     * wall clock, so the animation runs at frame rate instead of stepping once
+     * every 600 ms with the rest of the snapshot.
+     */
+    if (self.sw) { p.swingAt = performance.now(); s.bus.emit('swing'); }
+    s.gatherNode = self.gn ? { x: self.gn[0], y: self.gn[1] } : null;
     // the bubble over your own head expires on the server's clock, in step
     // with the one everyone else sees over you
     p.chat = self.c ? { text: self.c, ttl: 1 } : null;
@@ -271,6 +282,7 @@ export class Net {
         if (n.hp < e.hp) e.hurtFlash = 3;
         e.hp = n.hp;
       }
+      if (n.sw) e.swingAt = performance.now();
     }
     for (const uid of [...this.npcById.keys()]) {
       if (!seen.has(uid)) this.npcById.delete(uid);
@@ -298,6 +310,7 @@ export class Net {
       }
       e.body = o.b; e.head = o.h; e.weapon = o.w;
       e.chat = o.c ? { text: o.c, ttl: 1 } : null;
+      if (o.sw) e.swingAt = performance.now();
     }
     for (const id of [...s.others.keys()]) if (!alive.has(id)) s.others.delete(id);
 
@@ -306,7 +319,10 @@ export class Net {
 
     for (const o of msg.objs || []) {
       const obj = this.world.objectAt(o.x, o.y);
-      if (obj) obj.depleted = o.d ? 1 : 0;
+      if (!obj) continue;
+      obj.depleted = o.d ? 1 : 0;
+      // doors are drawn mid-swing, so the renderer eases towards this
+      if ('p' in o) obj.open = !!o.p;
     }
 
     for (const f of msg.fx || []) {
