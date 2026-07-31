@@ -27,3 +27,9 @@ tmp/
 # The leading slash matters: without it this also matches js/data/, and a new
 # file in there would be silently left out of every commit and every image.
 /data/
+
+# Content pipeline scratch. The daily workflow writes the brief into the
+# working tree and then checks that nothing outside content/packs changed, so
+# these have to be invisible to git or the run fails on its own leftovers.
+/brief.json
+/.smoke-data/
