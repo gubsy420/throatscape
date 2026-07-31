@@ -130,12 +130,20 @@ export const QUESTS = [
   },
   rewards: { qp: 3, xp: { vigil: 2500, triage: 800 }, items: [['vigil_pendant', 1]] },
 
-  onPray(g, x, y) {
+  /**
+   * Ambrose asks for three watches in three places, and means it: the Uvula
+   * chapel alone holds three altars, so counting altars rather than places
+   * would let the whole vigil be kept without leaving her sight.
+   */
+  onPray(g, x, y, place) {
     if (g.stage('long_vigil') !== 1) return false;
     const q = g.q('long_vigil');
     q.set = q.set || [];
-    const key = x + ',' + y;
-    if (q.set.includes(key)) { g.quest('I have already kept watch at this altar.'); return true; }
+    const key = place || `${x},${y}`;
+    if (q.set.includes(key)) {
+      g.quest('I have already kept watch in this place. Ambrose wants three, and she means three places.');
+      return true;
+    }
     q.set.push(key);
     g.xp('vigil', 200);
     if (q.set.length >= 3) {

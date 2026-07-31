@@ -1,5 +1,16 @@
 [
   {
+    "version": "2026.07.31.2",
+    "date": "2026-07-31",
+    "title": "Sister Ambrose keeps her chapel",
+    "notes": [
+      "fix: There were two Sister Ambroses. One kept the Chapel of the Uvula; the other stood in the Guild of Physicians in Vellumhaven, among the cauldrons. She would start the Long Vigil from there and then tell you to keep watch at the altar “here”, in a room that has never had one. There is one of her now, in the chapel, where the quest says she is.",
+      "fix: The Long Vigil asks for three watches in three places, one of them “not in a chapel at all” — and no such altar existed. Every one in the Throat stood in one of the two chapels.",
+      "content: A shrine on the Gullet Road, between the braziers: an altar, two graves and a sign. Somebody keeps the candles lit.",
+      "balance: The Long Vigil counts places, not altars. Three of them stand in the Uvula chapel and praying at all three was never what Ambrose meant."
+    ]
+  },
+  {
     "version": "2026.07.31.1",
     "date": "2026-07-31",
     "title": "The Cartilage Rings",

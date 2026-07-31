@@ -72,6 +72,12 @@ async function playtest(candidate) {
    * that point pass or fail for the wrong reason, since a dead player's
    * intents are ignored.
    */
+  // the sharpest thing in the game, so a fight is decided by the creature's
+  // numbers rather than by how long a bare-handed nurse takes
+  const bestWeapon = Object.values(game.ITEMS)
+    .filter(i => i.slot === 'weapon' && !i.fromPack)
+    .sort((a, b) => sumAttack(b) - sumAttack(a))[0];
+
   const equip = session => {
     for (const id of Object.keys(session.state.skills)) {
       session.state.skills[id].xp = 4000000;             // level 90-odd
@@ -81,6 +87,11 @@ async function playtest(candidate) {
     p.maxHp = 400;
     p.hp = 400;
     p.venom = 0;
+    if (bestWeapon && session.state.equipment.weapon !== bestWeapon.id) {
+      state.addItem(session.state, bestWeapon.id, 1);
+      const idx = session.state.inventory.findIndex(s => s && s.id === bestWeapon.id);
+      state.equipFromSlot(session.state, idx);
+    }
   };
 
   head('It survives being left running');
@@ -321,6 +332,12 @@ async function playtest(candidate) {
      'and the same skills');
 
   return fails;
+}
+
+/** Every attack bonus an item carries, added up. */
+function sumAttack(item) {
+  return ['aStab', 'aSlash', 'aCrush', 'aRange', 'aMagic']
+    .reduce((a, k) => a + (item.b?.[k] || 0), 0);
 }
 
 /** A walkable tile cardinally beside this one, if there is one. */

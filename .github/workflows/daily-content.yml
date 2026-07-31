@@ -60,7 +60,9 @@ jobs:
           "
 
       - name: Confirm the game is healthy before adding to it
-        run: node tools/smoke.mjs --no-server
+        run: |
+          node tools/smoke.mjs --no-server
+          node tools/quests.mjs
 
       - name: Write the delivery
         id: write
@@ -143,6 +145,12 @@ jobs:
       - name: Smoke test again, as the game will actually load it
         if: ${{ !inputs.dry_run }}
         run: node tools/smoke.mjs
+
+      # A pack can add a quest step that claims a kill before the quest that
+      # was waiting for it, so the campaign is re-checked after publishing.
+      - name: The campaign still finishes with the new content in
+        if: ${{ !inputs.dry_run }}
+        run: node tools/quests.mjs
 
       - name: Commit
         if: ${{ !inputs.dry_run }}

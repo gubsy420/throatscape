@@ -379,12 +379,18 @@ export function buildWorld() {
   addObj('well', 152, 156);
   for (let i = 0; i < 6; i++) addObj('brazier', 145 + i * 2, 150);
 
+  /*
+   * Shopkeepers and bankers stand in both towns; quest givers do not. Sister
+   * Ambrose used to have a second copy here in the Guild of Physicians, which
+   * meant a nurse could take the Long Vigil from her while standing in a room
+   * with two cauldrons and a sewing table in it, be told to keep watch at the
+   * altar "here", and find no altar within sight. She keeps her chapel.
+   */
   npcSpawns.push(
     { npc: 'banker_hollis', x: 134, y: 136 },
     { npc: 'apoth_dree', x: 162, y: 162 },
     { npc: 'quartermaster_sceld', x: 166, y: 162 },
-    { npc: 'smith_marrow', x: 135, y: 163 },
-    { npc: 'sister_ambrose', x: 160, y: 137 }
+    { npc: 'smith_marrow', x: 135, y: 163 }
   );
 
   /* --- Fen ------------------------------------------------ */
@@ -407,6 +413,19 @@ export function buildWorld() {
   road(92, 112, 92, 50, 4);
   for (let i = 0; i < 8; i++) addObj('brazier', 89, 56 + i * 7);
   addObj('sign', 94, 108, { text: 'THE GULLET ROAD — turn back. — signed, everyone.' });
+
+  /*
+   * The wayside altar. Sister Ambrose sends you to "Lumbrisdale chapel, here,
+   * and one more that is not in a chapel at all" - this is the one. Without it
+   * every altar in the Throat stands in one of the two chapels, and the third
+   * watch of the Long Vigil is a walk across the room rather than the road.
+   */
+  addObj('altar', 96, 71);
+  addObj('brazier', 95, 70);
+  addObj('brazier', 97, 70);
+  addObj('gravestone', 95, 73);
+  addObj('gravestone', 97, 73);
+  addObj('sign', 94, 72, { text: 'They stop here. Somebody should sit with them.' });
 
   /* --- Larynx Deep ---------------------------------------- */
   road(92, 50, 92, 20, 4, T.CAVE);

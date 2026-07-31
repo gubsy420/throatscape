@@ -306,6 +306,12 @@ Run it. It explains itself. In summary:
 - **The world still builds** — and every creature, node, site, quest giver and
   region can be walked to from the ward.
 
+`tools/quests.mjs` then plays the hand-written campaign end to end and checks
+it still finishes. This matters more than it sounds: only the first quest to
+claim an event gets it, so a `kill` step aimed at a creature an existing quest
+is already waiting on will quietly break that quest. Pick a creature your own
+pack added where you can.
+
 Then `tools/smoke.mjs` boots the real simulation and plays it: it finds each
 new creature and kills it, gathers each new node, makes each new recipe, wears
 each new item, and takes each new quest from the first line of dialogue to the

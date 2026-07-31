@@ -147,7 +147,7 @@ function runStation(state, world, obj, d, ui, g) {
       state.bus.emit('openmake', 'smelting');
       break;
     case 'altar':
-      prayAtAltar(state, obj, g);
+      prayAtAltar(state, world, obj, g);
       break;
     case 'bed':
       restInBed(state);
@@ -185,7 +185,7 @@ function runStation(state, world, obj, d, ui, g) {
   }
 }
 
-function prayAtAltar(state, obj, g) {
+function prayAtAltar(state, world, obj, g) {
   const before = state.vigil.points;
   state.vigil.points = state.vigil.max;
   addXp(state, 'vigil', 15);
@@ -196,7 +196,10 @@ function prayAtAltar(state, obj, g) {
   } else {
     log(state, 'You keep a moment of watch.');
   }
-  questHook(g, 'onPray', obj.x, obj.y);
+  // the region, not the tile: a quest that asks for three places wants to know
+  // which place this is, and only the world can say
+  questHook(g, 'onPray', obj.x, obj.y,
+            world.regionAt(obj.x, obj.y)?.id || `${obj.x},${obj.y}`);
 }
 
 function restInBed(state) {

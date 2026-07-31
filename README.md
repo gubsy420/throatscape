@@ -380,6 +380,12 @@ already in the game at the same level by more than 15%; and that the world still
 builds afterwards, with every creature, node, site, quest giver and region
 reachable on foot from the ward.
 
+**`quests.mjs`** plays the hand-written campaign end to end against the real
+simulation, through the real dialogue trees, and checks that everything each
+quest asks for is in the world and reachable. It runs before and after every
+delivery, because a pack can add a step that claims a kill the moment before
+the quest that was waiting for it.
+
 **`smoke.mjs`** boots the real simulation and plays it. It finds each new
 creature and kills it, gathers each new node, makes each new recipe, wears each
 new item, and takes each new quest from the first line of dialogue through to the
@@ -498,6 +504,7 @@ tools/
   beat.mjs              decides what the world needs next, and writes the brief
   validate.mjs          the gate: shape, references, scope, balance, reachability
   smoke.mjs             plays the new content headlessly, then over a real socket
+  quests.mjs            plays the hand-written campaign from end to end
   publish.mjs           load order and bulletin, for packs that passed
   lib.mjs               shared plumbing and the balance curves
 ```

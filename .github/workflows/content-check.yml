@@ -33,6 +33,9 @@ jobs:
       - name: The game still plays
         run: node tools/smoke.mjs
 
+      - name: The campaign can still be finished
+        run: node tools/quests.mjs
+
       - name: The bulletin is well formed
         run: |
           node -e "
