@@ -47,15 +47,21 @@ export class Windows {
   refreshOpen() {
     if (!this._open) return;
     const { kind, arg } = this._open;
-    if (kind === 'bank') this.openBank(true);
-    else if (kind === 'shop') this.openShop(arg, true);
-    else if (kind === 'make') this.openMake(arg, true);
+    if (kind === 'bank') this.openBank();
+    else if (kind === 'shop') this.openShop(arg);
+    else if (kind === 'make') this.openMake(arg);
   }
 
   /* ---------------- shell ----------------------------------- */
 
-  frame(title, bodyBuilder, note) {
+  /**
+   * `open` records which interface this is so refreshOpen can rebuild it.
+   * It has to be set here rather than by the caller: closeOverlay clears it,
+   * and the first thing this does is close whatever was open.
+   */
+  frame(title, bodyBuilder, note, open) {
     this.closeOverlay();
+    this._open = open || null;
     const ov = document.createElement('div');
     ov.id = 'overlay';
     const win = document.createElement('div');
@@ -139,9 +145,8 @@ export class Windows {
 
   /* ---------------- bank ------------------------------------ */
 
-  openBank(refresh) {
+  openBank() {
     const s = this.state;
-    this._open = { kind: 'bank' };
 
     this.frame('Bank of Xavin\'s Throat', body => {
       const cols = document.createElement('div');
@@ -204,7 +209,7 @@ export class Windows {
 
       cols.append(left, right);
       body.appendChild(cols);
-    }, `${s.bank.length} of 320 vault slots used`);
+    }, `${s.bank.length} of 320 vault slots used`, { kind: 'bank' });
   }
 
   /* ---------------- shop ------------------------------------ */
@@ -213,7 +218,6 @@ export class Windows {
     const s = this.state;
     const shop = SHOPS[id];
     if (!shop) return;
-    this._open = { kind: 'shop', arg: id };
 
     this.frame(shop.name, body => {
       const cols = document.createElement('div');
@@ -272,14 +276,14 @@ export class Windows {
 
       cols.append(left, right);
       body.appendChild(cols);
-    }, `${shop.greeting}   —   You have ${fmt(invCount(s, 'coins'))} gp`);
+    }, `${shop.greeting}   —   You have ${fmt(invCount(s, 'coins'))} gp`,
+       { kind: 'shop', arg: id });
   }
 
   openMake(station) {
     const s = this.state;
     const list = RECIPES[station];
     if (!list) return;
-    this._open = { kind: 'make', arg: station };
     const skill = STATION_SKILL[station];
     const lvl = baseLevel(s, skill);
 
@@ -332,7 +336,7 @@ export class Windows {
         wrap.appendChild(row);
       }
       body.appendChild(wrap);
-    }, `${SKILL_BY_ID[skill].name} level ${lvl}`);
+    }, `${SKILL_BY_ID[skill].name} level ${lvl}`, { kind: 'make', arg: station });
   }
 
 }
