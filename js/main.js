@@ -184,6 +184,7 @@ function startGame(state, net) {
   const audio = new Audio(state, world);
   const panels = new Panels(state, world, hud, net, audio);
   const windows = new Windows(state, world, hud, panels, net);
+  panels.windows = windows;              // the skills tab opens the guide window
 
   renderer.lowDetail = state.settings.lowDetail;
   state.snapCam = true;

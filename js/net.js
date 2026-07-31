@@ -258,7 +258,7 @@ export class Net {
     p.inCombat = self.cmb;
     p.moving = !!self.act;
     if (!!self.dead && !wasDead) s.bus.emit('died');
-    if (moved) s.bus.emit('stepped');
+    if (moved) { p.steps = (p.steps || 0) + 1; s.bus.emit('stepped'); }
 
     /*
      * Swings arrive as a one-tick pulse and are played out locally against the
@@ -289,6 +289,7 @@ export class Net {
       } else {
         e.ix = e.rx; e.iy = e.ry;
         e.path = (e.x !== n.x || e.y !== n.y) ? [1] : [];   // drives the walk bob
+        if (e.path.length) e.steps = (e.steps || 0) + 1;
         e.x = n.x; e.y = n.y;
         if (n.hp < e.hp) e.hurtFlash = 3;
         e.hp = n.hp;
@@ -316,6 +317,7 @@ export class Net {
       } else {
         e.ix = e.rx; e.iy = e.ry;
         e.moving = e.x !== o.x || e.y !== o.y;
+        if (e.moving) e.steps = (e.steps || 0) + 1;
         e.x = o.x; e.y = o.y;
         e.name = o.n;
       }

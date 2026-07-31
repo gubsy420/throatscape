@@ -6,6 +6,7 @@ import { ITEMS, itemName } from '../data/items.js';
 import { RECIPES, STATION_TITLE, STATION_SKILL } from '../data/recipes.js';
 import { SHOPS, buyPrice, sellPrice } from '../data/shops.js';
 import { SKILL_BY_ID } from '../data/skills.js';
+import { skillGuide, KIND_LABEL } from '../game/skillguide.js';
 import { fmt, fmtStack, escapeHtml } from '../util.js';
 import { iconImg } from '../engine/icons.js';
 import { invCount, baseLevel, log } from '../game/state.js';
@@ -50,6 +51,7 @@ export class Windows {
     if (kind === 'bank') this.openBank();
     else if (kind === 'shop') this.openShop(arg);
     else if (kind === 'make') this.openMake(arg);
+    else if (kind === 'guide') this.openSkillGuide(arg);
   }
 
   /* ---------------- shell ----------------------------------- */
@@ -280,6 +282,70 @@ export class Windows {
        { kind: 'shop', arg: id });
   }
 
+  /**
+   * What a skill unlocks, level by level, with the ones you can already do
+   * marked. Everything shown here is read from the same data the game runs
+   * on, so it cannot drift out of date.
+   */
+  openSkillGuide(skillId) {
+    const s = this.state;
+    const sk = SKILL_BY_ID[skillId];
+    if (!sk) return;
+    const lvl = baseLevel(s, skillId);
+    const rows = skillGuide(skillId);
+
+    this.frame(`${sk.name} — what it unlocks`, body => {
+      if (!rows.length) {
+        body.appendChild(note(
+          `${sk.name} has nothing to unlock — it is trained by doing, and it ` +
+          `raises what you can already do.`));
+        return;
+      }
+
+      const list = document.createElement('div');
+      list.className = 'guide-list';
+      let lastBand = null;
+
+      for (const r of rows) {
+        const have = lvl >= r.level;
+        // a heading each time the required level changes, like a level table
+        if (r.level !== lastBand) {
+          lastBand = r.level;
+          const band = document.createElement('div');
+          band.className = 'guide-band' + (have ? ' have' : '');
+          band.textContent = `Level ${r.level}`;
+          list.appendChild(band);
+        }
+
+        const row = document.createElement('div');
+        row.className = 'guide-row' + (have ? '' : ' locked');
+        if (r.id && ITEMS[r.id]) {
+          const ic = document.createElement('div');
+          ic.className = 'guide-icon';
+          ic.appendChild(iconImg(r.id, 26));
+          row.appendChild(ic);
+          ic.addEventListener('pointerenter', e => this.hud.itemTip(e, r.id));
+          ic.addEventListener('pointermove', e => this.hud.moveItemTip(e));
+          ic.addEventListener('pointerleave', () => this.hud.hideItemTip());
+        } else {
+          row.appendChild(el('div', 'guide-icon glyph', KIND_GLYPH[r.kind] || '•'));
+        }
+
+        const mid = document.createElement('div');
+        mid.className = 'guide-body';
+        mid.append(el('div', 'guide-name', r.name));
+        mid.append(el('div', 'guide-detail',
+          `${KIND_LABEL[r.kind]}${r.detail ? ' · ' + r.detail : ''}`));
+        row.appendChild(mid);
+
+        if (r.xp) row.appendChild(el('div', 'guide-xp', `${r.xp} xp`));
+        list.appendChild(row);
+      }
+      body.appendChild(list);
+    }, `You are level ${lvl}. ${rows.filter(r => lvl >= r.level).length} of ` +
+       `${rows.length} unlocked.`, { kind: 'guide', arg: skillId });
+  }
+
   openMake(station) {
     const s = this.state;
     const list = RECIPES[station];
@@ -377,3 +443,12 @@ function note(text) {
   d.textContent = text;
   return d;
 }
+
+function el(tag, cls = '', text = '') {
+  const d = document.createElement(tag);
+  if (cls) d.className = cls;
+  if (text) d.textContent = text;
+  return d;
+}
+
+const KIND_GLYPH = { make: '🔨', gather: '🌿', equip: '🥼', spell: '✨', vigil: '🕯️' };

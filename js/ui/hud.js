@@ -2,9 +2,11 @@
    HUD - chat log, orbs, toasts, tooltips and the context menu
    ============================================================ */
 
-import { escapeHtml, clamp } from '../util.js';
-import { combatLvl } from '../game/state.js';
+import { escapeHtml, clamp, fmt } from '../util.js';
+import { combatLvl, baseLevel } from '../game/state.js';
 import { parseChat } from '../game/chatfx.js';
+import { ITEMS, SLOT_LABEL, BONUS_KEYS, DEF_KEYS, OTHER_KEYS } from '../data/items.js';
+import { SKILL_BY_ID } from '../data/skills.js';
 
 const $ = sel => document.querySelector(sel);
 
@@ -186,6 +188,108 @@ export class Hud {
   }
 
   hideTooltip() { this.tooltip.classList.remove('on'); }
+
+  /* ---------------- item tooltip ---------------------------- */
+
+  /**
+   * The hover card for a slot: what the thing is, what wearing it would do,
+   * and whether you are allowed to. Lives on the body rather than in the
+   * stage, because inventory slots are in the sidebar and it has to be able
+   * to spill over the edge of either.
+   */
+  itemTip(e, id, n = 1) {
+    if (!this.state.settings.showTooltips) return;
+    const def = ITEMS[id];
+    if (!def) return;
+
+    if (!this.itemTipEl) {
+      this.itemTipEl = document.createElement('div');
+      this.itemTipEl.id = 'item-tip';
+      document.body.appendChild(this.itemTipEl);
+    }
+    const tip = this.itemTipEl;
+    tip.innerHTML = '';
+
+    const title = document.createElement('div');
+    title.className = 'it-name';
+    title.textContent = def.name + (n > 1 ? ` × ${fmt(n)}` : '');
+    tip.appendChild(title);
+
+    const rows = [];
+    if (def.slot) rows.push(['Worn', SLOT_LABEL[def.slot] || def.slot]);
+    if (def.heal) rows.push(['Heals', `${def.heal} hitpoints`]);
+    if (def.buryXp) rows.push(['Bury for', `${def.buryXp} Vigil xp`]);
+    if (def.tool) rows.push(['Tool', 'used for gathering']);
+    if (def.speed) rows.push(['Speed', `${def.speed} ticks`]);
+
+    // bonuses live in def.b, the same block equipBonuses sums over
+    for (const [group, keys] of [['Attack', BONUS_KEYS], ['Defence', DEF_KEYS],
+                                 [null, OTHER_KEYS]]) {
+      for (const [key, label] of keys) {
+        const v = def.b?.[key];
+        if (v) rows.push([group ? `${group} · ${label}` : label, (v > 0 ? '+' : '') + v]);
+      }
+    }
+    if (def.potion) {
+      const p = def.potion;
+      if (p.heal) rows.push(['Restores', `${p.heal} hitpoints`]);
+      if (p.cure) rows.push(['Cures', 'venom']);
+      if (p.vigil) rows.push(['Vigil', `+${p.vigil}`]);
+      if (p.boost) rows.push(['Boosts', [].concat(p.boost)
+        .map(k => SKILL_BY_ID[k]?.name || k).join(', ')]);
+    }
+    if (def.value) rows.push(['Value', `${fmt(def.value)} gp`]);
+
+    if (rows.length) {
+      const table = document.createElement('div');
+      table.className = 'it-rows';
+      for (const [k, v] of rows) {
+        const row = document.createElement('div');
+        row.className = 'it-row';
+        const a = document.createElement('span'); a.textContent = k;
+        const b = document.createElement('span'); b.textContent = v;
+        row.append(a, b);
+        table.appendChild(row);
+      }
+      tip.appendChild(table);
+    }
+
+    // a requirement you cannot meet is the thing you most want to be told
+    for (const k in (def.req || {})) {
+      const need = def.req[k];
+      const have = baseLevel(this.state, k);
+      const line = document.createElement('div');
+      line.className = 'it-req' + (have >= need ? '' : ' unmet');
+      line.textContent = `Requires ${SKILL_BY_ID[k]?.name || k} ${need}` +
+        (have >= need ? '' : ` — you have ${have}`);
+      tip.appendChild(line);
+    }
+
+    if (def.examine) {
+      const ex = document.createElement('div');
+      ex.className = 'it-examine';
+      ex.textContent = def.examine;
+      tip.appendChild(ex);
+    }
+
+    tip.classList.add('on');
+    this.moveItemTip(e);
+  }
+
+  moveItemTip(e) {
+    const tip = this.itemTipEl;
+    if (!tip || !tip.classList.contains('on')) return;
+    const w = tip.offsetWidth, h = tip.offsetHeight;
+    // flip to the other side of the cursor rather than run off the window
+    const x = e.clientX + 16 + w > window.innerWidth ? e.clientX - w - 12 : e.clientX + 16;
+    const y = e.clientY + 14 + h > window.innerHeight ? e.clientY - h - 10 : e.clientY + 14;
+    tip.style.left = Math.max(4, x) + 'px';
+    tip.style.top = Math.max(4, y) + 'px';
+  }
+
+  hideItemTip() {
+    if (this.itemTipEl) this.itemTipEl.classList.remove('on');
+  }
 
   /* ---------------- context menu ---------------------------- */
 

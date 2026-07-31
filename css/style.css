@@ -316,6 +316,54 @@ button, input { font-family: inherit; font-size: inherit; color: inherit; }
 .line.private { color: #d9c0e0; }
 .line.private .who { color: #c08fd9; font-weight: 700; }
 
+/* ---------- skill guide -------------------------------------- */
+.guide-list { display: flex; flex-direction: column; gap: 2px; }
+.guide-band {
+  margin-top: 8px; padding: 2px 4px; font-size: 11px; font-weight: 700;
+  color: #8a7580; border-bottom: 1px solid #3d2029;
+}
+.guide-band:first-child { margin-top: 0; }
+.guide-band.have { color: var(--cure); }
+.guide-row {
+  display: flex; align-items: center; gap: 9px;
+  padding: 4px 6px; border-radius: 4px; background: #26141d;
+}
+.guide-row.locked { opacity: .48; }
+.guide-icon {
+  width: 26px; height: 26px; flex: none;
+  display: flex; align-items: center; justify-content: center;
+}
+.guide-icon.glyph { font-size: 15px; }
+.guide-body { flex: 1; min-width: 0; }
+.guide-name { font-size: 12px; color: var(--bone); }
+.guide-detail {
+  font-size: 10px; color: #9b8792;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.guide-xp { font-size: 10px; color: var(--gold); flex: none; }
+.skill-cell { cursor: pointer; }
+
+/* ---------- item tooltip ------------------------------------- */
+#item-tip {
+  position: fixed; z-index: 90; pointer-events: none;
+  display: none; max-width: 260px; padding: 7px 9px;
+  font-size: 11px; line-height: 1.45; color: var(--bone);
+  background: rgba(22, 11, 17, .97);
+  border: 1px solid #6b3d4c; border-radius: 5px;
+  box-shadow: 0 6px 18px rgba(0, 0, 0, .55);
+}
+#item-tip.on { display: block; }
+.it-name { font-weight: 700; color: var(--gold); margin-bottom: 3px; }
+.it-rows { display: flex; flex-direction: column; }
+.it-row { display: flex; justify-content: space-between; gap: 14px; }
+.it-row span:first-child { color: #9b8792; }
+.it-req { margin-top: 3px; color: var(--cure); }
+.it-req.unmet { color: var(--danger); }
+.it-examine {
+  margin-top: 5px; padding-top: 4px; border-top: 1px solid #3d2029;
+  font-style: italic; color: #a6919c;
+}
+
 /* ---------- friends ------------------------------------------ */
 .friend-add { display: flex; gap: 6px; margin: 6px 0 10px; }
 .friend-input {

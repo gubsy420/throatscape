@@ -139,6 +139,11 @@ export class Panels {
       }
       if (s.useSel === i) d.classList.add('selected');
 
+      d.addEventListener('pointerenter', e => this.hud.itemTip(e, slot.id, slot.n));
+      d.addEventListener('pointermove', e => this.hud.moveItemTip(e));
+      d.addEventListener('pointerleave', () => this.hud.hideItemTip());
+      d.addEventListener('pointerdown', () => this.hud.hideItemTip());
+
       d.addEventListener('click', e => {
         e.stopPropagation();
         if (s.useSel != null && s.useSel !== i) {
@@ -227,7 +232,10 @@ export class Panels {
             d.appendChild(q);
           }
           d.title = ITEMS[id].name;
-          d.addEventListener('click', () => this.net.unequip(slot));
+          d.addEventListener('pointerenter', ev => this.hud.itemTip(ev, id));
+          d.addEventListener('pointermove', ev => this.hud.moveItemTip(ev));
+          d.addEventListener('pointerleave', () => this.hud.hideItemTip());
+          d.addEventListener('click', () => { this.hud.hideItemTip(); this.net.unequip(slot); });
           d.addEventListener('contextmenu', ev => {
             ev.preventDefault();
             const rect = document.getElementById('stage').getBoundingClientRect();
@@ -299,7 +307,8 @@ export class Panels {
       cell.title = `${sk.name} — level ${base}\n` +
         `XP: ${fmt(xp)}\n` +
         (next ? `Next level: ${fmt(next)} (${fmt(next - xp)} to go)\n` : 'Maximum level reached\n') +
-        `\n${sk.blurb}`;
+        `\n${sk.blurb}\n\nClick to see what it unlocks.`;
+      cell.addEventListener('click', () => this.windows?.openSkillGuide(sk.id));
       grid.appendChild(cell);
     }
     this.panel.appendChild(grid);

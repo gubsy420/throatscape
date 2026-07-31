@@ -150,6 +150,8 @@ export class Renderer {
     const ts = this.ts;
     this.time += 1 / 60;
 
+    this.alpha = alpha;                 // progress through the current tick
+
     // real elapsed time, for anything that should look the same on any display
     const now = performance.now();
     this.dt = this._last ? Math.min(0.1, (now - this._last) / 1000) : 1 / 60;
@@ -409,6 +411,20 @@ export class Renderer {
   }
 
   /* ---------------- scenery --------------------------------- */
+
+  /**
+   * The phase of a walk cycle for something moving between two tiles, or 0 if
+   * it is standing still. A cycle covers two tiles - left foot, right foot -
+   * so the parity of the destination tile decides which leg is leading.
+   */
+  walkPhase(e) {
+    if (e.ix === undefined || (e.ix === e.x && e.iy === e.y)) return 0;
+    // which foot leads comes from a step counter, not tile parity: running
+    // covers two tiles a tick, and parity would then never alternate
+    const half = (e.steps || 0) % 2 ? 0.5 : 0;
+    // nudged off zero so a phase of exactly 0 still reads as "walking"
+    return half + Math.min(0.999, this.alpha) * 0.5 + 0.0001;
+  }
 
   /**
    * Doors are told when they are open, not how far. Easing towards the target
@@ -760,7 +776,7 @@ export class Renderer {
 
   humanoid(ctx, sc, opts) {
     const { body = '#c9b48f', hat, face = '#e0c0a8', bob = 0, flip = 1, scale = 1,
-            lunge = 0 } = opts;
+            lunge = 0, step = 0 } = opts;
     ctx.save();
     ctx.scale(sc / TILE, sc / TILE);
     // a swing throws the weight forward and back again, pivoting on the feet
@@ -774,19 +790,40 @@ export class Renderer {
     ctx.fillStyle = 'rgba(0,0,0,.32)';
     ctx.beginPath(); ctx.ellipse(0, 13, 8, 3.5, 0, 0, 7); ctx.fill();
 
-    ctx.translate(0, bob);
-    // legs
+    /*
+     * The walk: limbs swing in opposition about the hip and shoulder, and the
+     * body rises on each stride. `step` is one full cycle over two tiles, so
+     * the feet keep time with the tile the server actually moved us to.
+     */
+    const swing = step ? Math.sin(step * Math.PI * 2) : 0;
+    const rise = step ? -Math.abs(Math.cos(step * Math.PI * 2)) * 0.8 : 0;
+
+    ctx.translate(0, bob + rise);
+
+    // legs, hinged at the hip
     ctx.fillStyle = shade(body, -45);
-    ctx.fillRect(-5, 4, 4, 9); ctx.fillRect(1, 4, 4, 9);
+    for (const [lx, dir] of [[-5, 1], [1, -1]]) {
+      ctx.save();
+      ctx.translate(lx + 2, 4);
+      if (swing) ctx.rotate(swing * dir * 0.5);
+      ctx.fillRect(-2, 0, 4, 9);
+      ctx.restore();
+    }
     // torso
     ctx.beginPath();
     ctx.moveTo(-7, -5); ctx.lineTo(7, -5); ctx.lineTo(6, 6); ctx.lineTo(-6, 6);
     ctx.closePath();
     ctx.fillStyle = body; ctx.fill();
     ctx.strokeStyle = shade(body, -50); ctx.lineWidth = 1; ctx.stroke();
-    // arms
+    // arms, hinged at the shoulder and counter-swinging the legs
     ctx.fillStyle = shade(body, -18);
-    ctx.fillRect(-9, -4, 3, 9); ctx.fillRect(6, -4, 3, 9);
+    for (const [ax, dir] of [[-9, -1], [6, 1]]) {
+      ctx.save();
+      ctx.translate(ax + 1.5, -3);
+      if (swing) ctx.rotate(swing * dir * 0.45);
+      ctx.fillRect(-1.5, 0, 3, 9);
+      ctx.restore();
+    }
     // head
     ctx.beginPath(); ctx.arc(0, -10, 5.4, 0, 7);
     ctx.fillStyle = face; ctx.fill();
@@ -806,16 +843,16 @@ export class Renderer {
     ctx.save();
     ctx.translate(s.x + ts / 2, s.y + ts / 2);
 
-    const moving = p.path.length > 0;
-    const bob = moving ? Math.sin(this.time * 12) * 1.2 : 0;
     const eq = state.equipment;
     const t = this.swing(p.swingAt);
     const flip = p.facing < 0 ? -1 : 1;
+    const step = t ? 0 : this.walkPhase(p);     // do not walk and swing at once
+    const bob = 0;
 
     this.humanoid(ctx, ts, {
       body: eq.body ? (item(eq.body)?.art?.c || '#e8e0cd') : '#e8e0cd',
       hat: eq.head ? (item(eq.head)?.art?.c || null) : '#ffffff',
-      bob, flip, lunge: t
+      bob, flip, lunge: t, step
     });
 
     ctx.save();
@@ -845,7 +882,7 @@ export class Renderer {
     ctx.translate(s.x + ts / 2, s.y + ts / 2);
     const t = this.swing(o.swingAt);
     this.humanoid(ctx, ts, { body: o.color || '#b8a68f', hat: '#ffffff',
-      bob: o.moving ? Math.sin(this.time * 12 + o.rx) * 1.2 : 0, lunge: t });
+      lunge: t, step: t ? 0 : this.walkPhase(o) });
     if (t) {
       ctx.save(); ctx.scale(ts / TILE, ts / TILE);
       this.slashArc(ctx, t, 1);
@@ -882,7 +919,9 @@ export class Renderer {
 
     switch (d.art.k) {
       case 'humanoid': case 'patient':
-        this.humanoid(ctx, ts, { body: c, hat: d.art.hat, bob, scale });
+        this.humanoid(ctx, ts, { body: c, hat: d.art.hat, scale,
+                                 bob: d.art.k === 'patient' ? bob : 0,
+                                 step: t ? 0 : this.walkPhase(n) });
         if (d.art.k === 'patient') {
           ctx.save(); ctx.scale(ts / TILE, ts / TILE);
           ctx.fillStyle = '#e8e0cd'; ctx.fillRect(-9, -2, 18, 4);

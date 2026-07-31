@@ -174,6 +174,8 @@ nothing needs configuring on that side.
 | `Esc` | Cancel the current action, close windows |
 | Click the run orb | Toggle running (costs energy) |
 | Drag inventory items | Rearrange your pack |
+| Hover an item | Its stats, its requirement, and what it is |
+| Click a skill | Everything it unlocks, level by level |
 
 Right-click an inventory item and choose **Use**, then click a target, to use one thing
 on another — that is how you dress a patient's wound.
@@ -323,6 +325,7 @@ js/
     actions.js          movement, gathering, scenery interaction, item use
     economy.js          crafting, buying and selling as pure transitions
     chatfx.js           the colour and motion prefixes, parsed once for both ends
+    skillguide.js       what each skill unlocks, gathered from the data files
     questapi.js         the narrow surface quest scripts are written against
   engine/
     render.js           terrain chunks, entities, effects, minimap
