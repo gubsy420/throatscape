@@ -58,6 +58,8 @@ class Session {
 
     const st = saved ? deserialize(saved) : createState(name);
     st.name = name;
+    // shared code writes this onto anything it hits, so the sim knows who swung
+    st.key = key;
 
     // share the one world population rather than each player having their own
     st.npcs = sim.npcs;
@@ -249,6 +251,18 @@ export class Sim {
 
       if (!d.hostile) { this.wander(n, d); continue; }
 
+      /*
+       * Retaliation. Most of the early mobs have aggroRange 0 - they never
+       * pick a fight - but hitting one has to make it fight back, or a ward
+       * rat is a training dummy. dealDamageToNpc stamps the attacker's key
+       * onto n.target; adopting it here is what turns a hit into a fight.
+       */
+      if (n.target && n.target !== n.targetKey && this.sessions.has(n.target)) {
+        n.targetKey = n.target;
+        n.path = [];
+      }
+      n.target = null;
+
       let target = n.targetKey ? this.sessions.get(n.targetKey) : null;
       if (target && (target.p.dead || cheb(n.x, n.y, target.p.x, target.p.y) > 12)) {
         target = null;
@@ -362,7 +376,8 @@ export class Sim {
         act: st.action ? 1 : 0,
         style: st.attackStyle,
         cast: st.autocast,
-        boosts: st.boosts
+        boosts: st.boosts,
+        c: p.chatText || null
       },
       npcs: [],
       players: [],

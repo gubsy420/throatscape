@@ -233,6 +233,9 @@ export class Net {
     p.dead = !!self.dead;
     p.inCombat = self.cmb;
     p.moving = !!self.act;
+    // the bubble over your own head expires on the server's clock, in step
+    // with the one everyone else sees over you
+    p.chat = self.c ? { text: self.c, ttl: 1 } : null;
     s.vigil.points = self.vp;
     s.vigil.max = self.vm;
     s.vigil.active = self.va || [];

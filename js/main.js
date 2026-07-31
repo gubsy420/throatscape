@@ -411,7 +411,6 @@ function wireChat(game) {
     input.value = '';
     if (!text) { input.blur(); return; }
     if (text.startsWith('/')) { command(game, text.slice(1)); return; }
-    state.player.chat = { text, ttl: 180 };
     net.say(text);
   });
 }

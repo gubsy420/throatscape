@@ -173,7 +173,7 @@ export function playerAttackTick(state, world) {
   p.combatCd = prof.speed;
   p.attackAnim = 4;
   p.inCombat = 12;
-  n.target = 'player';
+  n.target = state.key || 'player';
   n.aggroCd = 20;
 
   if (prof.wstyle === 'magic' && state.autocast) {
@@ -266,7 +266,8 @@ export function dealDamageToNpc(state, n, dmg, skillOverride, noXpBase) {
   const d = NPCS[n.id];
   n.hp = Math.max(0, n.hp - dmg);
   n.hurtFlash = 3;
-  n.target = 'player';
+  // whoever swung becomes the problem: state.key names them on a shared world
+  n.target = state.key || 'player';
   state.hitsplats.push({ x: n.x, y: n.y, dmg, ttl: 30, off: randInt(-6, 6) });
 
   if (!noXpBase && dmg > 0) {
@@ -446,7 +447,8 @@ export function playerDeath(state) {
     p.dead = false;
     p.inCombat = 0;
     state.snapCam = true;
-    for (const n of state.npcs) if (n.target === 'player') { n.target = null; n.path = []; }
+    const me = state.key || 'player';
+    for (const n of state.npcs) if (n.target === me) { n.target = null; n.path = []; }
     log(state, 'An orderly found you on the Gullet Road and carried you back.', 'system');
   }, 1400);
 }
