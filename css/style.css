@@ -571,6 +571,22 @@ button, input { font-family: inherit; font-size: inherit; color: inherit; }
 }
 .switch input:checked + .track { background: var(--bile-dim); border-color: var(--bile); }
 .switch input:checked + .track .knob { transform: translateX(18px); background: var(--bile); }
+
+/* volume sliders, styled to match the toggles either side of them */
+.set-slider {
+  -webkit-appearance: none; appearance: none;
+  width: 96px; height: 4px; flex: none; cursor: pointer;
+  background: #3d2029; border: 1px solid #5b3542; border-radius: 3px;
+}
+.set-slider::-webkit-slider-thumb {
+  -webkit-appearance: none; appearance: none;
+  width: 13px; height: 13px; border-radius: 50%;
+  background: var(--bile); border: 1px solid #1a0e13; cursor: pointer;
+}
+.set-slider::-moz-range-thumb {
+  width: 13px; height: 13px; border-radius: 50%;
+  background: var(--bile); border: 1px solid #1a0e13; cursor: pointer;
+}
 .set-actions { display: flex; flex-direction: column; gap: 6px; margin-top: 12px; }
 .set-actions .btn { width: 100%; }
 .btn.danger { background: linear-gradient(180deg, #8e3327, #5e2019); border-color: #e0503f; }

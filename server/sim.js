@@ -89,7 +89,12 @@ class Session {
     b.on('openmake', station => this.send({ t: 'ui', kind: 'make', station }));
 
     // quests advance on kills; in the browser main.js wired this up
-    b.on('kill', ({ npcId }) => questHook(makeQuestApi(this.state), 'onKill', npcId));
+    b.on('kill', ({ npcId }) => {
+      this.send({ t: 'cue', name: 'kill' });
+      questHook(makeQuestApi(this.state), 'onKill', npcId);
+    });
+    // a snapshot cannot express "you finished a quest", so say so directly
+    b.on('questcomplete', () => this.send({ t: 'cue', name: 'quest' }));
   }
 
   send(msg) { this.outbox.push(msg); }

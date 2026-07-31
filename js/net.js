@@ -137,10 +137,17 @@ export class Net {
       case 'init':      this.applyInit(msg); break;
       case 'snap':      this.applySnapshot(msg); break;
 
-      case 'inv':
+      case 'inv': {
+        const before = countBy(s.inventory);
         s.inventory = msg.inv.map(e => e && ITEMS[e[0]] ? { id: e[0], n: e[1] } : null);
+        // the server sends the whole pack, so what actually happened has to be
+        // worked out by comparing - it is the only way to know what to play
+        for (const [id, n] of Object.entries(countBy(s.inventory))) {
+          if (n > (before[id] || 0)) { s.bus.emit('gained', { id }); break; }
+        }
         s.bus.emit('inv');
         break;
+      }
 
       case 'equip':
         s.equipment = msg.eq || {};
@@ -170,6 +177,7 @@ export class Net {
       case 'chat':     s.bus.emit('public', { who: msg.who, text: msg.text }); break;
       case 'ui':       s.bus.emit('serverui', msg); break;
       case 'dialogue': s.bus.emit('dialogue', msg); break;
+      case 'cue':      s.bus.emit('cue', msg.name); break;
 
       case 'teleport':
         s.player.x = s.player.ix = msg.x;
@@ -224,6 +232,8 @@ export class Net {
 
     /* -- self -- */
     const self = msg.self;
+    const wasDead = p.dead;
+    const moved = p.x !== self.x || p.y !== self.y;
     p.ix = p.rx; p.iy = p.ry;
     if (p.x !== self.x) p.facing = self.x > p.x ? 1 : -1;
     p.x = self.x; p.y = self.y;
@@ -233,6 +243,8 @@ export class Net {
     p.dead = !!self.dead;
     p.inCombat = self.cmb;
     p.moving = !!self.act;
+    if (!!self.dead && !wasDead) s.bus.emit('died');
+    if (moved) s.bus.emit('stepped');
     // the bubble over your own head expires on the server's clock, in step
     // with the one everyone else sees over you
     p.chat = self.c ? { text: self.c, ttl: 1 } : null;
@@ -300,6 +312,10 @@ export class Net {
     for (const f of msg.fx || []) {
       s.hitsplats.push({ x: f.x, y: f.y, dmg: f.d, self: !!f.s, ttl: 30,
                          off: Math.floor(Math.random() * 12) - 6 });
+      // only the blows you are part of are worth hearing; the rest is someone
+      // else's fight happening across the room
+      const mine = f.s || (s.target?.ref && f.x === s.target.ref.x && f.y === s.target.ref.y);
+      if (mine) s.bus.emit('blow', { self: !!f.s, dmg: f.d });
     }
     for (const f of msg.floaters || []) {
       s.floaters.push({ x: f.x, y: f.y, text: f.t, color: f.c, ttl: 60 });
@@ -337,6 +353,13 @@ export class Net {
   castUtility(id)            { this.send({ t: 'castutil', id }); }
   toggleRun()                { this.send({ t: 'run' }); }
   say(text)                  { this.send({ t: 'chat', text }); }
+}
+
+/** id -> total held, so two packs can be compared for what arrived. */
+function countBy(inv) {
+  const out = {};
+  for (const s of inv) if (s) out[s.id] = (out[s.id] || 0) + s.n;
+  return out;
 }
 
 /** Stable per-player tunic colour so people are recognisable. */

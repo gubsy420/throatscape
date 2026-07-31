@@ -63,9 +63,12 @@ export function createState(name) {
 
     settings: {
       multiplayer: true,
-      sound: true,
       lowDetail: false,
-      showTooltips: true
+      showTooltips: true,
+      music: true,
+      sfx: true,
+      musicVol: 0.5,
+      sfxVol: 0.7
     }
   };
 }

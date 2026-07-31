@@ -28,11 +28,13 @@ const TABS = [
 ];
 
 export class Panels {
-  constructor(state, world, hud, net) {
+  constructor(state, world, hud, net, audio) {
     this.state = state;
     this.world = world;
     this.hud = hud;
     this.net = net;
+    this.audio = audio;
+    loadSettings(state);
     this.active = 'inventory';
     this.questOpen = null;
     this.strip = document.getElementById('tab-strip');
@@ -477,14 +479,42 @@ export class Panels {
       sw.querySelector('input').addEventListener('change', e => {
         s.settings[key] = e.target.checked;
         onChange && onChange(e.target.checked);
-        try { localStorage.setItem('throatscape.settings', JSON.stringify(s.settings)); } catch {}
+        saveSettings(s);
       });
       row.append(el('span', '', label), sw);
       this.panel.appendChild(row);
     };
 
+    const slider = (label, key, onChange) => {
+      const row = el('div', 'set-row');
+      const input = document.createElement('input');
+      input.type = 'range';
+      input.className = 'set-slider';
+      input.min = 0; input.max = 100; input.step = 1;
+      input.value = Math.round((s.settings[key] ?? 0.5) * 100);
+      input.addEventListener('input', e => {
+        s.settings[key] = e.target.value / 100;
+        onChange && onChange();
+        saveSettings(s);
+      });
+      row.append(el('span', '', label), input);
+      this.panel.appendChild(row);
+    };
+
+    const audio = this.audio;
+    const refreshAudio = () => audio && audio.applySettings();
+
     toggle('Show hover tooltips', 'showTooltips');
     toggle('Reduced effects', 'lowDetail', v => s.bus.emit('detail', v));
+
+    this.panel.appendChild(el('div', 'panel-head', 'Sound'));
+    toggle('Music', 'music', refreshAudio);
+    slider('Music volume', 'musicVol', refreshAudio);
+    toggle('Sound effects', 'sfx', refreshAudio);
+    slider('Effects volume', 'sfxVol', () => {
+      refreshAudio();
+      audio && audio.play('item');          // so you can hear what you just set
+    });
 
     const info = el('div', 'hint');
     info.style.margin = '12px 0';
@@ -520,4 +550,23 @@ function liText(t) {
   const li = document.createElement('li');
   li.textContent = t;
   return li;
+}
+
+/* ---------------- settings storage --------------------------- */
+
+const SETTINGS_KEY = 'throatscape.settings';
+
+/**
+ * Settings live in this browser, not on the server: how loud the music is
+ * belongs to the machine you are sitting at, not to the nurse.
+ */
+function loadSettings(state) {
+  try {
+    const raw = localStorage.getItem(SETTINGS_KEY);
+    if (raw) Object.assign(state.settings, JSON.parse(raw));
+  } catch { /* corrupt or unavailable - the defaults are fine */ }
+}
+
+function saveSettings(state) {
+  try { localStorage.setItem(SETTINGS_KEY, JSON.stringify(state.settings)); } catch {}
 }

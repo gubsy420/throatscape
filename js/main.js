@@ -11,6 +11,7 @@ import { NPCS } from './data/npcs.js';
 import { ITEMS, itemName } from './data/items.js';
 import { createState, log, toast } from './game/state.js';
 import { Renderer } from './engine/render.js';
+import { Audio } from './engine/audio.js';
 import { Hud } from './ui/hud.js';
 import { Panels } from './ui/panels.js';
 import { Windows } from './ui/windows.js';
@@ -176,19 +177,21 @@ function startGame(state, net) {
 
   const renderer = new Renderer($('#view'), world);
   const hud = new Hud(state);
-  const panels = new Panels(state, world, hud, net);
+  const audio = new Audio(state, world);
+  const panels = new Panels(state, world, hud, net, audio);
   const windows = new Windows(state, world, hud, panels, net);
 
   renderer.lowDetail = state.settings.lowDetail;
   state.snapCam = true;
 
-  game = { state, world, renderer, hud, panels, windows, net };
+  game = { state, world, renderer, hud, panels, windows, net, audio };
   window.__throatscape = game;
 
   wireInput(game);
   wireChat(game);
   wireServerUi(game);
   wireSettings(game);
+  wireAudio(game);
 
   log(state, `Welcome to Throatscape, ${state.name}.`, 'quest');
   log(state, 'Left-click to walk and interact. Right-click for more options.', 'system');
@@ -228,6 +231,7 @@ function startLoop(game) {
 
     renderer.draw(state, alpha);
     hud.updateOrbs();
+    game.audio.update();
 
     const reg = world.regionAt(p.x, p.y);
     const rname = reg ? reg.name : 'the edge of the world';
@@ -460,6 +464,42 @@ function wireServerUi(game) {
 function wireSettings(game) {
   const { state, renderer } = game;
   state.bus.on('detail', v => { renderer.lowDetail = v; });
+}
+
+/* ---------------- audio ------------------------------------- */
+
+/**
+ * Nothing here decides anything; it listens to the events the game already
+ * announces and picks a sound. Most of them are inferred from the snapshot,
+ * because the server has no idea the client is making noise.
+ */
+function wireAudio(game) {
+  const { state, audio } = game;
+
+  // browsers will not start an AudioContext until the page has been touched
+  const wake = () => audio.unlock();
+  window.addEventListener('pointerdown', wake, { once: true });
+  window.addEventListener('keydown', wake, { once: true });
+
+  state.bus.on('blow', ({ self, dmg }) =>
+    audio.play(dmg > 0 ? (self ? 'hurt' : 'hit') : 'miss'));
+  state.bus.on('died', () => audio.play('death'));
+  state.bus.on('stepped', () => audio.footstep());
+  state.bus.on('cue', name => audio.play(name));
+  state.bus.on('levelup', () => audio.play('levelup'));
+  state.bus.on('bank', () => audio.play('bank'));
+  state.bus.on('toast', () => audio.play('toast'));
+  state.bus.on('public', () => audio.play('chat'));
+  state.bus.on('vigil', () => audio.play('vigil'));
+  state.bus.on('serverui', () => audio.play('open'));
+  state.bus.on('dialogue', m => audio.play(m.close ? 'close' : 'talk'));
+
+  state.bus.on('gained', ({ id }) => {
+    const def = ITEMS[id] || {};
+    if (id === 'coins') audio.play('coin');
+    else if (def.potion || def.heal) audio.play('item');
+    else audio.play('gather');
+  });
 }
 
 boot();
