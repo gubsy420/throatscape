@@ -340,6 +340,23 @@ quest('bloodstone_shard', 'Bloodstone shard', 'A splinter of the heart of the Th
 
 /* ---------------- Registry ---------------------------------- */
 
+/**
+ * What each tool tag is for, in the player's language. Items carry the tag;
+ * scenery and workbenches ask for it. Kept here so the tooltip, the skill
+ * guide and the refusal message cannot drift apart.
+ */
+export const TOOLS = {
+  tapping:    { name: 'a tapping knife',   for: 'chopping throatwood' },
+  delving:    { name: 'a pick',            for: 'mining veins' },
+  leeching:   { name: 'a net',             for: 'netting pools and runs' },
+  gaff:       { name: 'a bile gaff',       for: 'eel holes and gasper shallows' },
+  suturing:   { name: 'a suture needle',   for: 'sewing at the table' },
+  forging:    { name: 'a hammer',          for: 'working the anvil' },
+  apothecary: { name: 'a pestle and mortar', for: 'brewing at the cauldron' }
+};
+
+export const toolName = t => TOOLS[t]?.name || 'the right tool';
+
 export const ITEMS = Object.fromEntries(ITEM_LIST.map(i => [i.id, i]));
 export const ALL_ITEM_IDS = ITEM_LIST.map(i => i.id);
 

@@ -223,6 +223,21 @@ export function swapSlots(state, a, b) {
   emitLater(state, 'inv');
 }
 
+/**
+ * True if the right tool for a job is on you — carried or worn. Some of them
+ * are weapons you would be holding anyway, which is why the equipment counts.
+ */
+export function hasTool(state, tool) {
+  if (!tool) return true;
+  for (const s of state.inventory) {
+    if (s && ITEMS[s.id]?.tool === tool) return true;
+  }
+  for (const k in state.equipment) {
+    if (ITEMS[state.equipment[k]]?.tool === tool) return true;
+  }
+  return false;
+}
+
 /** True if there is room for n of this item. */
 export function canHold(state, id, n = 1) {
   const def = ITEMS[id];

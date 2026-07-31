@@ -11,7 +11,7 @@
    it stays a dumb renderer.
    ============================================================ */
 
-import { ITEMS } from '../data/items.js';
+import { ITEMS, TOOLS } from '../data/items.js';
 import { OBJ } from '../data/world.js';
 import { RECIPES } from '../data/recipes.js';
 import { SPELLS, VIGILS } from '../data/magic.js';
@@ -47,8 +47,11 @@ export function skillGuide(skillId) {
     out.push({
       level: d.level, kind: 'gather', id: d.yield || null,
       name: d.name,
-      detail: d.herbRoll ? 'various herbs'
-            : (d.yield && ITEMS[d.yield]?.name) || d.act,
+      // saying which tool it wants here is the difference between a locked
+      // row and a shopping list
+      detail: (d.herbRoll ? 'various herbs'
+             : (d.yield && ITEMS[d.yield]?.name) || d.act)
+             + (d.tool ? ` · needs ${TOOLS[d.tool]?.name || 'a tool'}` : ''),
       xp: d.xp
     });
   }

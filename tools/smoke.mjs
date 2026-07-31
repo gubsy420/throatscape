@@ -203,6 +203,60 @@ async function playtest(candidate) {
     }
   }
 
+  /* ---- no tool is sold for nothing ------------------------- */
+
+  head('Every tool has something to use it on');
+  const { STATION_TOOL } = game.recipes;
+  const wanted = new Set([
+    ...Object.values(game.OBJ).map(o => o.tool).filter(Boolean),
+    ...Object.values(STATION_TOOL).filter(Boolean)
+  ]);
+  for (const it of Object.values(game.ITEMS)) {
+    if (!it.tool) continue;
+    ok(wanted.has(it.tool),
+       wanted.has(it.tool)
+         ? `${it.name} (${it.tool}) is required somewhere`
+         : `${it.name} declares the "${it.tool}" tool, which nothing in the game asks for — it does nothing`);
+  }
+
+  // and the benches that need one really do refuse without it
+  for (const [station, tool] of Object.entries(STATION_TOOL)) {
+    if (!tool) continue;
+    const recipe = (game.RECIPES[station] || [])[0];
+    if (!recipe) continue;
+    const bench = { smelting: 'furnace', forging: 'anvil', apothecary: 'cauldron',
+                    suturing: 'sewing_table', cooking: 'cook_range' }[station];
+    const at = world.objects.find(o => o.type === bench);
+    if (!at) { ok(false, `no ${bench} in the world`); continue; }
+
+    equip(B);
+    const p = B.state.player;
+    const spot = beside(world, at.x, at.y) || { x: at.x, y: at.y + 1 };
+    p.x = p.ix = spot.x; p.y = p.iy = spot.y;
+    // clear any tool the loadout happened to include
+    for (let i = 0; i < B.state.inventory.length; i++) {
+      const s = B.state.inventory[i];
+      if (s && game.ITEMS[s.id]?.tool === tool) state.removeSlot(B.state, i, s.n);
+    }
+    for (const k in B.state.equipment) {
+      if (game.ITEMS[B.state.equipment[k]]?.tool === tool) state.unequip(B.state, k);
+    }
+    for (const [id, n] of Object.entries(recipe.need)) state.addItem(B.state, id, n * 2);
+
+    const before = state.invCount(B.state, recipe.out);
+    sim.handle(B, { t: 'craft', station, out: recipe.out, qty: 1 });
+    for (let i = 0; i < 20; i++) sim.step();
+    ok(state.invCount(B.state, recipe.out) === before,
+       `the ${bench} refuses to work without ${tool}`);
+
+    const toolItem = Object.values(game.ITEMS).find(i => i.tool === tool);
+    state.addItem(B.state, toolItem.id, 1);
+    sim.handle(B, { t: 'craft', station, out: recipe.out, qty: 1 });
+    for (let i = 0; i < 20; i++) sim.step();
+    ok(state.invCount(B.state, recipe.out) > before,
+       `and works once you are holding ${toolItem.name}`);
+  }
+
   /* ---- new gear can be worn -------------------------------- */
 
   const wearable = [...newIds.items].filter(id => game.ITEMS[id]?.slot);

@@ -2,14 +2,14 @@
    Overlay windows - dialogue, bank, shop, and production
    ============================================================ */
 
-import { ITEMS, itemName } from '../data/items.js';
-import { RECIPES, STATION_TITLE, STATION_SKILL } from '../data/recipes.js';
+import { ITEMS, itemName, toolName } from '../data/items.js';
+import { RECIPES, STATION_TITLE, STATION_SKILL, STATION_TOOL } from '../data/recipes.js';
 import { SHOPS, buyPrice, sellPrice } from '../data/shops.js';
 import { SKILL_BY_ID } from '../data/skills.js';
 import { skillGuide, KIND_LABEL } from '../game/skillguide.js';
 import { fmt, fmtStack, escapeHtml } from '../util.js';
 import { iconImg } from '../engine/icons.js';
-import { invCount, baseLevel, log } from '../game/state.js';
+import { invCount, baseLevel, log, hasTool } from '../game/state.js';
 
 export class Windows {
   constructor(state, world, hud, panels, net) {
@@ -500,6 +500,9 @@ export class Windows {
     if (!list) return;
     const skill = STATION_SKILL[station];
     const lvl = baseLevel(s, skill);
+    // the bench needs a tool in hand; say so here rather than after the click
+    const tool = STATION_TOOL[station];
+    const toolOk = hasTool(s, tool);
 
     this.frame(STATION_TITLE[station] || 'Make', body => {
       const qtyRow = document.createElement('div');
@@ -522,7 +525,7 @@ export class Windows {
         const levelOk = lvl >= r.level;
         const haveAll = Object.entries(r.need).every(([id, n]) => invCount(s, id) >= n);
         const row = document.createElement('div');
-        row.className = 'make-row' + (levelOk && haveAll ? '' : ' disabled');
+        row.className = 'make-row' + (levelOk && haveAll && toolOk ? '' : ' disabled');
 
         const ic = document.createElement('div');
         ic.className = 'mk-icon';
@@ -534,15 +537,19 @@ export class Windows {
           .map(([id, n]) => `${n} x ${itemName(id)} (${invCount(s, id)})`).join(', ');
         bodyDiv.innerHTML =
           `<div class="mk-name">${escapeHtml(out.name)}${r.count > 1 ? ' x' + r.count : ''}</div>` +
-          `<div class="mk-need">${levelOk ? '' : `Requires ${SKILL_BY_ID[skill].name} ${r.level} — `}${escapeHtml(needTxt)}</div>`;
+          `<div class="mk-need">${levelOk ? '' : `Requires ${SKILL_BY_ID[skill].name} ${r.level} — `}` +
+          `${toolOk ? '' : `Needs ${escapeHtml(toolName(tool))} — `}${escapeHtml(needTxt)}</div>`;
 
         const xp = document.createElement('div');
         xp.className = 'mk-xp';
         xp.textContent = `${r.xp} xp`;
 
         row.append(ic, bodyDiv, xp);
-        if (levelOk && haveAll) {
+        if (levelOk && haveAll && toolOk) {
           row.addEventListener('click', () => this.net.craft(station, r.out, this.qty));
+        } else if (!toolOk) {
+          row.addEventListener('click', () =>
+            log(s, `I need ${toolName(tool)} for that.`, 'bad'));
         } else if (!levelOk) {
           row.addEventListener('click', () =>
             log(s, `I need ${SKILL_BY_ID[skill].name} level ${r.level} for that.`, 'bad'));
@@ -550,7 +557,9 @@ export class Windows {
         wrap.appendChild(row);
       }
       body.appendChild(wrap);
-    }, `${SKILL_BY_ID[skill].name} level ${lvl}`, { kind: 'make', arg: station });
+    }, `${SKILL_BY_ID[skill].name} level ${lvl}` +
+       (toolOk ? '' : `   —   you need ${toolName(tool)} in your pack`),
+       { kind: 'make', arg: station });
   }
 
 }

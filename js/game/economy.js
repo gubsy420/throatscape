@@ -7,14 +7,14 @@
    whether you can afford something.
    ============================================================ */
 
-import { ITEMS } from '../data/items.js';
-import { RECIPES, STATION_SKILL } from '../data/recipes.js';
+import { ITEMS, toolName } from '../data/items.js';
+import { RECIPES, STATION_SKILL, STATION_TOOL } from '../data/recipes.js';
 import { buyPrice, sellPrice } from '../data/shops.js';
 import { SKILL_BY_ID } from '../data/skills.js';
 import { clamp, chance } from '../util.js';
 import {
   addItem, removeItem, invCount, canHold, freeSlots,
-  addXp, baseLevel, log, floater
+  addXp, baseLevel, log, floater, hasTool
 } from './state.js';
 
 /** Looks up a recipe by station and output id, so clients can only name one. */
@@ -31,6 +31,19 @@ export function findRecipe(station, outId) {
 export function craft(state, station, recipe, qty) {
   const skill = STATION_SKILL[station];
   if (!skill || !recipe) return { made: 0, burnt: 0, reason: 'unknown recipe' };
+
+  /*
+   * The bench does not do the work by itself. The furnace and the range do -
+   * you put the thing in and wait - but the anvil wants a hammer, the cauldron
+   * a pestle, and the sewing table a needle, exactly as the shopkeepers say
+   * and as the tools' own descriptions have always implied.
+   */
+  const tool = STATION_TOOL[station];
+  if (tool && !hasTool(state, tool)) {
+    const reason = `I need ${toolName(tool)} for that.`;
+    log(state, reason, 'bad');
+    return { made: 0, burnt: 0, reason };
+  }
 
   const target = qty === 'All' || qty === -1 ? 999 : clamp(Number(qty) || 1, 1, 999);
   let made = 0, burnt = 0, reason = null;

@@ -5,7 +5,7 @@
 import { escapeHtml, clamp, fmt } from '../util.js';
 import { combatLvl, baseLevel } from '../game/state.js';
 import { parseChat } from '../game/chatfx.js';
-import { ITEMS, SLOT_LABEL, BONUS_KEYS, DEF_KEYS, OTHER_KEYS } from '../data/items.js';
+import { ITEMS, TOOLS, SLOT_LABEL, BONUS_KEYS, DEF_KEYS, OTHER_KEYS } from '../data/items.js';
 import { SKILL_BY_ID } from '../data/skills.js';
 
 const $ = sel => document.querySelector(sel);
@@ -219,7 +219,7 @@ export class Hud {
     if (def.slot) rows.push(['Worn', SLOT_LABEL[def.slot] || def.slot]);
     if (def.heal) rows.push(['Heals', `${def.heal} hitpoints`]);
     if (def.buryXp) rows.push(['Bury for', `${def.buryXp} Vigil xp`]);
-    if (def.tool) rows.push(['Tool', 'used for gathering']);
+    if (def.tool) rows.push(['Tool', TOOLS[def.tool]?.for || 'a job somewhere']);
     if (def.speed) rows.push(['Speed', `${def.speed} ticks`]);
 
     // bonuses live in def.b, the same block equipBonuses sums over

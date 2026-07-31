@@ -1,5 +1,17 @@
 [
   {
+    "version": "2026.07.31.3",
+    "date": "2026-07-31",
+    "title": "Tools that do something",
+    "notes": [
+      "fix: The suture needle, the pestle and mortar and the ward hammer did nothing at all. They were sold, forged and described as tools, and no bench ever asked for them.",
+      "balance: The anvil, the cauldron and the sewing table now want the right tool in your pack, as Smith Marrow has been saying all along. The furnace and the range still do their own work. All three tools are on Sceld's shelf for pocket money.",
+      "fix: The make window says which tool a bench wants before you click, not after.",
+      "fix: An item's tooltip says what its tool is for. \"Used for gathering\" was vague at best and wrong for the needle.",
+      "fix: The skills guide names the tool each resource needs — the bile gaff is for eel holes at Leeching 28, which was until now something you had to find out by owning one and wondering."
+    ]
+  },
+  {
     "version": "2026.07.31.2",
     "date": "2026-07-31",
     "title": "Sister Ambrose keeps her chapel",

@@ -104,6 +104,19 @@ export const STATION_TITLE = {
   cooking: 'Cook at the range'
 };
 
+/**
+ * The tool each bench needs in hand. The furnace and the range do the work
+ * themselves; the anvil, the cauldron and the sewing table do not, which is
+ * what Smith Marrow means by "hammer in your hand".
+ */
+export const STATION_TOOL = {
+  smelting: null,
+  forging: 'forging',
+  apothecary: 'apothecary',
+  suturing: 'suturing',
+  cooking: null
+};
+
 export const STATION_SKILL = {
   smelting: 'forging', forging: 'forging',
   apothecary: 'apothecary', suturing: 'suturing', cooking: 'triage'

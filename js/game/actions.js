@@ -3,13 +3,13 @@
    ============================================================ */
 
 import { OBJ, T } from '../data/world.js';
-import { ITEMS, item, itemName } from '../data/items.js';
+import { ITEMS, item, itemName, toolName } from '../data/items.js';
 import { NPCS } from '../data/npcs.js';
 import { SKILL_BY_ID } from '../data/skills.js';
 import { cheb, findPath, randInt, chance, pick, clamp, weightedPick } from '../util.js';
 import {
   addXp, baseLevel, effLevel, addItem, removeItem, removeSlot, invCount, hasItem,
-  canHold, freeSlots, log, toast, floater, meetsReq, equipFromSlot
+  canHold, freeSlots, log, toast, floater, meetsReq, equipFromSlot, hasTool
 } from './state.js';
 import { npcBlocks, tileBlocked, npcAt, pathAdjacent } from './combat.js';
 import { makeQuestApi, questHook } from './questapi.js';
@@ -360,27 +360,10 @@ export function tickDoors(state, world) {
   }
 }
 
-function hasTool(state, tool) {
-  for (const s of state.inventory) {
-    if (s && ITEMS[s.id]?.tool === tool) return true;
-  }
-  for (const k in state.equipment) {
-    if (ITEMS[state.equipment[k]]?.tool === tool) return true;
-  }
-  return false;
-}
-
 function toolBonus(state, tool) {
   if (!tool) return 0;
   return hasTool(state, tool) ? 0.08 : 0;
 }
-
-const TOOL_NAMES = {
-  tapping: 'a tapping knife', delving: 'a pick', leeching: 'a net',
-  gaff: 'a bile gaff', suturing: 'a needle', forging: 'a hammer',
-  apothecary: 'a pestle and mortar'
-};
-const toolName = t => TOOL_NAMES[t] || 'the right tool';
 
 /* ---------------- ground items ------------------------------ */
 
