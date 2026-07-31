@@ -211,7 +211,6 @@ function startGame(state, net) {
 
   log(state, `Welcome to Throatscape, ${state.name}.`, 'quest');
   log(state, 'Left-click to walk and interact. Right-click for more options.', 'system');
-  log(state, 'Arrow keys turn the camera; up and down bring it in low. Click the compass to face north.', 'system');
   log(state, 'Your progress is kept on the server. Speak to Orderly Punn to begin.', 'system');
 
   startLoop(game);
@@ -322,11 +321,6 @@ function wireInput(game) {
 
   canvas.addEventListener('mousemove', e => {
     const m = local(e);
-    if (renderer.compassAt(m.x, m.y)) {
-      state.hoverObj = null;
-      hud.showTooltip(m.x, m.y, 'Face', 'north');
-      return;
-    }
     const hit = probe(game, m.x, m.y);
     state.hoverObj = hit.kind === 'obj' ? hit.ref : null;
     const l = labelFor(hit);
@@ -342,7 +336,6 @@ function wireInput(game) {
   canvas.addEventListener('click', e => {
     if (hud.ctxOpen) { hud.closeCtx(); return; }
     const m = local(e);
-    if (renderer.compassAt(m.x, m.y)) { renderer.faceNorth(); return; }
     const hit = probe(game, m.x, m.y);
 
     if (state.useSel != null) {
@@ -363,29 +356,7 @@ function wireInput(game) {
 
   $('#orb-run').addEventListener('click', () => net.toggleRun());
 
-  /*
-   * The arrow keys drive the camera and nothing else, so they are tracked as
-   * held rather than pressed: the renderer turns however far the key was down
-   * for, which is smooth at any frame rate. Anyone typing keeps their arrows.
-   */
-  const CAMERA_KEYS = ['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown'];
-  const typing = () => {
-    const el = document.activeElement;
-    return !!el && (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA' || el.isContentEditable);
-  };
-
-  window.addEventListener('keyup', e => renderer.keys.delete(e.key));
-  // a key held while the tab loses focus never reports its release
-  window.addEventListener('blur', () => renderer.keys.clear());
-
   window.addEventListener('keydown', e => {
-    if (CAMERA_KEYS.includes(e.key)) {
-      if (typing()) return;
-      renderer.keys.add(e.key);
-      e.preventDefault();
-      return;
-    }
-
     const chat = $('#chat-input');
     if (document.activeElement === chat) return;
     if (e.key === 'Enter') { chat.focus(); e.preventDefault(); return; }

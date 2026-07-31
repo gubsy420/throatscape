@@ -14,32 +14,13 @@ const CHUNK = 16;
 /** How long one swing takes to play. A server tick is 600 ms; this fits inside. */
 const SWING_MS = 420;
 
-/*
- * Camera. The world is drawn flat, but the camera can be orbited around the
- * player and tilted down towards the horizon, the way RuneScape's is.
- *
- * Pitch is the angle above the ground: 90 is looking straight down. Lowering
- * it squashes the ground plane vertically - which is all an orthographic tilt
- * is - while sprites stay upright and full height, so they rise off the floor
- * as the view flattens. Tilting also pulls the camera in, because a camera
- * swinging down towards eye level is also swinging closer.
- */
-const PITCH_MAX = 90;     // straight down, the view the game has always had
-const PITCH_MIN = 34;     // as low as the flat-drawn art can take
-const YAW_RATE = 2.2;     // radians per second while an arrow is held: a turn in ~3 s
-const PITCH_RATE = 42;    // degrees per second: top to bottom in ~1.3 s
-
 export class Renderer {
   constructor(canvas, world) {
     this.canvas = canvas;
     this.ctx = canvas.getContext('2d');
     this.world = world;
-    this.cam = { x: 0, y: 0 };        // the world point the camera looks at, in tiles
+    this.cam = { x: 0, y: 0 };
     this.zoom = 1;
-    this.yaw = 0;                     // radians; 0 puts north at the top
-    this.pitch = PITCH_MAX;
-    this.cos = 1; this.sin = 0;
-    this.keys = new Set();            // camera keys held down, filled by main.js
     this.chunks = new Map();
     this.time = 0;
     this.hoverTile = null;
@@ -57,101 +38,30 @@ export class Renderer {
     this.vh = r.height;
   }
 
-  /* ---------------- camera ---------------------------------- */
-
-  /** How hard the ground plane is foreshortened. 1 is straight down. */
-  get squash() { return Math.sin(this.pitch * Math.PI / 180); }
-
-  /** Tilting down also brings the camera in, so the world grows a little. */
-  get dolly() { return 1 + (1 - this.squash) * 0.55; }
-
-  get ts() { return TILE * this.zoom * this.dolly; }
-
-  /** True once the camera has left the flat overhead view it starts in. */
-  get oblique() { return this.yaw !== 0 || this.pitch !== PITCH_MAX; }
-
-  /**
-   * Where the camera's focus sits on screen. A low camera is behind you as
-   * well as above you, so what you are looking at slides down the screen and
-   * more of the ground ahead comes into view.
-   */
-  get pivotY() { return this.vh * (0.5 + (1 - this.squash) * 0.28); }
-
-  /** Arrow keys orbit and tilt, exactly as they do in RuneScape. */
-  stepCamera() {
-    const k = this.keys, dt = Math.min(0.05, this.dt || 0);
-    if (k.has('ArrowLeft'))  this.yaw += YAW_RATE * dt;
-    if (k.has('ArrowRight')) this.yaw -= YAW_RATE * dt;
-    if (k.has('ArrowUp'))    this.pitch = Math.min(PITCH_MAX, this.pitch + PITCH_RATE * dt);
-    if (k.has('ArrowDown'))  this.pitch = Math.max(PITCH_MIN, this.pitch - PITCH_RATE * dt);
-
-    // keep yaw inside one turn, so the compass never winds up
-    if (this.yaw > Math.PI) this.yaw -= Math.PI * 2;
-    if (this.yaw < -Math.PI) this.yaw += Math.PI * 2;
-
-    this.cos = Math.cos(this.yaw);
-    this.sin = Math.sin(this.yaw);
-  }
-
-  /** Back to looking north. The pitch is left alone - only the compass resets. */
-  faceNorth() { this.yaw = 0; this.cos = 1; this.sin = 0; }
-
-  /* ---------------- projection ------------------------------ */
-
-  /** World point (in tiles) -> screen pixel. */
-  project(wx, wy) {
-    const ts = this.ts;
-    const dx = wx - this.cam.x, dy = wy - this.cam.y;
-    return {
-      x: this.vw / 2 + (dx * this.cos - dy * this.sin) * ts,
-      y: this.pivotY + (dx * this.sin + dy * this.cos) * ts * this.squash
-    };
-  }
-
-  /** Screen pixel -> world point (in tiles). The inverse of project. */
-  unproject(px, py) {
-    const ts = this.ts;
-    const sx = (px - this.vw / 2) / ts;
-    const sy = (py - this.pivotY) / ts / this.squash;
-    return {
-      x: this.cam.x + sx * this.cos + sy * this.sin,
-      y: this.cam.y - sx * this.sin + sy * this.cos
-    };
-  }
-
-  /**
-   * Draw order. Sorting by world y is only correct facing north: turn the
-   * camera and it starts drawing the near side of the street first.
-   */
-  depth(wx, wy) { return wx * this.sin + wy * this.cos; }
-
-  /** Which way something at a,b has to face to be looking at c,d, on screen. */
-  screenDir(ax, ay, bx, by) {
-    return (bx - ax) * this.cos - (by - ay) * this.sin >= 0 ? 1 : -1;
-  }
+  get ts() { return TILE * this.zoom; }
 
   /** Screen pixel -> world tile. */
   screenToTile(px, py) {
-    const w = this.unproject(px, py);
-    return { x: Math.floor(w.x), y: Math.floor(w.y) };
+    const ts = this.ts;
+    return {
+      x: Math.floor((px + this.cam.x) / ts),
+      y: Math.floor((py + this.cam.y) / ts)
+    };
   }
 
-  /**
-   * World tile -> screen pixel, positioned so that adding half a tile lands on
-   * the middle of it. Everything that stands on the ground is a billboard: it
-   * is placed by the projection but drawn upright and unsquashed, so a rotated
-   * camera swings the crowd around without laying anyone on their side.
-   */
+  /** World tile -> screen pixel (top-left of the tile). */
   tileToScreen(tx, ty) {
-    const s = this.project(tx + 0.5, ty + 0.5), h = this.ts / 2;
-    return { x: s.x - h, y: s.y - h };
+    const ts = this.ts;
+    return { x: tx * ts - this.cam.x, y: ty * ts - this.cam.y };
   }
 
   centerOn(px, py, snap = false) {
-    if (snap) { this.cam.x = px; this.cam.y = py; }
+    const tx = px * this.ts - this.vw / 2;
+    const ty = py * this.ts - this.vh / 2;
+    if (snap) { this.cam.x = tx; this.cam.y = ty; }
     else {
-      this.cam.x = lerp(this.cam.x, px, 0.18);
-      this.cam.y = lerp(this.cam.y, py, 0.18);
+      this.cam.x = lerp(this.cam.x, tx, 0.18);
+      this.cam.y = lerp(this.cam.y, ty, 0.18);
     }
   }
 
@@ -247,8 +157,6 @@ export class Renderer {
     this.dt = this._last ? Math.min(0.1, (now - this._last) / 1000) : 1 / 60;
     this._last = now;
 
-    this.stepCamera();
-
     ctx.setTransform(this.dpr, 0, 0, this.dpr, 0, 0);
     ctx.imageSmoothingEnabled = false;
     ctx.fillStyle = '#07050a';
@@ -259,49 +167,26 @@ export class Renderer {
     this.centerOn(px + 0.5, py + 0.5, state.snapCam);
     state.snapCam = false;
 
-    /*
-     * What is on screen is a rotated, squashed rectangle in world space, so
-     * the visible tiles are whatever its corners bound. Two tiles of slack
-     * either side covers scenery whose art overhangs its own tile.
-     */
-    const corners = [[0, 0], [this.vw, 0], [0, this.vh], [this.vw, this.vh]]
-      .map(([sx, sy]) => this.unproject(sx, sy));
-    const xs = corners.map(c => c.x), ys = corners.map(c => c.y);
-    const x0 = Math.floor(Math.min(...xs)) - 2;
-    const x1 = Math.ceil(Math.max(...xs)) + 2;
-    const y0 = Math.floor(Math.min(...ys)) - 2;
-    const y1 = Math.ceil(Math.max(...ys)) + 2;
+    const x0 = Math.floor(this.cam.x / ts) - 1;
+    const y0 = Math.floor(this.cam.y / ts) - 1;
+    const x1 = x0 + Math.ceil(this.vw / ts) + 3;
+    const y1 = y0 + Math.ceil(this.vh / ts) + 3;
 
     /* terrain */
     const c0 = Math.floor(x0 / CHUNK), c1 = Math.floor(x1 / CHUNK);
     const r0 = Math.floor(y0 / CHUNK), r1 = Math.floor(y1 / CHUNK);
-    const span = CHUNK * TILE;
     ctx.save();
-    if (this.oblique) {
-      ctx.translate(this.vw / 2, this.pivotY);
-      ctx.scale(1, this.squash);
-      ctx.rotate(this.yaw);
-      ctx.scale(ts / TILE, ts / TILE);
-      ctx.translate(-this.cam.x * TILE, -this.cam.y * TILE);
-      // a rotated blit cannot be pixel-exact, so let it filter rather than crawl
-      ctx.imageSmoothingEnabled = true;
-    } else {
-      // the overhead view still lands on whole pixels, exactly as it used to
-      ctx.translate(Math.round(this.vw / 2 - this.cam.x * ts),
-                    Math.round(this.pivotY - this.cam.y * ts));
-      ctx.scale(ts / TILE, ts / TILE);
-    }
-    // a hair of overlap: sampling a rotated edge otherwise leaves seams between chunks
-    const bleed = this.oblique ? 1 : 0;
+    ctx.scale(this.zoom, this.zoom);
     for (let cy = r0; cy <= r1; cy++) {
       for (let cx = c0; cx <= c1; cx++) {
         if (cx < 0 || cy < 0) continue;
-        ctx.drawImage(this.chunkCanvas(cx, cy),
-          cx * span, cy * span, span + bleed, span + bleed);
+        const img = this.chunkCanvas(cx, cy);
+        ctx.drawImage(img,
+          Math.round(cx * CHUNK * TILE - this.cam.x / this.zoom),
+          Math.round(cy * CHUNK * TILE - this.cam.y / this.zoom));
       }
     }
     ctx.restore();
-    ctx.imageSmoothingEnabled = false;
 
     /* animated bile shimmer */
     this.drawBileShimmer(x0, y0, x1, y1);
@@ -324,18 +209,18 @@ export class Renderer {
     const list = [];
     for (const o of this.world.objects) {
       if (o.x < x0 || o.x > x1 || o.y < y0 || o.y > y1) continue;
-      list.push({ y: this.depth(o.x, o.y), kind: 'obj', o });
+      list.push({ y: o.y, kind: 'obj', o });
     }
     for (const n of state.npcs) {
       if (n.dead) continue;
       if (n.rx < x0 - 1 || n.rx > x1 || n.ry < y0 - 1 || n.ry > y1) continue;
-      list.push({ y: this.depth(n.rx, n.ry), kind: 'npc', n });
+      list.push({ y: n.ry, kind: 'npc', n });
     }
     for (const o of state.others.values()) {
       if (o.rx < x0 - 1 || o.rx > x1 || o.ry < y0 - 1 || o.ry > y1) continue;
-      list.push({ y: this.depth(o.rx, o.ry), kind: 'other', o });
+      list.push({ y: o.ry, kind: 'other', o });
     }
-    list.push({ y: this.depth(px, py), kind: 'player', p });
+    list.push({ y: py, kind: 'player', p });
     list.sort((a, b) => a.y - b.y);
 
     /* selection ring under the current target */
@@ -371,9 +256,8 @@ export class Renderer {
     /* darkness in the deep places */
     const reg = this.world.regionAt(Math.round(px), Math.round(py));
     if (reg && (reg.id === 'larynx' || reg.id === 'gullet')) {
-      const lamp = this.project(px + 0.5, py + 0.5);
-      const g = ctx.createRadialGradient(lamp.x, lamp.y, ts * 3,
-                                         lamp.x, lamp.y, ts * 11);
+      const g = ctx.createRadialGradient(this.vw / 2, this.vh / 2, ts * 3,
+                                         this.vw / 2, this.vh / 2, ts * 11);
       g.addColorStop(0, 'rgba(0,0,0,0)');
       g.addColorStop(1, reg.id === 'larynx' ? 'rgba(4,2,6,0.72)' : 'rgba(30,4,10,0.5)');
       ctx.fillStyle = g;
@@ -433,29 +317,17 @@ export class Renderer {
     ctx.fill();
     ctx.clip();
 
-    /*
-     * The map turns with the camera, so the way you are looking is always up.
-     * The crop is half again as wide as the dial, because a square rotated
-     * inside a circle has to cover the corners it sweeps through.
-     */
     ctx.imageSmoothingEnabled = false;
-    ctx.save();
-    ctx.translate(cx, cy);
-    ctx.rotate(this.yaw);
-    const crop = span * 1.5, out = size * 1.5;
     ctx.drawImage(
       this.minimapBase(),
-      p.rx - crop / 2, p.ry - crop / 2, crop, crop,
-      -out / 2, -out / 2, out, out
+      p.rx - span / 2, p.ry - span / 2, span, span,
+      cx - size / 2, cy - size / 2, size, size
     );
-    ctx.restore();
 
     const dot = (wx, wy, col, r = 2) => {
-      const dx = (wx - p.rx) * scale, dy = (wy - p.ry) * scale;
       ctx.fillStyle = col;
       ctx.beginPath();
-      ctx.arc(cx + dx * this.cos - dy * this.sin,
-              cy + dx * this.sin + dy * this.cos, r, 0, 7);
+      ctx.arc(cx + (wx - p.rx) * scale, cy + (wy - p.ry) * scale, r, 0, 7);
       ctx.fill();
     };
 
@@ -476,7 +348,6 @@ export class Renderer {
     ctx.strokeStyle = '#6b3d4c';
     ctx.lineWidth = 2.5;
     ctx.beginPath(); ctx.arc(cx, cy, size / 2, 0, 7); ctx.stroke();
-
     ctx.fillStyle = 'rgba(12,5,8,.75)';
     ctx.font = '600 10px "Trebuchet MS", sans-serif';
     ctx.textAlign = 'center';
@@ -486,71 +357,21 @@ export class Renderer {
     ctx.fillStyle = '#b7a98f';
     ctx.fillText(label, cx, cy + size / 2 - 4);
     ctx.restore();
-
-    // last, so that facing south does not bury the needle under the readout
-    this.drawCompass(cx, cy, size / 2);
-  }
-
-  /*
-   * Everything below lies on the floor rather than standing on it, so it is
-   * drawn through the projection instead of being billboarded: a ripple runs
-   * along the tile it is in, and a ring flattens as the camera comes down.
-   */
-
-  /**
-   * The needle rides the minimap rim and always points north, so a turned
-   * camera is something you can see rather than something you have to
-   * remember. Clicking it puts you back facing north.
-   */
-  drawCompass(cx, cy, r) {
-    const ctx = this.ctx;
-    // north is straight up until the camera turns, then it swings with it
-    const nx = cx - this.sin * r, ny = cy - this.cos * r;
-    this.compass = { x: nx, y: ny, r: 13 };
-
-    ctx.save();
-    ctx.translate(nx, ny);
-    ctx.rotate(this.yaw);
-
-    ctx.beginPath(); ctx.arc(0, 0, 9, 0, 7);
-    ctx.fillStyle = 'rgba(12,5,8,.9)'; ctx.fill();
-    ctx.strokeStyle = '#6b3d4c'; ctx.lineWidth = 1.5; ctx.stroke();
-
-    ctx.beginPath();
-    ctx.moveTo(0, -7); ctx.lineTo(3.4, 1); ctx.lineTo(-3.4, 1);
-    ctx.closePath();
-    ctx.fillStyle = '#d4586b'; ctx.fill();
-
-    ctx.beginPath();
-    ctx.moveTo(0, 7); ctx.lineTo(3.4, 1); ctx.lineTo(-3.4, 1);
-    ctx.closePath();
-    ctx.fillStyle = '#8c7f6a'; ctx.fill();
-    ctx.restore();
-  }
-
-  /** Is this screen point on the compass? Answered for the click handler. */
-  compassAt(px, py) {
-    const c = this.compass;
-    return !!c && Math.hypot(px - c.x, py - c.y) <= c.r;
   }
 
   drawBileShimmer(x0, y0, x1, y1) {
     if (this.lowDetail) return;
-    const ctx = this.ctx, w = this.world;
+    const ctx = this.ctx, ts = this.ts, w = this.world;
     ctx.save();
     ctx.globalAlpha = 0.16;
-    ctx.lineWidth = 2 * this.dolly;
     for (let y = y0; y <= y1; y++) {
       for (let x = x0; x <= x1; x++) {
         if (w.tileAt(x, y) !== T.BILE) continue;
+        const s = this.tileToScreen(x, y);
         const ph = this.time * 1.4 + (x * 0.7 + y * 1.1);
         const a = (Math.sin(ph) + 1) / 2;
-        const l = this.project(x, y + 0.3 + a * 0.4);
-        const r = this.project(x + 1, y + 0.3 + a * 0.4);
-        ctx.strokeStyle = a > 0.5 ? '#a3c98f' : '#4a5a2f';
-        ctx.beginPath();
-        ctx.moveTo(l.x, l.y); ctx.lineTo(r.x, r.y);
-        ctx.stroke();
+        ctx.fillStyle = a > 0.5 ? '#a3c98f' : '#4a5a2f';
+        ctx.fillRect(s.x, s.y + ts * (0.3 + a * 0.4), ts, 2);
       }
     }
     ctx.restore();
@@ -562,35 +383,29 @@ export class Renderer {
     ctx.save();
     ctx.strokeStyle = col; ctx.lineWidth = 2;
     ctx.beginPath();
-    ctx.ellipse(s.x + ts / 2, s.y + ts * 0.82, ts * 0.36, ts * 0.16 * this.squash, 0, 0, 7);
+    ctx.ellipse(s.x + ts / 2, s.y + ts * 0.82, ts * 0.36, ts * 0.16, 0, 0, 7);
     ctx.stroke();
     ctx.restore();
   }
 
   tileOutline(tx, ty, col) {
-    const ctx = this.ctx;
-    const c = [[0.04, 0.04], [0.96, 0.04], [0.96, 0.96], [0.04, 0.96]]
-      .map(([a, b]) => this.project(tx + a, ty + b));
+    const ctx = this.ctx, ts = this.ts;
+    const s = this.tileToScreen(tx, ty);
     ctx.save();
     ctx.strokeStyle = col; ctx.lineWidth = 1.5;
-    ctx.beginPath();
-    ctx.moveTo(c[0].x, c[0].y);
-    for (let i = 1; i < c.length; i++) ctx.lineTo(c[i].x, c[i].y);
-    ctx.closePath();
-    ctx.stroke();
+    ctx.strokeRect(s.x + 1, s.y + 1, ts - 2, ts - 2);
     ctx.restore();
   }
 
   moveMarker(m) {
     const ctx = this.ctx, ts = this.ts;
-    const s = this.project(m.x + 0.5, m.y + 0.5);
+    const s = this.tileToScreen(m.x, m.y);
     const t = 1 - m.ttl / 24;
-    const r = ts * 0.15 + t * ts * 0.3;
     ctx.save();
     ctx.globalAlpha = 1 - t;
     ctx.strokeStyle = '#e8dcc8'; ctx.lineWidth = 2;
     ctx.beginPath();
-    ctx.ellipse(s.x, s.y, r, r * this.squash, 0, 0, 7);
+    ctx.arc(s.x + ts / 2, s.y + ts / 2, ts * 0.15 + t * ts * 0.3, 0, 7);
     ctx.stroke();
     ctx.restore();
   }
@@ -1030,9 +845,7 @@ export class Renderer {
 
     const eq = state.equipment;
     const t = this.swing(p.swingAt);
-    // facing is a world direction, so turning the camera past a quarter turn
-    // has to turn the sprite with it or everyone fights over their shoulder
-    const flip = (p.facing < 0 ? -1 : 1) * (this.cos >= 0 ? 1 : -1);
+    const flip = p.facing < 0 ? -1 : 1;
     const step = t ? 0 : this.walkPhase(p);     // do not walk and swing at once
     const bob = 0;
 
@@ -1094,7 +907,7 @@ export class Renderer {
      * every monster in the game animates without twelve separate edits.
      */
     const t = this.swing(n.swingAt);
-    const dir = this.screenDir(n.rx, n.ry, state.player.rx, state.player.ry);
+    const dir = state.player.rx >= n.rx ? 1 : -1;
     if (t) {
       const push = Math.sin(t * Math.PI);
       ctx.translate(dir * push * 4 * (ts / TILE), push * 1.5 * (ts / TILE));

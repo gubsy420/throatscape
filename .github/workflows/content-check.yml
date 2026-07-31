@@ -30,9 +30,6 @@ jobs:
             echo "no packs yet"
           fi
 
-      - name: The camera still points where it says
-        run: node tools/camera.mjs
-
       - name: The game still plays
         run: node tools/smoke.mjs
 
