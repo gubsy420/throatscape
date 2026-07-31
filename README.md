@@ -34,6 +34,83 @@ walking around and to chat with them.
 
 ---
 
+## Hosting it with Docker
+
+```bash
+docker compose up -d --build     # build and start
+docker compose logs -f           # watch who joins
+docker compose down              # stop and remove
+```
+
+The game is then on port 8080. To publish it somewhere else:
+
+```bash
+HOST_PORT=9000 docker compose up -d
+```
+
+Or without compose:
+
+```bash
+docker build -t throatscape .
+docker run -d --name throatscape -p 8080:8080 --restart unless-stopped throatscape
+```
+
+The image is about 58 MB on `node:22-alpine` and has no build step, because the
+project has no dependencies to install.
+
+**What the container does:**
+
+- runs as the unprivileged `node` user, never root
+- mounts its root filesystem **read-only** — the server writes nothing to disk,
+  and player progress lives in each browser's `localStorage`
+- sets `no-new-privileges`, so nothing inside can escalate
+- ships only `index.html`, `css/`, `js/`, `server/` and `package.json`; the
+  Dockerfile, README and git history are deliberately left out, because the
+  static server hands out everything beneath its root
+- has a `HEALTHCHECK`, so `docker ps` tells you whether the ward is actually open
+- handles `SIGTERM`, so `docker stop` takes about a second rather than sitting
+  through the full ten-second timeout
+- caps its own logs at 3 × 10 MB
+
+There is no volume and no database. The container holds nothing you would miss if
+it were destroyed — restarting it disconnects players, who reconnect on their own.
+
+### Putting it on the internet
+
+The server speaks plain HTTP and `ws://`. To expose it publicly, put it behind a
+reverse proxy that terminates TLS and forwards WebSocket upgrades. With Caddy that
+is the whole config:
+
+```caddyfile
+throatscape.example.com {
+    reverse_proxy localhost:8080
+}
+```
+
+Caddy handles the `Upgrade` and `Connection` headers itself and gets a certificate
+automatically. On nginx you must forward the upgrade headers explicitly, or the
+multiplayer socket will fail while the rest of the page loads fine:
+
+```nginx
+location / {
+    proxy_pass http://localhost:8080;
+    proxy_http_version 1.1;
+    proxy_set_header Upgrade    $http_upgrade;
+    proxy_set_header Connection "upgrade";
+    proxy_set_header Host       $host;
+    proxy_read_timeout 3600s;   # the game socket is long-lived and mostly idle
+}
+```
+
+The client picks `wss://` automatically when the page is served over HTTPS, so
+nothing needs configuring on that side.
+
+> **Before exposing it publicly**, read the multiplayer note further down. Game
+> state is client-authoritative — anyone can edit their own save. That is fine for
+> a world you walk around and chat in, and wrong for anything competitive.
+
+---
+
 ## Playing
 
 | Input | Does |
@@ -127,6 +204,8 @@ interpolates between ticks at full frame rate.
 ```
 index.html              markup for the boot, login and game shells
 css/style.css           the whole interface
+Dockerfile              58 MB alpine image, non-root, read-only rootfs
+docker-compose.yml      one service, no volumes, healthcheck, log rotation
 server/server.js        static file server + WebSocket relay, zero dependencies
 js/
   main.js               boot, input handling, the game loop
