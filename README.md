@@ -199,6 +199,9 @@ nothing needs configuring on that side.
 | --- | --- |
 | Left-click | Walk, attack, talk, chop, mine, pick up — whatever is under the cursor |
 | Right-click | Full option menu for that thing |
+| `←` `→` | Turn the camera around you |
+| `↑` `↓` | Raise the camera overhead, or bring it down low and in |
+| Click the compass | Face north again |
 | `1`–`7` | Switch sidebar tab |
 | `Enter` | Jump to the chat box |
 | `Esc` | Cancel the current action, close windows |
