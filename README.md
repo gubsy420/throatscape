@@ -54,6 +54,34 @@ and `.dockerignore` — do not commit it.
 
 ## Hosting it with Docker
 
+A prebuilt image is published to GitHub Packages on every push to `main`, so there
+is nothing to check out or build:
+
+```bash
+docker run -d --name throatscape \
+  -p 8080:8080 -v throatscape-data:/data --restart unless-stopped \
+  ghcr.io/gubsy420/throatscape:latest
+```
+
+Tags: `latest` follows `main`, `sha-<short>` pins an exact commit, and `v1.2.3` /
+`v1.2` appear if a release is tagged. The image is `linux/amd64`.
+
+### On Unraid
+
+*Docker → Add Container*, then:
+
+| Field | Value |
+| --- | --- |
+| Repository | `ghcr.io/gubsy420/throatscape:latest` |
+| Network type | Bridge |
+| Port | container `8080` → whatever host port you like |
+| Path | container `/data` → e.g. `/mnt/user/appdata/throatscape` |
+
+The `/data` path is the only one that matters. Everything else in the container is
+read-only and disposable.
+
+### Building it yourself
+
 ```bash
 docker compose up -d --build     # build and start
 docker compose logs -f           # watch who joins
