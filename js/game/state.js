@@ -59,6 +59,7 @@ export function createState(name) {
     action: null,
     trade: null,                 // the open trade, as the server last described it
     hoverObj: null,
+    /** Where you last clicked, and what for. Drawn as the click marker. */
     moveMarker: null,
     snapCam: true,
     tick: 0,
@@ -95,6 +96,18 @@ export function emitLater(state, evt) {
     state._pendingEmits.delete(evt);
     state.bus.emit(evt);
   });
+}
+
+/**
+ * Marks a tile as the thing you just clicked on. `kind` is 'walk', 'act' or
+ * 'attack', which is only a colour - but knowing at a glance whether the game
+ * heard "go there" or "kill that" is most of what the marker is for.
+ *
+ * Timestamped rather than counted down in frames, so it lasts the same length
+ * of time on a 60 Hz screen and a 144 Hz one.
+ */
+export function markClick(state, x, y, kind = 'walk') {
+  state.moveMarker = { x, y, kind, at: performance.now() };
 }
 
 export function log(state, text, cls = 'game') {

@@ -9,10 +9,11 @@ import { clamp, lerp } from './util.js';
 import { buildWorld, OBJ, TILE_INFO } from './data/world.js';
 import { NPCS } from './data/npcs.js';
 import { ITEMS, itemName } from './data/items.js';
-import { createState, log, toast } from './game/state.js';
+import { createState, log, toast, markClick } from './game/state.js';
 import { Renderer } from './engine/render.js';
 import { Renderer3D } from './engine/render3d.js';
 import { supported as glSupported } from './engine/gl/gl.js';
+import { markPhase } from './engine/clickmark.js';
 import { Audio } from './engine/audio.js';
 import { Hud } from './ui/hud.js';
 import { Panels, loadSettings } from './ui/panels.js';
@@ -282,7 +283,9 @@ function startLoop(game) {
     for (let i = state.floaters.length - 1; i >= 0; i--) {
       if (--state.floaters[i].ttl <= 0) state.floaters.splice(i, 1);
     }
-    if (state.moveMarker && --state.moveMarker.ttl <= 0) state.moveMarker = null;
+    // the marker expires on the clock, not on frames, so it lasts as long on
+    // a 144 Hz screen as on a 60 Hz one
+    if (state.moveMarker && markPhase(state.moveMarker) === null) state.moveMarker = null;
 
     renderer.draw(state, alpha);
     hud.updateOrbs();
@@ -470,24 +473,38 @@ function wireInput(game) {
   });
 }
 
+/**
+ * Every click leaves a mark on the thing it landed on, the way RuneScape's
+ * does: yellow for going somewhere or using something, red for attacking.
+ * It is the only feedback that the click was heard at all, so it goes on
+ * before the intent does and regardless of what the server makes of it.
+ */
 function doDefault(game, hit) {
   const { state, net } = game;
   switch (hit.kind) {
     case 'npc':
-      if (NPCS[hit.ref.id].hostile) net.attack(hit.ref.uid);
-      else net.talk(hit.ref.uid);
+      if (NPCS[hit.ref.id].hostile) {
+        markClick(state, hit.ref.x, hit.ref.y, 'attack');
+        net.attack(hit.ref.uid);
+      } else {
+        markClick(state, hit.ref.x, hit.ref.y, 'act');
+        net.talk(hit.ref.uid);
+      }
       break;
     case 'player':
+      markClick(state, hit.ref.x, hit.ref.y, 'act');
       net.tradeRequest(hit.ref.id);
       break;
     case 'ground':
+      markClick(state, hit.ref.x, hit.ref.y, 'act');
       net.pickup(hit.ref.x, hit.ref.y, hit.ref.id);
       break;
     case 'obj':
+      markClick(state, hit.ref.x, hit.ref.y, 'act');
       net.interact(hit.ref.x, hit.ref.y);
       break;
     default:
-      state.moveMarker = { x: hit.x, y: hit.y, ttl: 24 };
+      markClick(state, hit.x, hit.y, 'walk');
       net.move(hit.x, hit.y);
   }
 }
@@ -496,16 +513,27 @@ function contextEntries(game, hit) {
   const { state, world, net } = game;
   const out = [];
 
+  /*
+   * Choosing from the menu marks the tile too. Examining does not: nothing
+   * happens in the world, so nothing should appear in it.
+   */
+  const mark = (kind, x, y) => markClick(state, x, y, kind);
+
   if (hit.kind === 'npc') {
     const n = hit.ref, d = NPCS[n.id];
-    if (d.hostile) out.push({ label: 'Attack', obj: `${d.name} (level ${d.lvl})`, run: () => net.attack(n.uid) });
-    if (d.talk) out.push({ label: 'Talk to', obj: d.name, run: () => net.talk(n.uid) });
-    if (d.shop) out.push({ label: 'Trade with', obj: d.name, run: () => net.talk(n.uid) });
-    if (d.bank) out.push({ label: 'Bank with', obj: d.name, run: () => net.talk(n.uid) });
+    if (d.hostile) out.push({ label: 'Attack', obj: `${d.name} (level ${d.lvl})`,
+      run: () => { mark('attack', n.x, n.y); net.attack(n.uid); } });
+    if (d.talk) out.push({ label: 'Talk to', obj: d.name,
+      run: () => { mark('act', n.x, n.y); net.talk(n.uid); } });
+    if (d.shop) out.push({ label: 'Trade with', obj: d.name,
+      run: () => { mark('act', n.x, n.y); net.talk(n.uid); } });
+    if (d.bank) out.push({ label: 'Bank with', obj: d.name,
+      run: () => { mark('act', n.x, n.y); net.talk(n.uid); } });
     out.push({ label: 'Examine', obj: d.name, run: () => log(state, d.examine) });
   } else if (hit.kind === 'player') {
     const o = hit.ref;
-    out.push({ label: 'Trade with', obj: o.name, run: () => net.tradeRequest(o.id) });
+    out.push({ label: 'Trade with', obj: o.name,
+      run: () => { mark('act', o.x, o.y); net.tradeRequest(o.id); } });
     out.push({ label: 'Message', obj: o.name, run: () => {
       const box = document.getElementById('chat-input');
       box.value = `/tell "${o.name}" `;
@@ -516,16 +544,18 @@ function contextEntries(game, hit) {
       log(state, `${o.name} — another nurse, still upright.`) });
   } else if (hit.kind === 'ground') {
     const g = hit.ref;
-    out.push({ label: 'Take', obj: itemName(g.id), run: () => net.pickup(g.x, g.y, g.id) });
+    out.push({ label: 'Take', obj: itemName(g.id),
+      run: () => { mark('act', g.x, g.y); net.pickup(g.x, g.y, g.id); } });
     out.push({ label: 'Examine', obj: itemName(g.id), run: () => log(state, ITEMS[g.id]?.examine || '') });
   } else if (hit.kind === 'obj') {
     const o = hit.ref, d = OBJ[o.type];
-    out.push({ label: d.act || 'Use', obj: d.name, run: () => net.interact(o.x, o.y) });
+    out.push({ label: d.act || 'Use', obj: d.name,
+      run: () => { mark('act', o.x, o.y); net.interact(o.x, o.y); } });
     out.push({ label: 'Examine', obj: d.name, run: () => log(state, d.examine || d.name) });
   }
 
   out.push({ label: 'Walk here', obj: '', run: () => {
-    state.moveMarker = { x: hit.x, y: hit.y, ttl: 24 };
+    mark('walk', hit.x, hit.y);
     net.move(hit.x, hit.y);
   } });
 

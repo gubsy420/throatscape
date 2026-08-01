@@ -421,6 +421,86 @@ head('no two things claim the same id');
      'and it is the thing that ignores clicks, not the windows');
 }
 
+/* ============================================================
+   The click marker
+   ------------------------------------------------------------
+   The only thing that tells you the game heard your click, so
+   it has to appear for every click that does something and it
+   has to be the right colour: red means you are about to start
+   a fight, and that has to be true.
+   ============================================================ */
+
+head('every click leaves a mark');
+{
+  const { markPhase, drawMark, MARK_MS } = await import('../js/engine/clickmark.js');
+  const { createState, markClick } = await import('../js/game/state.js');
+
+  const s = createState('Test');
+  ok(s.moveMarker === null, 'nothing is marked before anything is clicked');
+
+  markClick(s, 12, 34, 'attack');
+  ok(s.moveMarker.x === 12 && s.moveMarker.y === 34, 'a mark lands on the tile it was given');
+  ok(s.moveMarker.kind === 'attack', 'and remembers what kind of click it was');
+
+  ok(markPhase(s.moveMarker, s.moveMarker.at) === 0, 'it starts at the beginning');
+  ok(markPhase(s.moveMarker, s.moveMarker.at + MARK_MS / 2) > 0.4, 'runs through the middle');
+  ok(markPhase(s.moveMarker, s.moveMarker.at + MARK_MS + 1) === null,
+     `and is over after ${MARK_MS} ms, however fast the screen refreshes`);
+  ok(markPhase(null) === null, 'and an absent mark is simply not drawn');
+
+  /*
+   * Drawn against a recording context, so the colours are checked rather
+   * than assumed. Yellow for going somewhere or using something, red for
+   * attacking - a player who cannot tell those apart at a glance has lost
+   * the only thing the marker is for.
+   */
+  const strokes = kind => {
+    const seen = [];
+    const rec = new Proxy({}, {
+      get: (t, k) => k === 'save' || k === 'restore' || k === 'translate' ||
+                     k === 'beginPath' || k === 'moveTo' || k === 'lineTo' ||
+                     k === 'stroke' || k === 'fillRect'
+        ? () => {} : undefined,
+      set: (t, k, v) => { if (k === 'strokeStyle' || k === 'fillStyle') seen.push(String(v)); return true; }
+    });
+    drawMark(rec, 100, 100, kind, 0.3);
+    return seen;
+  };
+
+  const walk = strokes('walk'), attack = strokes('attack');
+  const warm = c => /^#[0-9a-f]{6}$/i.test(c) && parseInt(c.slice(1, 3), 16) > 200;
+  ok(walk.some(c => /^#f0d24a$/i.test(c)), `walking is marked in yellow (${walk.filter(warm).join(' ')})`);
+  ok(attack.some(c => /^#e0503f$/i.test(c)), `attacking is marked in red (${attack.filter(warm).join(' ')})`);
+  ok(!attack.some(c => /^#f0d24a$/i.test(c)), 'and an attack is never yellow');
+  ok(walk.some(c => /rgba\(20/.test(c)), 'each arm is outlined, so it reads on pale ground too');
+
+  const act = strokes('act');
+  ok(act.join() === walk.join(), 'using something is marked the same as walking, as in RuneScape');
+  ok(strokes('nonsense').join() === walk.join(), 'an unknown kind falls back to yellow rather than vanishing');
+}
+
+head('every click that does something marks the tile');
+{
+  const { readFile } = await import('node:fs/promises');
+  const { rel } = await import('./lib.mjs');
+  const src = await readFile(rel('js/main.js'), 'utf8');
+
+  /*
+   * doDefault is every left-click in the game. Each branch sends an intent,
+   * and each one that does has to mark first - a click that does something
+   * without saying so is the bug this whole feature exists to prevent.
+   */
+  const body = src.slice(src.indexOf('function doDefault'), src.indexOf('function contextEntries'));
+  const branches = body.split(/\n\s*case |\n\s*default:/).slice(1);
+  ok(branches.length >= 5, `${branches.length} kinds of click to check`);
+  const bare = branches.filter(b => /net\.\w+\(/.test(b) && !/markClick\(/.test(b));
+  ok(!bare.length, bare.length
+    ? `${bare.length} branch(es) act without marking: ${bare.map(b => b.slice(0, 24).trim()).join(' | ')}`
+    : 'every branch marks the tile before it sends the intent');
+  ok(/markClick\(state, hit\.ref\.x, hit\.ref\.y, 'attack'\)/.test(body),
+     'and attacking is the one marked in red');
+}
+
 head('the mesh builder');
 {
   const b = new MeshBuilder();

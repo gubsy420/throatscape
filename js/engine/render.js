@@ -8,6 +8,7 @@ import { NPCS } from '../data/npcs.js';
 import { drawArt } from './icons.js';
 import { item } from '../data/items.js';
 import { parseChat, charColour, charOffset } from '../game/chatfx.js';
+import { drawMark, markPhase } from './clickmark.js';
 
 const CHUNK = 16;
 
@@ -228,7 +229,6 @@ export class Renderer {
       this.ring(state.target.ref.rx, state.target.ref.ry, '#d4586b');
     }
     if (state.hoverObj) this.tileOutline(state.hoverObj.x, state.hoverObj.y, 'rgba(224,179,87,.55)');
-    if (state.moveMarker && state.moveMarker.ttl > 0) this.moveMarker(state.moveMarker);
 
     for (const e of list) {
       if (e.kind === 'obj') this.drawObject(e.o, state);
@@ -248,6 +248,9 @@ export class Renderer {
       ctx.fillRect(-6, -1.5, 12, 3);
       ctx.restore();
     }
+
+    /* the click marker is interface, so it sits over whatever it landed on */
+    if (state.moveMarker) this.moveMarker(state.moveMarker);
 
     /* hitsplats and floating text sit above everything */
     for (const h of state.hitsplats) this.drawHitsplat(h);
@@ -398,16 +401,11 @@ export class Renderer {
   }
 
   moveMarker(m) {
-    const ctx = this.ctx, ts = this.ts;
+    const p = markPhase(m);
+    if (p === null) return;
+    const ts = this.ts;
     const s = this.tileToScreen(m.x, m.y);
-    const t = 1 - m.ttl / 24;
-    ctx.save();
-    ctx.globalAlpha = 1 - t;
-    ctx.strokeStyle = '#e8dcc8'; ctx.lineWidth = 2;
-    ctx.beginPath();
-    ctx.arc(s.x + ts / 2, s.y + ts / 2, ts * 0.15 + t * ts * 0.3, 0, 7);
-    ctx.stroke();
-    ctx.restore();
+    drawMark(this.ctx, s.x + ts / 2, s.y + ts / 2, m.kind, p);
   }
 
   /* ---------------- scenery --------------------------------- */

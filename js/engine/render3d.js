@@ -159,7 +159,6 @@ export class Renderer3D {
     return {
       target: ring(0.34, 0.44, '#d4586b'),
       hover:  ring(0.40, 0.48, '#e0b357'),
-      move:   ring(0.16, 0.24, '#e8dcc8'),
       shadow: disc()
     };
   }
@@ -452,10 +451,7 @@ export class Renderer3D {
       put(this.decals.target, n.rx, n.ry, (NPCS[n.id]?.size || 1));
     }
     if (state.hoverObj) put(this.decals.hover, state.hoverObj.x, state.hoverObj.y);
-    if (state.moveMarker && state.moveMarker.ttl > 0) {
-      const t = 1 - state.moveMarker.ttl / 24;
-      put(this.decals.move, state.moveMarker.x, state.moveMarker.y, 0.6 + t * 1.8);
-    }
+    // the click marker is interface, not scenery: the overlay draws it
   }
 
   /* ---------------- people and monsters ---------------------- */

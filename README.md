@@ -198,6 +198,7 @@ nothing needs configuring on that side.
 | Input | Does |
 | --- | --- |
 | Left-click | Walk, attack, talk, chop, mine, pick up — whatever is under the cursor |
+| | A cross marks where it landed: yellow to walk or use, red to attack |
 | Right-click | Full option menu for that thing |
 | `←` `→` | Turn the camera around you |
 | `↑` `↓` | Raise the camera overhead, or bring it down to eye level |

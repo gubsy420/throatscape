@@ -17,6 +17,7 @@ import { clamp, hash2 } from '../util.js';
 import { TILE_INFO, T, OBJ } from '../data/world.js';
 import { NPCS } from '../data/npcs.js';
 import { parseChat, charColour, charOffset } from '../game/chatfx.js';
+import { drawMark, markPhase } from './clickmark.js';
 
 export class Overlay {
   constructor(r) {
@@ -42,6 +43,8 @@ export class Overlay {
     ctx.textBaseline = 'alphabetic';
 
     const p = state.player;
+
+    this.clickMark(state);
 
     /*
      * Everything gets a depth, and the far things are drawn first, so a
@@ -90,6 +93,21 @@ export class Overlay {
     for (const f of state.floaters) this.floater(f);
 
     this.minimap(state);
+  }
+
+  /**
+   * The mark on the tile you just clicked. Drawn before the name tags so a
+   * label sits on top of it rather than under it, and drawn at the height of
+   * the ground so it lands on the tile rather than in the air above it.
+   */
+  clickMark(state) {
+    const m = state.moveMarker;
+    const p = markPhase(m);
+    if (p === null) return;
+    const x = m.x + 0.5, z = m.y + 0.5;
+    const s = this.r.cam.toScreen(x, this.r.terrain.heightAt(x, z), z, this.vw, this.vh);
+    if (!s.visible) return;
+    drawMark(this.ctx, s.x, s.y, m.kind, p);
   }
 
   /* ---------------- tags ------------------------------------ */

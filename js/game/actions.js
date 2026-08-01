@@ -9,7 +9,7 @@ import { SKILL_BY_ID } from '../data/skills.js';
 import { cheb, findPath, randInt, chance, pick, clamp, weightedPick } from '../util.js';
 import {
   addXp, baseLevel, effLevel, addItem, removeItem, removeSlot, invCount, hasItem,
-  canHold, freeSlots, log, toast, floater, meetsReq, equipFromSlot, hasTool
+  canHold, freeSlots, log, toast, floater, meetsReq, equipFromSlot, hasTool, markClick
 } from './state.js';
 import { npcBlocks, tileBlocked, npcAt, pathAdjacent } from './combat.js';
 import { makeQuestApi, questHook } from './questapi.js';
@@ -23,7 +23,7 @@ export function walkTo(state, world, tx, ty, adjacentOk = false) {
     ? pathAdjacent(state, world, tx, ty)
     : findPath(p.x, p.y, tx, ty,
         (x, y) => world.isWalkable(x, y) && !tileBlocked(state, x, y));
-  state.moveMarker = { x: tx, y: ty, ttl: 24 };
+  markClick(state, tx, ty, 'walk');
 }
 
 /** Steps the player one tile (or two, when running). */
