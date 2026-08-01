@@ -96,8 +96,10 @@
 
   <div id="stage">
     <canvas id="view"></canvas>
-    <!-- names, hitsplats, chat and the minimap, drawn flat over the scene -->
-    <canvas id="overlay"></canvas>
+    <!-- names, hitsplats, chat and the minimap, drawn flat over the scene.
+         Not "overlay": windows.js already builds an element by that name for
+         every shop and bank, and sharing an id shared the CSS with it. -->
+    <canvas id="hud-layer"></canvas>
 
     <div id="hud-top-left">
       <div id="hud-name"></div>

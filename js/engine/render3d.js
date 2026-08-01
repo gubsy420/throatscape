@@ -22,15 +22,29 @@ import { drawArt } from './icons.js';
 import { parseChat, charColour, charOffset } from '../game/chatfx.js';
 
 import { getContext, makeProgram } from './gl/gl.js';
-import { m4, model as modelMatrix, limb } from './gl/mat4.js';
+import { m4, model as modelMatrix, limb, hinge } from './gl/mat4.js';
 import { MeshBuilder, rgb, tone } from './gl/mesh.js';
 import { Camera, PITCH_MIN, PITCH_MAX } from './gl/camera.js';
 import { Terrain, CHUNK } from './models/terrain.js';
 import { CreatureModels } from './models/creatures.js';
 import { SceneryModels } from './models/scenery.js';
+import { ItemModels } from './models/items.js';
 import { Overlay } from './overlay.js';
 
 const SWING_MS = 420;
+
+/**
+ * How a held item sits in the fist. Items are modelled grip-down with the
+ * business end up, so this is a tilt away from standing straight up out of
+ * the hand: a little forward, and a little out, which carries a scalpel
+ * clear of the thigh and a spear clear of its owner's chest.
+ *
+ * Straight up runs the shaft through the forearm; flat forward couches a
+ * spear through the ribs; end over end plants it in the floor. This is the
+ * narrow bit in between.
+ */
+const GRIP = -0.42;
+const GRIP_OUT = -0.30;        // negative leans it out to the right, away from the body
 
 /** How the world is lit. One key light from the north-west, and a fill. */
 const LIGHT = (() => {
@@ -71,9 +85,11 @@ export class Renderer3D {
     this.terrain = new Terrain(world);
     this.creatures = new CreatureModels(gl);
     this.scenery = new SceneryModels(gl);
+    this.items = new ItemModels(gl);
 
     this.mat = m4();
     this.limbMat = m4();
+    this.handMat = m4();
     this.time = 0;
     this.lowDetail = false;
     this.hoverTile = null;
@@ -188,10 +204,11 @@ export class Renderer3D {
     gl.disable(gl.BLEND);
   }
 
-  /** What an item looks like lying on the floor. */
+  /** A bolt in flight. Ground drops are the item's own model. */
   buildPickup() {
     const b = new MeshBuilder();
-    b.ball(0, 0.16, 0, 0.13, '#ffffff', 2, 6);
+    b.cone(0, 0.12, 0, 0.05, 0.16, '#ffffff', 5);
+    b.drum(0, -0.10, 0, 0.02, 0.03, 0.22, '#ffffff', 5);
     return b.build(this.gl);
   }
 
@@ -328,8 +345,8 @@ export class Renderer3D {
       for (const part of m.parts) {
         modelMatrix(this.mat, x, y, z, spin, 1);
         if (part.joint === 'hinge') {
-          limb(this.limbMat, this.mat, part.pivot[0], part.pivot[1], part.pivot[2],
-               0, -this.doorAngle(o) * 1.4);
+          hinge(this.limbMat, this.mat, part.pivot[0], part.pivot[1], part.pivot[2],
+                this.doorAngle(o) * this.swingSide(o, spin, state));
           gl.uniformMatrix4fv(this.u.uModel, false, this.limbMat);
         } else if (sway || lean) {
           limb(this.limbMat, this.mat, 0, 0, 0, sway + lean, 0);
@@ -341,6 +358,26 @@ export class Renderer3D {
       }
     }
     gl.uniform1f(this.u.uFade, 1);
+  }
+
+  /**
+   * How far and which way a door swings. It opens away from whoever is
+   * pushing it, because that is what a door does and because swinging it
+   * through the player's face reads as a mistake.
+   *
+   * The side is decided once, as it starts to move, and held until it is
+   * shut again - otherwise walking through a doorway makes the door change
+   * its mind halfway and sweep back through you.
+   */
+  swingSide(o, spin, state) {
+    if (o.anim === undefined || o.anim < 0.02) {
+      const p = state.player;
+      const dx = p.rx + 0.5 - (o.x + 0.5), dz = p.ry + 0.5 - (o.y + 0.5);
+      // the player's position in the door's own frame; its leaf lies along +x
+      const localZ = -dx * Math.sin(spin) + dz * Math.cos(spin);
+      o._swing = localZ > 0 ? -1 : 1;
+    }
+    return (o._swing || 1) * 1.5;               // a shade under a right angle
   }
 
   /**
@@ -369,23 +406,31 @@ export class Renderer3D {
 
   /* ---------------- things on the floor ---------------------- */
 
+  /**
+   * Items lying on the floor, each drawn as itself. A dropped scalpel is a
+   * scalpel and a dropped skull is a skull, whether it fell out of a monster
+   * or out of your own pack - you should be able to tell what is worth
+   * walking back for without hovering over it.
+   */
   drawGround(state) {
     const gl = this.gl;
-    gl.uniform1f(this.u.uFade, 1);
+    gl.uniform3f(this.u.uTint, 1, 1, 1);
     for (const g of state.ground) {
       const x = g.x + 0.5, z = g.y + 0.5;
       const y = this.terrain.tileHeight(g.x, g.y);
-      if (!this.cam.visible(x, y, z, 1)) continue;
-      const art = item(g.id)?.art;
-      const c = rgb(art?.c || '#c9bda6');
-      gl.uniform3f(this.u.uTint, c[0], c[1], c[2]);
+      if (!this.cam.visible(x, y + 0.2, z, 1.2)) continue;
       gl.uniform1f(this.u.uFade, g.ttl < 60 ? 0.35 + 0.35 * Math.sin(this.time * 8) : 1);
-      modelMatrix(this.mat, x, y + Math.sin(this.time * 2.2 + g.x + g.y) * 0.03,
-                  z, this.time * 0.8, 1);
-      gl.uniformMatrix4fv(this.u.uModel, false, this.mat);
-      this.pickup.draw();
+      /*
+       * Tipped over and turning slowly. Models are built upright to be held,
+       * so a sword standing to attention on the flagstones would be wrong -
+       * and the turn is what catches the eye across a room.
+       */
+      modelMatrix(this.mat, x, y + 0.10 + Math.sin(this.time * 2.2 + g.x + g.y) * 0.025,
+                  z, this.time * 0.7 + g.x, 1);
+      limb(this.limbMat, this.mat, 0, 0, 0, Math.PI / 2, 0);
+      gl.uniformMatrix4fv(this.u.uModel, false, this.limbMat);
+      this.items.get(item(g.id)?.art).draw();
     }
-    gl.uniform3f(this.u.uTint, 1, 1, 1);
     gl.uniform1f(this.u.uFade, 1);
   }
 
@@ -428,10 +473,15 @@ export class Renderer3D {
       const y = this.terrain.heightAt(cx, cz);
       if (!this.cam.visible(cx, y + m.height / 2, cz, m.height * size + 1)) continue;
 
+      const sw = this.swing(n.swingAt);
       this.drawRig(m, cx, y, cz, {
-        yaw: this.facing(n.rx, n.ry, p.rx, p.ry, n),
+        // a monster mid-swing is swinging at you, so it should be looking at you
+        yaw: sw || n.hurtFlash > 0
+          ? this.lookAt(n, cx, cz, p.rx + 0.5, p.ry + 0.5)
+          : this.headingOf(n),
         walk: this.walkPhase(n),
-        swing: this.swing(n.swingAt),
+        swing: sw,
+        attack: 'slash',
         scale: size > 1 ? 1.5 : 1,
         hurt: n.hurtFlash > 0
       });
@@ -443,83 +493,145 @@ export class Renderer3D {
       const m = this.creatures.player(o.color || '#b8a68f', null);
       if (!this.cam.visible(cx, y + 0.7, cz, 2.4)) continue;
       this.drawRig(m, cx, y, cz, {
-        yaw: o.heading ?? this.headingOf(o),
+        yaw: this.headingOf(o),
         walk: this.walkPhase(o),
-        swing: this.swing(o.swingAt)
+        swing: this.swing(o.swingAt),
+        attack: 'slash'
       });
     }
 
-    /* the player */
+    /* the player, dressed in whatever they are actually wearing */
     const eq = state.equipment;
     const body = eq.body ? (item(eq.body)?.art?.c || '#e8e0cd') : '#e8e0cd';
     const hat = eq.head ? (item(eq.head)?.art?.c || '#ffffff') : null;
+    const weapon = eq.weapon ? item(eq.weapon) : null;
+    const shield = eq.shield ? item(eq.shield) : null;
     const cx = p.rx + 0.5, cz = p.ry + 0.5;
+
+    /*
+     * Facing what you are hitting. The server tracks a target but only sends
+     * back a left-or-right facing, which is no use once the camera can be
+     * anywhere, so the direction is worked out here from where the target
+     * actually is.
+     */
+    const t = state.target;
+    const fighting = t && t.kind === 'npc' && t.ref && !t.ref.dead;
+    const yaw = fighting
+      ? this.lookAt(p, cx, cz, t.ref.rx + (NPCS[t.ref.id]?.size || 1) / 2,
+                                t.ref.ry + (NPCS[t.ref.id]?.size || 1) / 2)
+      : this.headingOf(p);
+
     this.drawRig(this.creatures.player(body, hat), cx, this.terrain.heightAt(cx, cz), cz, {
-      yaw: this.headingOf(p),
+      yaw,
       walk: this.walkPhase(p),
-      swing: this.swing(p.swingAt)
+      swing: this.swing(p.swingAt),
+      attack: attackKind(weapon),
+      weapon: weapon ? this.items.get(weapon.art) : null,
+      shield: shield ? this.items.get(shield.art) : null
     });
   }
 
   /**
-   * Poses a rig and draws it. Joint names come from the model; what each one
-   * does when the body walks or swings is decided here, once, for everything.
+   * Poses a rig and draws it. Joints are named by the model; what each one
+   * does when the body walks or fights is decided here, once, for everything
+   * in the game.
    */
-  drawRig(m, x, y, z, { yaw = 0, walk = 0, swing = 0, scale = 1, hurt = false }) {
+  drawRig(m, x, y, z, {
+    yaw = 0, walk = 0, swing = 0, scale = 1, hurt = false,
+    attack = 'slash', weapon = null, shield = null
+  }) {
     const gl = this.gl;
     gl.uniform3f(this.u.uTint, hurt ? 1.6 : 1, hurt ? 0.7 : 1, hurt ? 0.7 : 1);
 
     const stride = walk ? Math.sin(walk * Math.PI * 2) : 0;
     const bounce = walk ? Math.abs(Math.cos(walk * Math.PI * 2)) * 0.035 : 0;
-    // a swing winds up and follows through, rather than easing to a stop
-    const arm = swing ? (swing < 0.3 ? -swing / 0.3 * 1.5 : -1.5 + (swing - 0.3) / 0.7 * 2.6) : 0;
-    const idle = m.kind === 'lump' || m.kind === 'blob' || m.kind === 'beast' || m.kind === 'float';
+    const idle = m.kind !== 'humanoid';
     const breathe = idle ? 0 : Math.sin(this.time * 1.7 + x * 3) * 0.012;
+    const pose = swing ? ATTACKS[attack](swing) : null;
 
     for (const part of m.parts) {
       modelMatrix(this.mat, x, y + bounce, z, yaw, scale);
       let sw = 0, lf = 0, px = part.pivot[0], py = part.pivot[1], pz = part.pivot[2];
 
       switch (part.joint) {
-        case 'legL': sw = stride * 0.62; break;
-        case 'legR': sw = -stride * 0.62; break;
-        case 'armL': sw = -stride * 0.5; break;
-        case 'armR': sw = swing ? arm : stride * 0.5; break;
-        case 'torso': sw = (m.stoop || 0) + breathe; break;
+        case 'legL': sw = stride * 0.62 + (pose?.lunge || 0); break;
+        case 'legR': sw = -stride * 0.62 + (pose?.lunge || 0); break;
+        case 'armL':
+          sw = pose ? pose.armL[0] : -stride * 0.5;
+          lf = pose ? -pose.armL[1] : 0;
+          break;
+        case 'armR':
+          sw = pose ? pose.armR[0] : stride * 0.5;
+          lf = pose ? pose.armR[1] : 0;
+          break;
+        case 'torso': sw = (m.stoop || 0) + breathe + (pose?.lean || 0); break;
         case 'head': sw = -(m.stoop || 0) * 0.6; break;
         case 'body':
           // the ones with no legs bob along instead
           py += walk ? Math.abs(Math.sin(walk * Math.PI * 2)) * 0.05 : 0;
-          sw = m.kind === 'float' ? Math.sin(this.time * 1.4) * 0.06 : 0;
-          if (m.kind === 'float') py += Math.sin(this.time * 1.9) * 0.05;
+          if (m.kind === 'float') {
+            sw = Math.sin(this.time * 1.4) * 0.06;
+            py += Math.sin(this.time * 1.9) * 0.05;
+          }
           break;
       }
 
-      if (sw || lf || px || py || pz) {
+      const posed = sw || lf || px || py || pz;
+      if (posed) {
         limb(this.limbMat, this.mat, px, py, pz, sw, lf);
         gl.uniformMatrix4fv(this.u.uModel, false, this.limbMat);
       } else {
         gl.uniformMatrix4fv(this.u.uModel, false, this.mat);
       }
       part.mesh.draw();
+
+      /*
+       * What is in your hands, hung off the arm that is already posed - so a
+       * scalpel follows the swing it is making rather than being drawn at
+       * some guessed position beside the body.
+       *
+       * Items are modelled grip-down with the business end up, so a weapon
+       * left unturned points back up through its own forearm and a weapon
+       * turned end over end points down through the floor. GRIP tips it out
+       * of the fist, forward and clear of the leg, which is where a hand
+       * carrying something actually holds it.
+       */
+      if (part.joint === 'armR' && weapon && posed) {
+        limb(this.handMat, this.limbMat, 0.02 * scale, -0.46 * scale, -0.05 * scale,
+             GRIP, GRIP_OUT);
+        gl.uniformMatrix4fv(this.u.uModel, false, this.handMat);
+        weapon.draw();
+      } else if (part.joint === 'armL' && shield && posed) {
+        // a shield hangs flat on the forearm, facing the way the body faces
+        limb(this.handMat, this.limbMat, -0.04 * scale, -0.30 * scale, -0.06 * scale, 0, -0.25);
+        gl.uniformMatrix4fv(this.u.uModel, false, this.handMat);
+        shield.draw();
+      }
     }
     gl.uniform3f(this.u.uTint, 1, 1, 1);
   }
 
-  /** Which way something is walking, remembered so it does not snap back facing north. */
+  /** Which way something is walking, remembered so it does not snap back to north. */
   headingOf(e) {
     const dx = e.x - (e.ix ?? e.x), dy = e.y - (e.iy ?? e.y);
     if (dx || dy) e._heading = Math.atan2(dx, -dy);
-    return e._heading ?? (e.facing < 0 ? -Math.PI / 2 : Math.PI / 2);
+    return e._heading ?? 0;
   }
 
-  /** A monster turns to whatever it is fighting, and otherwise walks forwards. */
-  facing(nx, ny, px, py, n) {
-    if (n.target || n.path?.length === 0) {
-      const dx = px - nx, dy = py - ny;
-      if (dx || dy) return Math.atan2(dx, -dy);
-    }
-    return this.headingOf(n);
+  /**
+   * Turn to look at something, easing rather than snapping - a body that
+   * changes which way it faces between one frame and the next reads as a
+   * glitch even when the direction is right.
+   */
+  lookAt(e, x, z, tx, tz) {
+    const want = Math.atan2(tx - x, -(tz - z));
+    let cur = e._heading ?? want;
+    let d = want - cur;
+    while (d > Math.PI) d -= Math.PI * 2;
+    while (d < -Math.PI) d += Math.PI * 2;
+    cur += d * Math.min(1, this.dt * 12);
+    e._heading = cur;
+    return cur;
   }
 
   walkPhase(e) {
@@ -618,6 +730,93 @@ export class Renderer3D {
     return { x: s.x - TILE / 2, y: s.y - TILE / 2 };
   }
 }
+
+/* ============================================================
+   Attacks
+   ------------------------------------------------------------
+   Swinging a scalpel, thrusting a lance, bringing a hammer down
+   and firing a blowpipe are four different motions, and using
+   one motion for all of them makes every weapon in the game
+   feel like the same weapon.
+
+   Each returns the pose at a point through the swing: the two
+   arms as [forward, outward] in radians, how far the body leans
+   into it, and how far the legs brace. Arms hang down at rest,
+   so a positive forward angle raises the arm in front of you.
+   ============================================================ */
+
+/** Which motion a weapon uses. Nothing else in the renderer decides this. */
+export function attackKind(weapon) {
+  if (!weapon) return 'punch';
+  if (weapon.wstyle === 'ranged') return 'shoot';
+  if (weapon.wstyle === 'magic') return 'cast';
+  switch (weapon.art?.k) {
+    case 'spear': case 'pick': case 'needle': case 'syringe': return 'stab';
+    case 'hammer': return 'crush';
+    default: return 'slash';
+  }
+}
+
+const ATTACKS = {
+  /* A diagonal cut: out wide, then across and down through the target. */
+  slash: t => ({
+    armR: t < 0.28
+      ? [-0.55 * (t / 0.28), 0.95 * (t / 0.28)]
+      : [-0.55 + (t - 0.28) / 0.72 * 2.15, 0.95 - (t - 0.28) / 0.72 * 1.25],
+    armL: [-0.25 * Math.sin(t * Math.PI), 0.2],
+    lean: 0.10 * Math.sin(t * Math.PI),
+    lunge: 0
+  }),
+
+  /* The same, with nothing in your hand. Shorter, and it hooks inwards. */
+  punch: t => ({
+    armR: t < 0.3
+      ? [-0.4 * (t / 0.3), 0.5 * (t / 0.3)]
+      : [-0.4 + (t - 0.3) / 0.7 * 1.75, 0.5 - (t - 0.3) / 0.7 * 0.5],
+    armL: [-0.3 * Math.sin(t * Math.PI), 0.15],
+    lean: 0.14 * Math.sin(t * Math.PI),
+    lunge: 0
+  }),
+
+  /* Draw back, then drive it straight forward off the front foot. */
+  stab: t => ({
+    armR: t < 0.35
+      ? [0.55 - 0.95 * (t / 0.35), 0.15]
+      : [-0.40 + (t - 0.35) / 0.65 * 2.05, 0.15],
+    armL: [0.45, 0.30],
+    lean: t < 0.35 ? -0.10 * (t / 0.35) : -0.10 + (t - 0.35) / 0.65 * 0.32,
+    lunge: t > 0.35 ? 0.22 * Math.sin((t - 0.35) / 0.65 * Math.PI) : 0
+  }),
+
+  /* Overhead, held a beat at the top, then everything comes down at once. */
+  crush: t => ({
+    armR: t < 0.42
+      ? [-2.5 * (t / 0.42), 0.35 * (t / 0.42)]
+      : [-2.5 + (t - 0.42) / 0.58 * 3.4, 0.35 - (t - 0.42) / 0.58 * 0.25],
+    armL: [-0.9 * Math.min(1, t / 0.42), 0.3],
+    lean: t < 0.42 ? -0.18 * (t / 0.42) : -0.18 + (t - 0.42) / 0.58 * 0.5,
+    lunge: 0
+  }),
+
+  /* Level it, hold, and take the recoil. */
+  shoot: t => {
+    const kick = t > 0.45 ? Math.max(0, 1 - (t - 0.45) / 0.25) * 0.3 : 0;
+    return {
+      armR: [1.35 - kick, 0.12],
+      armL: [1.20, 0.45],
+      lean: -kick * 0.25,
+      lunge: 0
+    };
+  },
+
+  /* Raise it, and let the arm shake while whatever it is happens. */
+  cast: t => ({
+    armR: [1.05 + 0.55 * Math.sin(t * Math.PI) + Math.sin(t * 40) * 0.05 * (1 - t), -0.45],
+    armL: [0.35 * Math.sin(t * Math.PI), 0.25],
+    lean: -0.12 * Math.sin(t * Math.PI),
+    lunge: 0
+  })
+};
 
 /**
  * Where a ray enters an upright cylinder, or null. Used for every click on

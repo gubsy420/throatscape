@@ -38,6 +38,7 @@ const { Camera } = await import('../js/engine/gl/camera.js');
 const { Terrain } = await import('../js/engine/models/terrain.js');
 const { CreatureModels, CREATURE_KINDS } = await import('../js/engine/models/creatures.js');
 const { SceneryModels, SCENERY_ARTS } = await import('../js/engine/models/scenery.js');
+const { ItemModels, ITEM_KINDS } = await import('../js/engine/models/items.js');
 
 /**
  * A graphics card that only counts. Meshes are built against it exactly as
@@ -106,9 +107,35 @@ head('the matrix maths');
 
   mat.limb(out, base, 0, 1, 0, Math.PI / 2, 0);
   const bent = mat.project(out, 0, 1, 0);
-  const hinge = mat.project(base, 0, 1, 0);
-  ok(near(bent[1], hinge[1], 1e-4),
+  const joint = mat.project(base, 0, 1, 0);
+  ok(near(bent[1], joint[1], 1e-4),
      'and a limb swung a quarter turn is horizontal, not still upright');
+
+  /*
+   * A door turns about the vertical. limb() turns about the other two axes,
+   * which is what a shoulder does - and using it on a door made every door
+   * in the game tip over sideways into its own wall instead of opening.
+   */
+  const dm = mat.m4(), dl = mat.m4();
+  mat.model(dm, 0, 0, 0, 0, 1);
+  mat.hinge(dl, dm, 0, 0, 0, Math.PI / 2);
+  const leaf = mat.project(dl, 1, 0, 0);
+  ok(near(leaf[1], 0, 1e-6),
+     'a hinge keeps the door upright: no part of it leaves the ground plane');
+  ok(near(leaf[0], 0, 1e-6) && near(leaf[2], 1, 1e-6),
+     `and swings it a quarter turn about the pin (${leaf.map(v => v.toFixed(2))})`);
+
+  mat.hinge(dl, dm, 0, 0, 0, 0);
+  const shut = mat.project(dl, 1, 0, 0);
+  ok(near(shut[0], 1) && near(shut[2], 0), 'a shut door is exactly where it was built');
+
+  // and it has to agree with model(), or a door opens the wrong way round
+  const rot = mat.m4();
+  mat.model(rot, 0, 0, 0, 0.7, 1);
+  mat.hinge(dl, dm, 0, 0, 0, 0.7);
+  const a = mat.project(rot, 1, 0, 0), b2 = mat.project(dl, 1, 0, 0);
+  ok(near(a[0], b2[0], 1e-6) && near(a[2], b2[2], 1e-6),
+     'a hinge turns the same way a heading does');
 }
 
 /* ============================================================
@@ -295,6 +322,103 @@ head('every piece of scenery has a model');
   }
   const door = models.get('door', game.world.OBJ.door);
   ok(door.parts.some(p => p.joint === 'hinge'), 'and a door has a half that swings');
+}
+
+head('every item has a model of its own');
+{
+  const models = new ItemModels(gl);
+  const kinds = new Set(Object.values(game.ITEMS).map(i => i.art?.k || 'blob'));
+  for (const k of [...kinds].sort()) {
+    ok(ITEM_KINDS.includes(k), `${k} is modelled, not falling back to a lump`);
+  }
+
+  /*
+   * Every drop and every dropped item is drawn as itself, so "it builds
+   * something" is the bar for all 200-odd of them rather than for a chosen
+   * few. Reported as one line, because 200 ok's is not a test report.
+   */
+  let empty = [], tiny = [];
+  for (const [id, it] of Object.entries(game.ITEMS)) {
+    const m = models.get(it.art);
+    if (!m.count) empty.push(id);
+    else if (m.radius < 0.02 || m.radius > 0.9) tiny.push(`${id} (${m.radius.toFixed(2)})`);
+  }
+  ok(!empty.length, `all ${Object.keys(game.ITEMS).length} items build geometry${empty.length ? ': ' + empty.slice(0, 5).join(', ') : ''}`);
+  ok(!tiny.length, `and all of them are a sensible size${tiny.length ? ': ' + tiny.slice(0, 5).join(', ') : ''}`);
+}
+
+head('weapons swing the way their weapon swings');
+{
+  const { attackKind } = await import('../js/engine/render3d.js').catch(() => ({}));
+  if (!attackKind) {
+    ok(false, 'render3d.js exports attackKind');
+  } else {
+    ok(attackKind(null) === 'punch', 'bare hands throw a punch');
+    const seen = new Map();
+    for (const it of Object.values(game.ITEMS)) {
+      if (it.slot !== 'weapon') continue;
+      const kind = attackKind(it);
+      seen.set(kind, (seen.get(kind) || 0) + 1);
+    }
+    for (const [kind, n] of [...seen].sort()) ok(n > 0, `${n} weapons use the ${kind} motion`);
+    ok(seen.size >= 4,
+       `${seen.size} distinct motions across the armoury, not one for everything`);
+    ok(attackKind(game.ITEMS.smith_hammer) === 'crush', 'a hammer comes down overhead');
+    ok(attackKind(game.ITEMS.trocar_spear) === 'stab', 'a spear is thrust');
+    ok(attackKind(game.ITEMS.steel_scalpel) === 'slash', 'a scalpel is swung');
+    ok(attackKind(game.ITEMS.gasper_bow) === 'shoot', 'a bow is levelled');
+    ok(attackKind(game.ITEMS.staff_of_sutures) === 'cast', 'a staff is raised');
+  }
+}
+
+/* ============================================================
+   The interface layer
+   ------------------------------------------------------------
+   The 3D view added a canvas over the scene and gave it an id
+   that windows.js was already using for its shop and bank
+   overlay. Both got `pointer-events: none`, so every click on a
+   shop went through it and walked the player instead. Nothing
+   threw, nothing looked wrong in a screenshot, and no test in
+   the repository could have noticed.
+   ============================================================ */
+
+head('no two things claim the same id');
+{
+  const { readFile, readdir } = await import('node:fs/promises');
+  const { rel } = await import('./lib.mjs');
+  const path = await import('node:path');
+
+  const html = await readFile(rel('index.html'), 'utf8');
+  const markup = new Set([...html.matchAll(/\bid="([^"]+)"/g)].map(m => m[1]));
+  ok(markup.size > 10, `${markup.size} ids in the markup`);
+
+  const walk = async dir => {
+    const out = [];
+    for (const e of await readdir(rel(dir), { withFileTypes: true })) {
+      const p = path.join(dir, e.name);
+      if (e.isDirectory()) out.push(...await walk(p));
+      else if (e.name.endsWith('.js')) out.push(p);
+    }
+    return out;
+  };
+
+  const clashes = [];
+  for (const file of await walk('js')) {
+    const src = await readFile(rel(file), 'utf8');
+    // things the code creates and names itself: el.id = 'x'
+    for (const m of src.matchAll(/\.id\s*=\s*'([^']+)'/g)) {
+      if (markup.has(m[1])) clashes.push(`${file} builds an element with id "${m[1]}", which index.html already uses`);
+    }
+  }
+  ok(!clashes.length, clashes.length
+    ? clashes.join('; ')
+    : 'nothing the code creates collides with an id in the markup');
+
+  const layer = /id="hud-layer"/.test(html);
+  ok(layer, 'the interface canvas has an id of its own');
+  const css = await readFile(rel('css/style.css'), 'utf8');
+  ok(/#hud-layer\s*\{[^}]*pointer-events:\s*none/.test(css),
+     'and it is the thing that ignores clicks, not the windows');
 }
 
 head('the mesh builder');

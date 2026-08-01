@@ -196,9 +196,9 @@ async function showLogin() {
  * way, and neither of them can fail into a black screen.
  */
 function makeRenderer(state) {
-  const view = $('#view'), overlay = $('#overlay');
+  const view = $('#view'), hudLayer = $('#hud-layer');
   const flat = () => {
-    overlay.hidden = true;
+    hudLayer.hidden = true;
     return new Renderer(view, world);
   };
   if (state.settings.flatView) return flat();
@@ -207,8 +207,8 @@ function makeRenderer(state) {
     return flat();
   }
   try {
-    overlay.hidden = false;
-    return new Renderer3D(view, overlay, world);
+    hudLayer.hidden = false;
+    return new Renderer3D(view, hudLayer, world);
   } catch (e) {
     console.warn('[render] falling back to the flat view:', e.message);
     log(state, 'The 3D view would not start, so the Throat is drawn flat.', 'system');

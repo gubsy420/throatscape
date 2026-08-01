@@ -113,6 +113,25 @@ export function limb(o, base, px, py, pz, swing, lift) {
   return o;
 }
 
+/**
+ * A hinge: the parent's matrix, out to the pin, then a turn about the
+ * vertical. This is what a door does. limb() turns about the other two axes,
+ * which is what a shoulder does - use it on a door and the door tips over
+ * sideways into its own wall instead of swinging open.
+ */
+export function hinge(o, base, px, py, pz, angle) {
+  const c = Math.cos(angle), s = Math.sin(angle);
+  for (let i = 0; i < 3; i++) {
+    const a0 = base[i], a2 = base[8 + i];
+    o[i]     = a0 * c + a2 * s;
+    o[4 + i] = base[4 + i];
+    o[8 + i] = -a0 * s + a2 * c;
+    o[12 + i] = a0 * px + base[4 + i] * py + a2 * pz + base[12 + i];
+  }
+  o[3] = 0; o[7] = 0; o[11] = 0; o[15] = 1;
+  return o;
+}
+
 /** Returns false rather than throwing when the matrix is singular. */
 export function invert(o, m) {
   const a00 = m[0], a01 = m[1], a02 = m[2], a03 = m[3];
