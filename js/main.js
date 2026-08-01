@@ -14,7 +14,7 @@ import { Renderer } from './engine/render.js';
 import { Renderer3D } from './engine/render3d.js';
 import { supported as glSupported } from './engine/gl/gl.js';
 import { markPhase } from './engine/clickmark.js';
-import { Audio } from './engine/audio.js';
+import { Audio, spellCue } from './engine/audio.js';
 import { Hud } from './ui/hud.js';
 import { Panels, loadSettings } from './ui/panels.js';
 import { Windows } from './ui/windows.js';
@@ -732,6 +732,17 @@ function wireAudio(game) {
   state.bus.on('public', () => audio.play('chat'));
   state.bus.on('private', m => audio.play(m.dir === 'in' ? 'toast' : 'chat'));
   state.bus.on('vigil', () => audio.play('vigil'));
+
+  /*
+   * Casting. Five spells that sound identical are one spell with five names,
+   * so the cue comes from the autocast the snapshot carries. The same swing
+   * pulse also drives an axe, which is why the node being worked rules it
+   * out first - a staff on your back does not make chopping magical.
+   */
+  state.bus.on('swing', () => {
+    if (state.gatherNode) return;
+    if (ITEMS[state.equipment.weapon]?.wstyle === 'magic') audio.play(spellCue(state.autocast));
+  });
   state.bus.on('serverui', () => audio.play('open'));
   state.bus.on('dialogue', m => audio.play(m.close ? 'close' : 'talk'));
 

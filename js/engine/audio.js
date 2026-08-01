@@ -79,6 +79,18 @@ function noteAt(root, scale, degree) {
   return root + oct * 12 + scale[((degree % n) + n) % n];
 }
 
+/**
+ * The cue an Anatomancy spell makes. A spell with no voice of its own falls
+ * back to the generic cast rather than to silence, so a content pack that
+ * adds one is quieter than the rest but not missing.
+ */
+export const spellCue = id => (id && CAST_CUES.has('cast_' + id) ? 'cast_' + id : 'cast');
+
+const CAST_CUES = new Set([
+  'cast_flesh_bolt', 'cast_nerve_strike', 'cast_bile_lance',
+  'cast_vital_rend', 'cast_transfuse'
+]);
+
 export class Audio {
   constructor(state, world) {
     this.state = state;
@@ -259,6 +271,42 @@ export class Audio {
         this.tone({ freq: 300, to: 40, type: 'sine', dur: 1.5, gain: 0.26 });
         this.tone({ freq: 301.5, to: 39, type: 'triangle', dur: 1.6, gain: 0.16 });
         this.noise({ filter: 'lowpass', freq: 900, sweep: 90, dur: 1.4, gain: 0.12 });
+        break;
+
+      /* -- anatomancy --
+         Five spells that all sounded like nothing are five spells you cannot
+         tell apart with your eyes shut. Each of these is built from what the
+         spell is supposed to be doing to somebody, not from a synth preset. */
+      case 'cast_flesh_bolt':            // a wet mass leaving the hand
+        this.noise({ filter: 'lowpass', freq: 1000, sweep: 220, dur: 0.24, gain: 0.17 });
+        this.tone({ freq: 270 * jitter, to: 88, type: 'sine', dur: 0.26, gain: 0.17 });
+        break;
+      case 'cast_nerve_strike':          // dry, high, and over almost before it starts
+        this.tone({ freq: 900 * jitter, to: 2800, type: 'square', dur: 0.13, gain: 0.06,
+                    filter: 'highpass', cutoff: 800 });
+        this.noise({ filter: 'bandpass', freq: 3000, sweep: 5600, q: 7, dur: 0.2, gain: 0.11 });
+        this.tone({ freq: 128, to: 58, type: 'sawtooth', dur: 0.17, gain: 0.08 });
+        break;
+      case 'cast_bile_lance':            // pressure behind it, then a long hiss
+        this.noise({ filter: 'bandpass', freq: 620, sweep: 2600, q: 1.2, dur: 0.36, gain: 0.15 });
+        this.tone({ freq: 148, to: 320, type: 'sawtooth', dur: 0.3, gain: 0.10,
+                    filter: 'lowpass', cutoff: 800, sweep: 2400 });
+        break;
+      case 'cast_vital_rend':            // something giving way under strain
+        this.noise({ filter: 'bandpass', freq: 2400, sweep: 300, q: 0.8, dur: 0.44, gain: 0.16 });
+        this.tone({ freq: 205 * jitter, to: 60, type: 'triangle', dur: 0.42, gain: 0.15 });
+        this.tone({ freq: 96, to: 42, type: 'sawtooth', dur: 0.46, gain: 0.09,
+                    filter: 'lowpass', cutoff: 520 });
+        break;
+      case 'cast_transfuse':             // a draw inwards, so everything rises
+        this.noise({ filter: 'lowpass', freq: 260, sweep: 1600, dur: 0.38, gain: 0.10,
+                     attack: 0.22 });
+        this.tone({ freq: 118, to: 540, type: 'sine', dur: 0.36, gain: 0.15, attack: 0.16 });
+        this.tone({ freq: 176, to: 800, type: 'triangle', dur: 0.32, gain: 0.07, attack: 0.18 });
+        break;
+      case 'cast':                       // any spell with no voice of its own yet
+        this.tone({ freq: 520 * jitter, to: 940, type: 'triangle', dur: 0.2, gain: 0.10 });
+        this.noise({ filter: 'bandpass', freq: 1800, sweep: 3400, q: 3, dur: 0.18, gain: 0.07 });
         break;
 
       /* -- getting on with the job -- */

@@ -77,12 +77,17 @@ const ITEMS = {
     blade(b, a.c || STEEL, 0.26, 0.046, 0.43);
   },
 
+  /*
+   * A pick is swung two-handed at a rock, from a camera ten tiles up. Built
+   * to the size a pick really is next to a person it disappears into the
+   * fist, which is the same thing that had happened to every weapon.
+   */
   pick: (b, a) => {
-    grip(b, WOOD, 0.24, 0.026);
+    grip(b, WOOD, 0.34, 0.030);
     const c = a.c || BONE;
-    b.box(-0.024, 0, -0.024, 0.024, 0.09, 0.024, tone(rgb(c), -0.08));
-    b.cone(0, 0.07, 0.035, 0.048, 0.26, c, 5);
-    b.cone(0, 0.07, -0.035, 0.048, 0.20, tone(rgb(c), -0.05), 5);
+    b.box(-0.032, 0, -0.032, 0.032, 0.12, 0.032, tone(rgb(c), -0.08));
+    b.cone(0, 0.09, 0.050, 0.062, 0.38, c, 5);
+    b.cone(0, 0.09, -0.050, 0.062, 0.29, tone(rgb(c), -0.05), 5);
   },
 
   needle: (b, a) => {
@@ -159,9 +164,9 @@ const ITEMS = {
   },
 
   net: (b) => {
-    b.drum(0, -0.24, 0, 0.021, 0.018, 0.38, WOOD, 5);
-    b.drum(0, 0.14, 0, 0.15, 0.16, 0.03, '#8a7c62', 8);
-    b.drum(0, 0.03, 0, 0.045, 0.15, 0.11, '#6b6250', 8);
+    b.drum(0, -0.36, 0, 0.026, 0.022, 0.56, WOOD, 5);
+    b.drum(0, 0.20, 0, 0.22, 0.235, 0.04, '#a89a7c', 9);      // the hoop
+    b.drum(0, 0.04, 0, 0.06, 0.22, 0.17, '#6b6250', 9);       // and the bag under it
   },
 
   /* -- worn ------------------------------------------------ */

@@ -274,7 +274,7 @@ export class Net {
      * wall clock, so the animation runs at frame rate instead of stepping once
      * every 600 ms with the rest of the snapshot.
      */
-    if (self.sw) { p.swingAt = performance.now(); s.bus.emit('swing'); }
+    if (self.sw) p.swingAt = performance.now();
     s.gatherNode = self.gn ? { x: self.gn[0], y: self.gn[1] } : null;
     // the bubble over your own head expires on the server's clock, in step
     // with the one everyone else sees over you
@@ -285,6 +285,14 @@ export class Net {
     s.attackStyle = self.style;
     s.autocast = self.cast;
     s.boosts = self.boosts || {};
+
+    /*
+     * Announced last, once the rest of this snapshot is in place. Anyone
+     * listening has to know which spell was being cast and whether it was a
+     * spell at all, and both of those arrive in the same message as the
+     * swing itself.
+     */
+    if (self.sw) s.bus.emit('swing');
 
     /* -- npcs -- */
     const seen = new Set();

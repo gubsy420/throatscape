@@ -17,7 +17,7 @@
 import { TILE, lerp, clamp, hash2 } from '../util.js';
 import { T, TILE_INFO, OBJ } from '../data/world.js';
 import { NPCS } from '../data/npcs.js';
-import { item } from '../data/items.js';
+import { ITEMS, item } from '../data/items.js';
 import { drawArt } from './icons.js';
 import { parseChat, charColour, charOffset } from '../game/chatfx.js';
 
@@ -48,7 +48,7 @@ const SWING_MS = 420;
  * because the server does not send projectiles at all - it deals the damage
  * and reports it - so the bolt is the client drawing what it already knows.
  */
-const SPELL_COLOURS = {
+export const SPELL_COLOURS = {
   flesh_bolt:   '#d4586b',
   nerve_strike: '#e8d84a',
   bile_lance:   '#a3c94a',
@@ -71,9 +71,104 @@ const GRIPS = {
   throw:  { angle: -1.05, out: -0.35, hand: 'armR' },
   blow:   { angle: -2.15, out: -0.12, hand: 'armR' },   // angled up towards the mouth
   draw:   { angle: -1.48, out: 0.10,  hand: 'armL' },   // stands the bow upright out front
-  cast:   { angle: -0.70, out: -0.60, hand: 'armR' }
+  cast:   { angle: -0.70, out: -0.60, hand: 'armR' },
+
+  /*
+   * And the tools. The outward lean matters here for the same reason it does
+   * on a weapon, and more: a net and a gaff are long, and the arms that use
+   * them go straight out in front, which is straight down the barrel of a
+   * camera that is usually behind their owner. Leaned out to the side, their
+   * length lies across the view where it can be seen.
+   */
+  chop:   { angle: -0.50, out: -0.55, hand: 'armR' },   // an axe, hafted out from the fist
+  mine:   { angle: -0.42, out: -0.45, hand: 'armR' },
+  net:    { angle: -1.25, out: -0.62, hand: 'armR' },   // mouth forward, held clear of the body
+  gaff:   { angle: -1.05, out: -0.60, hand: 'armR' },
+  forage: { angle: -0.90, out: -0.50, hand: 'armR' }
 };
 const DEFAULT_GRIP = GRIPS.slash;
+
+/**
+ * What a shot looks like in the air.
+ *
+ * Everything here is built white and coloured by the tint, which is also how
+ * a spell bolt is made to glow: the tint is pushed past one, so the colour
+ * clips bright at the core and falls away round the edges without needing a
+ * light of its own. They are also several times the size of what was here
+ * before, because a bolt that crosses eight tiles in a third of a second and
+ * is the size of a fingernail may as well not have been drawn.
+ *
+ * Models point along +y, the way everything else in the game is built, and
+ * the renderer tips them onto their line of travel.
+ */
+export const BOLT_SCALE = { spell: 1, shot: 0.85 };
+
+export function buildBolts(gl) {
+  const W = '#ffffff';
+  const mk = build => { const b = new MeshBuilder(); build(b); return b.build(gl); };
+  const dim = a => tone(rgb(W), a);
+
+  return {
+    /* an arrow, a dart, a blowpipe needle: something with a point and a tail */
+    shot: mk(b => {
+      b.cone(0, 0.14, 0, 0.055, 0.20, W, 6);
+      b.drum(0, -0.24, 0, 0.022, 0.028, 0.38, dim(-0.34), 5);
+      b.box(-0.09, -0.27, -0.012, 0.09, -0.11, 0.012, dim(-0.16));   // fletching, crossed
+      b.box(-0.012, -0.27, -0.09, 0.012, -0.11, 0.09, dim(-0.22));
+    }),
+
+    /* a knot of tissue, lumpy, turning over itself */
+    flesh_bolt: mk(b => {
+      b.ball(0, 0, 0, 0.15, W, 3, 7);
+      for (let i = 0; i < 4; i++) {
+        const a = i * 1.6;
+        b.ball(Math.cos(a) * 0.13, Math.sin(a * 1.7) * 0.09, Math.sin(a) * 0.13,
+               0.085, dim(-0.28), 2, 6);
+      }
+    }),
+
+    /* a spark: three axes crossing, which flickers hard as it spins */
+    nerve_strike: mk(b => {
+      b.box(-0.27, -0.018, -0.018, 0.27, 0.018, 0.018, W);
+      b.box(-0.018, -0.25, -0.018, 0.018, 0.25, 0.018, dim(-0.14));
+      b.box(-0.018, -0.018, -0.27, 0.018, 0.018, 0.27, dim(-0.08));
+      b.ball(0, 0, 0, 0.08, W, 2, 6);
+    }),
+
+    /* a spike of bile, driven point-first */
+    bile_lance: mk(b => {
+      b.cone(0, 0.06, 0, 0.11, 0.34, W, 6);
+      b.cone(0, 0.06, 0, 0.11, -0.28, dim(-0.30), 6);
+      b.drum(0, 0.02, 0, 0.13, 0.13, 0.035, dim(0.02), 6);           // the collar it widens at
+    }),
+
+    /* something pulled into two halves, and the gap left between them */
+    vital_rend: mk(b => {
+      for (const [x0, x1] of [[-0.22, -0.07], [0.07, 0.22]]) {
+        b.box(x0, -0.15, -0.042, x1, 0.15, 0.042, W);
+        const cx = (x0 + x1) / 2;
+        b.cone(cx, 0.15, 0, 0.058, 0.15, dim(-0.22), 5);
+        b.cone(cx, -0.15, 0, 0.058, -0.15, dim(-0.28), 5);
+      }
+      b.ball(0, 0, 0, 0.075, W, 2, 6);
+    }),
+
+    /* a ring of motes closing on a core, because transfuse takes rather than gives */
+    transfuse: mk(b => {
+      for (let i = 0; i < 7; i++) {
+        const a = (i / 7) * Math.PI * 2;
+        b.ball(Math.cos(a) * 0.19, 0, Math.sin(a) * 0.19, 0.055, W, 2, 5);
+      }
+      b.ball(0, 0, 0, 0.105, dim(-0.18), 3, 7);
+    }),
+
+    /* anything nobody has drawn: a plain glowing lump, still big enough to see */
+    _: mk(b => {
+      b.ball(0, 0, 0, 0.16, W, 3, 7);
+      b.ball(0, 0, 0, 0.22, dim(-0.48), 2, 6);
+    })
+  };
+}
 
 /** How the world is lit. One key light from the north-west, and a fill. */
 const LIGHT = (() => {
@@ -125,7 +220,7 @@ export class Renderer3D {
     this.compass = null;
 
     this.decals = this.buildDecals();
-    this.pickup = this.buildPickup();
+    this.boltArt = buildBolts(gl);
     this.bolts = [];                  // cosmetic projectiles, launched by us
     this.ui = new Overlay(this);
 
@@ -223,22 +318,15 @@ export class Renderer3D {
     for (const o of this.world.objects) {
       const d = OBJ[o.type];
       if (!d || d.art === 'pool' || d.art === 'rubble') continue;
-      if (!this.cam.visible(o.x + 0.5, 0, o.y + 0.5, 3)) continue;
-      blob(o.x + 0.5, o.y + 0.5, 0.34);
+      if (!this.cam.visible(o.x + 0.5, 0, o.y + 0.5, 4)) continue;
+      // a tree throws far more shade than a crate, and a stump less than either
+      blob(o.x + 0.5, o.y + 0.5, this.scenery.get(o.type, d, o.depleted > 0).shadow);
     }
 
     gl.uniform1f(this.u.uAlpha, 1);
     gl.uniform3f(this.u.uTint, 1, 1, 1);
     gl.depthMask(true);
     gl.disable(gl.BLEND);
-  }
-
-  /** A bolt in flight. Ground drops are the item's own model. */
-  buildPickup() {
-    const b = new MeshBuilder();
-    b.cone(0, 0.12, 0, 0.05, 0.16, '#ffffff', 5);
-    b.drum(0, -0.10, 0, 0.02, 0.03, 0.22, '#ffffff', 5);
-    return b.build(this.gl);
   }
 
   /* ============================================================
@@ -344,11 +432,13 @@ export class Renderer3D {
       if (!d) continue;
       const x = o.x + 0.5, z = o.y + 0.5;
       const y = this.terrain.tileHeight(o.x, o.y);
-      const m = this.scenery.get(o.type, d);
+      const depleted = o.depleted > 0;
+      const m = this.scenery.get(o.type, d, depleted);
       if (!this.cam.visible(x, y + m.height / 2, z, m.height + 1)) continue;
 
-      const depleted = o.depleted > 0;
-      gl.uniform1f(this.u.uFade, depleted ? 0.45 : 1);
+      // a stump says "already chopped" by being a stump; only the things with
+      // no worked-out shape of their own still have to say it by fading
+      gl.uniform1f(this.u.uFade, depleted && !m.spent ? 0.45 : 1);
       gl.uniform3f(this.u.uTint, 1, 1, 1);
 
       /*
@@ -548,19 +638,37 @@ export class Renderer3D {
     const t = state.target;
     const fighting = t && t.kind === 'npc' && t.ref && !t.ref.dead;
     const tsize = fighting ? (NPCS[t.ref.id]?.size || 1) / 2 : 0;
-    const yaw = fighting
-      ? this.lookAt(p, cx, cz, t.ref.rx + tsize, t.ref.ry + tsize)
-      : this.headingOf(p);
 
-    const kind = attackKind(weapon);
+    /*
+     * And facing what you are working. The snapshot names the tile of the
+     * node; what kind of node it is - and so which motion and which tool -
+     * comes from the same object data the world was built from. A woman
+     * chopping a tree with her back to it looks like a bug because it is one.
+     */
+    const node = state.gatherNode;
+    const nodeObj = node ? this.world.objectAt(node.x, node.y) : null;
+    const nodeDef = nodeObj ? OBJ[nodeObj.type] : null;
+    const tool = nodeDef ? this.toolFor(state, nodeDef.tool) : null;
+
+    const kind = nodeDef ? gatherKind(nodeDef) : attackKind(weapon);
+    const yaw = nodeDef
+      ? this.lookAt(p, cx, cz, nodeObj.x + 0.5, nodeObj.y + 0.5)
+      : fighting
+        ? this.lookAt(p, cx, cz, t.ref.rx + tsize, t.ref.ry + tsize)
+        : this.headingOf(p);
+
+    // working a node puts the tool for the job in your hand, whatever you
+    // happen to be carrying it for; foraging is done bare-handed and shows it
+    const held = nodeDef ? tool : weapon;
+
     this.drawRig(this.creatures.player(body, hat), cx, this.terrain.heightAt(cx, cz), cz, {
       yaw,
       walk: this.walkPhase(p),
       swing: this.swing(p.swingAt),
       attack: kind,
-      spell: state.autocast,
-      weapon: weapon ? this.items.get(weapon.art) : null,
-      shield: shield ? this.items.get(shield.art) : null
+      spell: nodeDef ? null : state.autocast,
+      weapon: held ? this.items.get(held.art) : null,
+      shield: nodeDef || !shield ? null : this.items.get(shield.art)
     });
 
     /* a shot that puts nothing in the air does not read as a shot */
@@ -573,20 +681,44 @@ export class Renderer3D {
   }
 
   /**
+   * Whatever in the pack answers to this job, so that it can be put in the
+   * hand doing it. Same rule as the one that decides whether you may start
+   * at all: carried or worn both count.
+   */
+  toolFor(state, tool) {
+    if (!tool) return null;
+    for (const s of state.inventory) {
+      if (s && ITEMS[s.id]?.tool === tool) return ITEMS[s.id];
+    }
+    for (const k in state.equipment) {
+      const d = ITEMS[state.equipment[k]];
+      if (d?.tool === tool) return d;
+    }
+    return null;
+  }
+
+  /**
    * A cosmetic bolt from here to there. The server never mentions
    * projectiles - it deals the damage and says so - so this is the client
    * drawing what it already knows must have happened.
+   *
+   * It leaves a little after the swing starts, because a bolt that appears
+   * on the first frame of a wind-up has left the hand before the hand moved.
    */
   launch(state, x, z, tx, tz, kind, weapon) {
-    const colour = kind === 'cast'
+    const spell = kind === 'cast' ? (state.autocast || '_') : null;
+    const colour = spell
       ? (SPELL_COLOURS[state.autocast] || '#d4586b')
       : (item(state.equipment.ammo)?.art?.c || weapon?.art?.c || '#c6ced6');
     this.bolts.push({
-      x, z, tx, tz, colour,
-      at: performance.now(),
-      ms: kind === 'cast' ? 260 : 200,
-      arc: kind === 'throw' ? 0.55 : kind === 'cast' ? 0.2 : 0.1,
-      spin: kind === 'cast'
+      x, z, tx, tz, colour, spell,
+      mesh: spell ? (this.boltArt[spell] || this.boltArt._) : this.boltArt.shot,
+      at: performance.now() + (spell ? 150 : 90),
+      ms: spell ? 320 : 240,
+      scale: spell ? BOLT_SCALE.spell : BOLT_SCALE.shot,
+      arc: kind === 'throw' ? 0.55 : spell ? 0.22 : 0.1,
+      spin: !!spell,
+      trail: spell ? 3 : 1
     });
     if (this.bolts.length > 24) this.bolts.shift();
   }
@@ -717,8 +849,9 @@ export class Renderer3D {
   /**
    * Bolts in flight: whatever the client launched, plus anything the game
    * state happens to be carrying. They fly a shallow arc from thrower to
-   * target and are gone in a fifth of a second, which is about how long a
-   * dart should look like it is in the air over six tiles.
+   * target, and each one is drawn several times along the last few frames of
+   * its own path - a trail, which is what makes something crossing eight
+   * tiles in a third of a second readable at all rather than a flicker.
    */
   drawProjectiles(state) {
     const gl = this.gl;
@@ -728,30 +861,48 @@ export class Renderer3D {
       const b = this.bolts[i];
       const p = (now - b.at) / b.ms;
       if (p >= 1) { this.bolts.splice(i, 1); continue; }
+      if (p < 0) continue;                        // still in the hand
 
-      const x = b.x + (b.tx - b.x) * p;
-      const z = b.z + (b.tz - b.z) * p;
-      // up and over: a flat line between two points reads as a laser
-      const y = this.terrain.heightAt(x, z) + 0.78 + Math.sin(p * Math.PI) * b.arc;
-      if (!this.cam.visible(x, y, z, 1)) continue;
-
-      const c = rgb(b.colour);
-      gl.uniform3f(this.u.uTint, c[0], c[1], c[2]);
       const heading = Math.atan2(b.tx - b.x, -(b.tz - b.z));
-      modelMatrix(this.mat, x, y, z, b.spin ? this.time * 9 : heading, 0.5);
-      limb(this.limbMat, this.mat, 0, 0, 0, b.spin ? this.time * 6 : Math.PI / 2, 0);
-      gl.uniformMatrix4fv(this.u.uModel, false, this.limbMat);
-      this.pickup.draw();
+      const c = rgb(b.colour);
+      /*
+       * Pushed past one on purpose. There is no emissive term in the shader,
+       * so a spell crossing a dark corridor would be lit as dimly as the
+       * floor; overdriving the tint clips the core to a bright, saturated
+       * colour and leaves the shaded faces to fall away round it.
+       */
+      const glow = b.spell ? 2.8 : 1.3;
+      const pulse = b.spell ? 1 + Math.sin(this.time * 26) * 0.09 : 1;
+
+      for (let k = b.trail; k >= 0; k--) {
+        const q = p - k * 0.06;
+        if (q < 0) continue;
+        const x = b.x + (b.tx - b.x) * q;
+        const z = b.z + (b.tz - b.z) * q;
+        // up and over: a flat line between two points reads as a laser
+        const y = this.terrain.heightAt(x, z) + 0.82 + Math.sin(q * Math.PI) * b.arc;
+        if (!this.cam.visible(x, y, z, 1)) continue;
+
+        const f = glow * (1 - k * 0.26);
+        const s = b.scale * pulse * (1 - k * 0.24);
+        gl.uniform3f(this.u.uTint, c[0] * f, c[1] * f, c[2] * f);
+        modelMatrix(this.mat, x, y, z, b.spin ? this.time * 9 - k * 0.3 : heading, s);
+        limb(this.limbMat, this.mat, 0, 0, 0,
+             b.spin ? this.time * 6 - k * 0.2 : Math.PI / 2, 0);
+        gl.uniformMatrix4fv(this.u.uModel, false, this.limbMat);
+        b.mesh.draw();
+      }
     }
 
     for (const pr of state.projectiles) {
       const x = pr.x + 0.5, z = pr.y + 0.5;
-      const y = this.terrain.heightAt(x, z) + 0.78;
+      const y = this.terrain.heightAt(x, z) + 0.82;
       const c = rgb(pr.color || '#e0b357');
-      gl.uniform3f(this.u.uTint, c[0], c[1], c[2]);
-      modelMatrix(this.mat, x, y, z, pr.angle || 0, 0.5);
-      gl.uniformMatrix4fv(this.u.uModel, false, this.mat);
-      this.pickup.draw();
+      gl.uniform3f(this.u.uTint, c[0] * 1.3, c[1] * 1.3, c[2] * 1.3);
+      modelMatrix(this.mat, x, y, z, pr.angle || 0, 0.85);
+      limb(this.limbMat, this.mat, 0, 0, 0, Math.PI / 2, 0);
+      gl.uniformMatrix4fv(this.u.uModel, false, this.limbMat);
+      this.boltArt.shot.draw();
     }
     gl.uniform3f(this.u.uTint, 1, 1, 1);
   }
@@ -796,9 +947,9 @@ export class Renderer3D {
     for (const ob of this.world.objects) {
       const def = OBJ[ob.type];
       if (!def) continue;
-      const m = this.scenery.cache.get(ob.type);
-      const h = m ? m.height : 1;
-      test(ob.x + 0.5, ob.y + 0.5, 0.44, h, () => ({ kind: 'obj', ref: ob }));
+      // whatever shape it is in now: a felled tree is a stump to click on too
+      const m = this.scenery.get(ob.type, def, ob.depleted > 0);
+      test(ob.x + 0.5, ob.y + 0.5, 0.44, m.height, () => ({ kind: 'obj', ref: ob }));
     }
 
     return { x: tile.x, y: tile.y, ent: best, ground: hit };
@@ -856,6 +1007,29 @@ export function attackKind(weapon) {
     default: return 'slash';
   }
 }
+
+/**
+ * Which motion a resource node asks for. Chopping a tree, breaking rock,
+ * picking a herb and netting a pool are four different jobs done with four
+ * different things in your hands, and using one arm-swing for all of them
+ * makes every skill in the game feel like the same skill.
+ *
+ * Keyed on the tool the node wants, because that is what actually decides
+ * the shape of the motion - and it means a content pack that adds a node
+ * needing a pick gets the mining swing without touching this file.
+ */
+export function gatherKind(def) {
+  switch (def?.tool) {
+    case 'tapping':  return 'chop';
+    case 'delving':  return 'mine';
+    case 'gaff':     return 'gaff';
+    case 'leeching': return 'net';
+    default:         return 'forage';    // herbs, lint, cotton: done by hand
+  }
+}
+
+/** Every gathering motion, for the tests to check the world against. */
+export const GATHER_KINDS = ['chop', 'mine', 'gaff', 'net', 'forage'];
 
 const ATTACKS = {
   /* A diagonal cut: out wide, then across and down through the target. */
@@ -946,7 +1120,79 @@ const ATTACKS = {
    * spell id comes from the autocast the server has already told us about,
    * and anything unrecognised falls back to raising the staff.
    */
-  cast: (t, spell) => (SPELL_CASTS[spell] || SPELL_CASTS._)(t)
+  cast: (t, spell) => (SPELL_CASTS[spell] || SPELL_CASTS._)(t),
+
+  /* ---- getting things out of the ground ---- */
+
+  /*
+   * An axe. Both hands go back over the trailing shoulder and everything
+   * comes through together and downwards, which is the difference between
+   * felling a tree and waving at it.
+   */
+  chop: t => {
+    const wind = Math.min(1, t / 0.42);
+    const fall = t > 0.42 ? (t - 0.42) / 0.58 : 0;
+    return {
+      armR: [-2.00 * wind + fall * 3.00, 0.72 * wind - fall * 0.92],
+      armL: [-1.62 * wind + fall * 2.55, -0.34 * wind + fall * 0.40],
+      lean: -0.22 * wind + fall * 0.52,
+      lunge: 0
+    };
+  },
+
+  /*
+   * A pick. Straight up over the head and straight back down, and it kicks
+   * off the stone at the end rather than stopping dead in it.
+   */
+  mine: t => {
+    const lift = Math.min(1, t / 0.46);
+    const strike = t > 0.46 ? (t - 0.46) / 0.54 : 0;
+    const kick = strike > 0.78 ? (strike - 0.78) * 0.7 : 0;
+    return {
+      armR: [-2.45 * lift + strike * 3.15 - kick, 0.24 * lift - strike * 0.20],
+      armL: [-2.15 * lift + strike * 2.90 - kick, -0.24 * lift + strike * 0.20],
+      lean: -0.26 * lift + strike * 0.58,
+      lunge: 0
+    };
+  },
+
+  /*
+   * Bare hands. You bend to a herb rather than swinging at it, so this is
+   * almost all torso: down, take hold of something, and straighten up.
+   */
+  forage: t => {
+    const down = t < 0.52 ? t / 0.52 : 1 - (t - 0.52) / 0.48;
+    const pluck = t > 0.34 && t < 0.72 ? Math.sin((t - 0.34) / 0.38 * Math.PI) : 0;
+    return {
+      armR: [0.95 * down + pluck * 0.28, -0.26 * down],
+      armL: [0.48 * down, 0.24 * down],
+      lean: 0.52 * down,
+      lunge: 0
+    };
+  },
+
+  /* A net: a low sweep that starts out to one side and finishes at the other. */
+  net: t => {
+    const s = Math.sin(t * Math.PI);
+    return {
+      armR: [0.80 + 0.50 * s, -0.80 + 1.30 * t],
+      armL: [0.30 * s, 0.32],
+      lean: 0.16 * s,
+      lunge: 0
+    };
+  },
+
+  /* A gaff: raised two-handed over the water, then driven down into it. */
+  gaff: t => {
+    const up = Math.min(1, t / 0.44);
+    const drive = t > 0.44 ? (t - 0.44) / 0.56 : 0;
+    return {
+      armR: [1.52 * up - drive * 0.95, -0.34 * up + drive * 0.16],
+      armL: [1.18 * up - drive * 0.80, 0.32 * up - drive * 0.14],
+      lean: -0.10 * up + drive * 0.42,
+      lunge: drive * 0.14
+    };
+  }
 };
 
 const SPELL_CASTS = {

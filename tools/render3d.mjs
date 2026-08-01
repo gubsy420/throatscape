@@ -37,7 +37,7 @@ const { MeshBuilder, rgb, tone } = await import('../js/engine/gl/mesh.js');
 const { Camera } = await import('../js/engine/gl/camera.js');
 const { Terrain } = await import('../js/engine/models/terrain.js');
 const { CreatureModels, CREATURE_KINDS } = await import('../js/engine/models/creatures.js');
-const { SceneryModels, SCENERY_ARTS } = await import('../js/engine/models/scenery.js');
+const { SceneryModels, SCENERY_ARTS, SPENT_ARTS } = await import('../js/engine/models/scenery.js');
 const { ItemModels, ITEM_KINDS } = await import('../js/engine/models/items.js');
 
 /**
@@ -324,6 +324,145 @@ head('every piece of scenery has a model');
   ok(door.parts.some(p => p.joint === 'hinge'), 'and a door has a half that swings');
 }
 
+/* ============================================================
+   Resource nodes
+   ------------------------------------------------------------
+   A tree the same height as the woman chopping it is not a
+   tree, and a chopped tree drawn at 45% opacity is still a
+   tree - the dither is subtle enough that you walk back to it.
+   Both of those are things a screenshot shows and no test did.
+   ============================================================ */
+
+head('a resource node is bigger than the person working it');
+{
+  const scenery = new SceneryModels(gl);
+  const creatures = new CreatureModels(gl);
+  const nurse = creatures.player('#e8e0cd', null).height;
+  ok(nurse > 1 && nurse < 2, `a nurse stands ${nurse.toFixed(2)} tiles tall`);
+
+  const nodes = Object.entries(game.world.OBJ).filter(([, d]) => d.skill);
+  ok(nodes.length > 8, `${nodes.length} things in the world can be harvested`);
+
+  for (const [type, d] of nodes.filter(([, d]) => d.art === 'tree')) {
+    const h = scenery.get(type, d).height;
+    ok(h > nurse * 2, `${type} stands ${h.toFixed(2)} tiles, over twice her height`);
+  }
+
+  /*
+   * The rest do not have to tower, but a node you cannot pick out of the
+   * grass from ten tiles up is a node you never harvest.
+   */
+  for (const [type, d] of nodes.filter(([, d]) => d.art !== 'tree' && d.art !== 'pool')) {
+    const h = scenery.get(type, d).height;
+    ok(h > 0.6, `${type} is ${h.toFixed(2)} tiles, tall enough to find`);
+  }
+}
+
+head('a worked-out node changes shape rather than fading');
+{
+  const scenery = new SceneryModels(gl);
+
+  /*
+   * Anything that respawns can be caught empty, and while it is empty it has
+   * to say so with its silhouette. Pools never deplete - they are fished
+   * indefinitely - so they are the one kind that may go without.
+   */
+  const perishable = Object.entries(game.world.OBJ).filter(([, d]) => d.skill && d.respawn > 0);
+  ok(perishable.length > 5, `${perishable.length} node types run out and come back`);
+
+  for (const [type, d] of perishable) {
+    const full = scenery.get(type, d, false);
+    const spent = scenery.get(type, d, true);
+    ok(spent.spent === true, `${type} has a worked-out shape of its own`);
+    ok(spent !== full, 'which is a different model, not the same one dimmed');
+    ok(spent.height < full.height,
+       `and a lower one: ${full.height.toFixed(2)} tiles becomes ${spent.height.toFixed(2)}`);
+    ok(spent.parts.reduce((s, p) => s + p.mesh.count, 0) > 0, 'and it builds geometry');
+  }
+
+  // asking twice must not build twice, in either state
+  const size = scenery.cache.size;
+  for (let i = 0; i < 20; i++) {
+    scenery.get('throatwood', game.world.OBJ.throatwood, i % 2 === 0);
+  }
+  ok(scenery.cache.size === size, 'and both shapes are built once and shared');
+
+  ok(SPENT_ARTS.every(a => SCENERY_ARTS.includes(a)),
+     `the ${SPENT_ARTS.length} worked-out shapes all belong to something real`);
+}
+
+head('every harvest has a motion and something to do it with');
+{
+  const { gatherKind, GATHER_KINDS } = await import('../js/engine/render3d.js');
+
+  const nodes = Object.entries(game.world.OBJ).filter(([, d]) => d.skill);
+  const used = new Map();
+  for (const [type, d] of nodes) {
+    const k = gatherKind(d);
+    ok(GATHER_KINDS.includes(k), `${type}: ${k}`);
+    if (!used.has(k)) used.set(k, []);
+    used.get(k).push(type);
+  }
+  ok(used.size >= 4, `${used.size} distinct motions across the gathering skills`);
+
+  ok(gatherKind(game.world.OBJ.throatwood) === 'chop', 'a tree is chopped');
+  ok(gatherKind(game.world.OBJ.ironblood_vein) === 'mine', 'a vein is mined');
+  ok(gatherKind(game.world.OBJ.herb_patch) === 'forage', 'a herb is picked by hand');
+  ok(gatherKind(game.world.OBJ.leech_pool) === 'net', 'a leech pool is netted');
+  ok(gatherKind(game.world.OBJ.eel_hole) === 'gaff', 'an eel hole is gaffed');
+  ok(gatherKind(undefined) === 'forage', 'and something with no tool at all is done bare-handed');
+
+  /*
+   * The motion puts the tool in the hand, so every node that names one has
+   * to have something in the game that answers to it - otherwise the player
+   * mines with an empty fist and there is nothing on screen to say why.
+   */
+  const byTool = new Map();
+  for (const it of Object.values(game.ITEMS)) {
+    if (it.tool && !byTool.has(it.tool)) byTool.set(it.tool, it);
+  }
+  for (const [type, d] of nodes) {
+    if (!d.tool) continue;
+    ok(byTool.has(d.tool), `${type} wants ${d.tool}, and something in the game is one`);
+  }
+
+  /*
+   * And it has to be big enough to notice. The weapons were all rebuilt once
+   * already for exactly this - held at their real size next to a person they
+   * vanish into the fist - and a pick swung at a rock has the same job to do.
+   */
+  const models = new ItemModels(gl);
+  const wanted = [...new Set(nodes.map(([, d]) => d.tool).filter(Boolean))];
+  for (const t of wanted) {
+    const it = byTool.get(t);
+    if (!it) continue;
+    const across = models.get(it.art).radius * 2;
+    ok(across > 0.8, `${it.id} is ${across.toFixed(2)} tiles end to end, which reads in the hand`);
+  }
+}
+
+head('the gathering motions are actually different from each other')
+{
+  const r3d = await import('../js/engine/render3d.js');
+  const src = await (await import('node:fs/promises'))
+    .readFile((await import('./lib.mjs')).rel('js/engine/render3d.js'), 'utf8');
+
+  /*
+   * The poses live in a private table, so this checks the thing that can be
+   * seen from outside: that each motion is written, and that no two share a
+   * body. A copy-pasted chop and mine would read identically on screen.
+   */
+  for (const k of r3d.GATHER_KINDS) {
+    ok(new RegExp(`\\n  ${k}: t =>`).test(src), `${k} has a motion of its own`);
+  }
+  const grips = /const GRIPS = \{([\s\S]*?)\n\};/.exec(src);
+  ok(!!grips, 'and the grips are declared in one place');
+  for (const k of r3d.GATHER_KINDS) {
+    if (k === 'forage') continue;                  // nothing is held to forage
+    ok(new RegExp(`\\n  ${k}:\\s*\\{`).test(grips[1]), `${k} says how the tool is held`);
+  }
+}
+
 head('every item has a model of its own');
 {
   const models = new ItemModels(gl);
@@ -389,6 +528,57 @@ head('weapons swing the way their weapon swings');
   }
   ok(SPELL_MOTIONS.length >= attackSpells.length,
      `${SPELL_MOTIONS.length} spell motions for ${attackSpells.length} castable attacks`);
+}
+
+head('a spell you can see and hear apart from the next one');
+{
+  const { SPELL_MOTIONS, SPELL_COLOURS, buildBolts, BOLT_SCALE } =
+    await import('../js/engine/render3d.js');
+  const { spellCue } = await import('../js/engine/audio.js');
+  const magic = await import('../js/data/magic.js');
+  const attackSpells = magic.SPELLS.filter(s => s.kind === 'attack' || s.kind === 'drain');
+
+  const art = buildBolts(gl);
+
+  /*
+   * Three things have to differ per spell or the five of them blur into one:
+   * the motion, the thing that crosses the air, and the noise it makes. The
+   * bolt used to be a single white cone at half scale for all of them.
+   */
+  for (const s of attackSpells) {
+    ok(!!art[s.id], `${s.name} has a bolt shaped like itself`);
+    ok(!!SPELL_COLOURS[s.id], 'in a colour of its own');
+    ok(spellCue(s.id) === 'cast_' + s.id, 'and a sound of its own');
+  }
+
+  const shapes = new Set(attackSpells.map(s => art[s.id]));
+  ok(shapes.size === attackSpells.length, `${shapes.size} distinct bolt meshes, none shared`);
+  const colours = new Set(attackSpells.map(s => SPELL_COLOURS[s.id]));
+  ok(colours.size === attackSpells.length, `${colours.size} distinct colours, none shared`);
+  const cues = new Set(attackSpells.map(s => spellCue(s.id)));
+  ok(cues.size === attackSpells.length, `${cues.size} distinct sounds, none shared`);
+  ok(spellCue(undefined) === 'cast' && spellCue('pack_invention') === 'cast',
+     'and a spell nobody has voiced yet still makes a noise');
+
+  /*
+   * Size is the whole complaint: "barely perceptible because they are
+   * extremely tiny". Every bolt is measured rather than eyeballed, against
+   * the scale the renderer draws it at.
+   */
+  const small = [];
+  let least = Infinity;
+  for (const [k, m] of Object.entries(art)) {
+    const across = 2 * m.radius * (k === 'shot' ? BOLT_SCALE.shot : BOLT_SCALE.spell);
+    least = Math.min(least, across);
+    if (across < 0.4) small.push(`${k} (${across.toFixed(2)} tiles)`);
+  }
+  ok(!small.length, small.length
+    ? `too small to see in flight: ${small.join(', ')}`
+    : `the smallest bolt is ${least.toFixed(2)} tiles across, which reads in flight`);
+  ok(art._ && art._.count > 0, 'and an unmodelled spell still puts something in the air');
+
+  ok(SPELL_MOTIONS.length >= attackSpells.length,
+     `${SPELL_MOTIONS.length} motions for ${attackSpells.length} castable attacks`);
 }
 
 /* ============================================================
