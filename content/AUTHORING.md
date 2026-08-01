@@ -177,6 +177,17 @@ Give it `"talk": "<dialogue tree>"` to make it a quest giver, or
 }
 ```
 
+A node with a `respawn` above zero can be caught empty, and while it is
+empty it has to *look* empty — a stump rather than a faded tree. Only these
+arts have a worked-out shape to become, so a gatherable that respawns must
+use one of them:
+
+`tree`, `rock`, `bush`, `fluffbush`, `pool`
+
+Any other art is fine for a node with `"respawn": 0`, which never runs out.
+`tools/render3d.mjs` enforces this, and it runs on your pack before it is
+published.
+
 ### Quests
 
 Steps, not code. Four kinds:

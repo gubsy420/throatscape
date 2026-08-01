@@ -13,24 +13,54 @@
    to the card, so the card is stubbed out and everything up to
    that point is checked here.
 
-   Usage:  node tools/render3d.mjs
+   Usage:  node tools/render3d.mjs                          # the game as published
+           node tools/render3d.mjs content/packs/x.json     # with a pack on top
    ============================================================ */
 
-import { loadGame, say } from './lib.mjs';
+import { readJson, loadGame, say } from './lib.mjs';
 
 let fails = 0;
 const ok = (c, m) => { say((c ? '  ok   ' : '  FAIL ') + m); if (!c) fails++; };
 const head = m => say('\n== ' + m);
 const near = (a, b, e = 1e-5) => Math.abs(a - b) < e;
 
-/* Enough DOM for the modules that touch it at import time. */
+/*
+ * The game is loaded first, and only then is the DOM faked.
+ *
+ * content.js decides how to read its packs by looking for `window`: in a
+ * browser it fetches them, in node it reads them off the disk. Stubbing the
+ * DOM before loading sent it down the browser path, where the fetch failed
+ * and was swallowed - a game with no packs is a legitimate state - so this
+ * file spent its whole life checking the base game and reporting success on
+ * content it had never seen.
+ */
+const game = await loadGame();
+
+/*
+ * A pack is checked before it is published, so it is not in the load order
+ * yet. Apply it here if it is not already in - a gate that quietly tests the
+ * game without the thing it was handed is worse than no gate, because it
+ * reports success.
+ */
+const arg = process.argv.slice(2).find(a => !a.startsWith('--'));
+let applied = 0;
+if (arg) {
+  const candidate = await readJson(arg);
+  if (!game.content.loadedPacks().some(p => p.id === candidate.id)) {
+    game.content.applyPack(candidate);
+    applied = 1;
+    say(`applied ${candidate.id} on top of the published packs`);
+  } else {
+    say(`${candidate.id} is already published`);
+  }
+}
+
+/* Enough DOM for the engine modules that touch it at import time. */
 const stub2d = new Proxy({}, { get: () => () => {} });
 globalThis.document = {
   createElement: () => ({ width: 0, height: 0, getContext: () => stub2d })
 };
 globalThis.window = { devicePixelRatio: 1 };
-
-const game = await loadGame();
 
 const mat = await import('../js/engine/gl/mat4.js');
 const { MeshBuilder, rgb, tone } = await import('../js/engine/gl/mesh.js');
@@ -55,6 +85,39 @@ function fakeGl() {
   };
 }
 const gl = fakeGl();
+
+/* ============================================================
+   What is actually being checked
+   ------------------------------------------------------------
+   Everything below asks whether the game's data can be drawn,
+   so it matters enormously that the data includes what the
+   content packs added. It did not for the whole of this file's
+   first life, and nothing said so.
+   ============================================================ */
+
+head('the packs are in the game being checked');
+{
+  const loaded = game.content.loadedPacks();
+  const listed = (await readJson('content/index.json')).packs || [];
+  const want = listed.length + applied;      // the candidate is not in the index yet
+  ok(loaded.length === want,
+     `${loaded.length} of ${want} packs loaded` +
+     (loaded.length ? `: ${loaded.map(p => p.id).join(', ')}` : ''));
+
+  /*
+   * And they really are in the registries, not merely read. A pack that
+   * loads but applies nothing would leave every check below testing the
+   * base game while looking like it had done more.
+   */
+  if (loaded.length) {
+    const added = new Set(loaded.flatMap(p => (p.items || []).map(i => i.id)));
+    const present = [...added].filter(id => game.ITEMS[id]);
+    ok(!added.size || present.length === added.size,
+       `and the ${added.size} item(s) they add are in the game`);
+    const fromPack = Object.values(game.ITEMS).filter(i => i.fromPack).length;
+    ok(fromPack > 0 || !added.size, `${fromPack} items in the world came from a pack`);
+  }
+}
 
 /* ============================================================
    Matrices
@@ -373,7 +436,10 @@ head('a worked-out node changes shape rather than fading');
   for (const [type, d] of perishable) {
     const full = scenery.get(type, d, false);
     const spent = scenery.get(type, d, true);
-    ok(spent.spent === true, `${type} has a worked-out shape of its own`);
+    ok(spent.spent === true, spent.spent
+      ? `${type} has a worked-out shape of its own`
+      : `${type} respawns but its art "${d.art}" has no worked-out shape — ` +
+        `a node that runs out must use one of: ${SPENT_ARTS.join(', ')}`);
     ok(spent !== full, 'which is a different model, not the same one dimmed');
     ok(spent.height < full.height,
        `and a lower one: ${full.height.toFixed(2)} tiles becomes ${spent.height.toFixed(2)}`);

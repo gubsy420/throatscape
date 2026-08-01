@@ -59,10 +59,17 @@ jobs:
             console.log('budget ', JSON.stringify(b.budget));
           "
 
+      # The renderer test reads the game's own data - it asks whether every
+      # creature, object and item can actually be drawn, whether a tree is
+      # taller than the person chopping it, and whether a node that runs out
+      # has a worked-out shape to become. A pack adds exactly that kind of
+      # data, so it belongs in this gate rather than only in content-check,
+      # which runs after the pipeline has already pushed.
       - name: Confirm the game is healthy before adding to it
         run: |
           node tools/smoke.mjs --no-server
           node tools/quests.mjs
+          node tools/render3d.mjs
 
       - name: Write the delivery
         id: write
@@ -138,6 +145,9 @@ jobs:
       - name: Smoke test
         run: node tools/smoke.mjs "${{ steps.pack.outputs.file }}"
 
+      - name: Everything it added can be drawn
+        run: node tools/render3d.mjs "${{ steps.pack.outputs.file }}"
+
       - name: Publish
         if: ${{ !inputs.dry_run }}
         run: node tools/publish.mjs "${{ steps.pack.outputs.file }}"
@@ -145,6 +155,10 @@ jobs:
       - name: Smoke test again, as the game will actually load it
         if: ${{ !inputs.dry_run }}
         run: node tools/smoke.mjs
+
+      - name: And can still be drawn once it is loaded for real
+        if: ${{ !inputs.dry_run }}
+        run: node tools/render3d.mjs
 
       # A pack can add a quest step that claims a kill before the quest that
       # was waiting for it, so the campaign is re-checked after publishing.

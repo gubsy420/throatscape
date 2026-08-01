@@ -309,7 +309,22 @@ const SPENT = {
     b.drum(0, 0, 0, 0.08, 0.05, 0.26, '#8a7c62', 5);
     b.drum(0, 0.26, 0, 0.05, 0.02, 0.10, '#6b6148', 4);             // a bare, bent stalk
     b.ball(0.05, 0.32, 0.02, 0.07, c, 2, 5);                        // one tuft left on it
-  }, { height: 0.42, shadow: 0.24 })
+  }, { height: 0.42, shadow: 0.24 }),
+
+  /*
+   * Pools in the shipped game never run dry - you fish them indefinitely -
+   * but a pack is free to give one a respawn, and if it does it needs
+   * something to look like while it is empty.
+   */
+  pool: (gl, d) => one(gl, b => {
+    b.drum(0, -0.05, 0, 0.60, 0.54, 0.13, '#4a4436', 9);            // the same bank
+    b.drum(0, 0.02, 0, 0.50, 0.46, 0.04, '#3b352a', 9);             // wet mud, drawn down
+    b.drum(0, 0.06, 0, 0.30, 0.30, 0.004, tone(rgb(d.c || '#3f5a3a'), -0.16), 8);
+    for (let i = 0; i < 4; i++) {                                    // stones the water covered
+      const a = i * 1.6 + 0.5, r = 0.30 + hash2(i, 13, 31) * 0.14;
+      b.ball(Math.cos(a) * r, 0.05, Math.sin(a) * r, 0.055, '#6b625c', 2, 5);
+    }
+  }, { height: 0.14, shadow: 0.30 })
 };
 
 /** Models are shared: one throatwood mesh serves every throatwood on the map. */
