@@ -349,26 +349,46 @@ head('every item has a model of its own');
 
 head('weapons swing the way their weapon swings');
 {
-  const { attackKind } = await import('../js/engine/render3d.js').catch(() => ({}));
-  if (!attackKind) {
-    ok(false, 'render3d.js exports attackKind');
-  } else {
-    ok(attackKind(null) === 'punch', 'bare hands throw a punch');
-    const seen = new Map();
-    for (const it of Object.values(game.ITEMS)) {
-      if (it.slot !== 'weapon') continue;
-      const kind = attackKind(it);
-      seen.set(kind, (seen.get(kind) || 0) + 1);
-    }
-    for (const [kind, n] of [...seen].sort()) ok(n > 0, `${n} weapons use the ${kind} motion`);
-    ok(seen.size >= 4,
-       `${seen.size} distinct motions across the armoury, not one for everything`);
-    ok(attackKind(game.ITEMS.smith_hammer) === 'crush', 'a hammer comes down overhead');
-    ok(attackKind(game.ITEMS.trocar_spear) === 'stab', 'a spear is thrust');
-    ok(attackKind(game.ITEMS.steel_scalpel) === 'slash', 'a scalpel is swung');
-    ok(attackKind(game.ITEMS.gasper_bow) === 'shoot', 'a bow is levelled');
-    ok(attackKind(game.ITEMS.staff_of_sutures) === 'cast', 'a staff is raised');
+  const { attackKind, SPELL_MOTIONS } = await import('../js/engine/render3d.js');
+  ok(attackKind(null) === 'punch', 'bare hands throw a punch');
+
+  const seen = new Map();
+  for (const it of Object.values(game.ITEMS)) {
+    if (it.slot !== 'weapon') continue;
+    const kind = attackKind(it);
+    if (!seen.has(kind)) seen.set(kind, []);
+    seen.get(kind).push(it.id);
   }
+  for (const [kind, ids] of [...seen].sort()) {
+    ok(ids.length > 0, `${kind}: ${ids.join(', ')}`);
+  }
+  ok(seen.size >= 6, `${seen.size} distinct motions across the armoury`);
+
+  ok(attackKind(game.ITEMS.smith_hammer) === 'crush', 'a hammer comes down overhead');
+  ok(attackKind(game.ITEMS.trocar_spear) === 'stab', 'a spear is thrust');
+  ok(attackKind(game.ITEMS.steel_scalpel) === 'slash', 'a scalpel is swung');
+  ok(attackKind(game.ITEMS.staff_of_sutures) === 'cast', 'a staff is raised');
+
+  /*
+   * Injection is three quite different things and they must not share one
+   * motion: a dart is thrown, a bow is drawn, a blowpipe is blown through.
+   */
+  ok(attackKind(game.ITEMS.gasper_bow) === 'draw', 'a bow is drawn, not levelled');
+  ok(attackKind(game.ITEMS.bile_blowpipe) === 'blow', 'a blowpipe is blown through');
+  ok(attackKind(game.ITEMS.dart_bandolier) === 'throw', 'darts are thrown');
+  ok(attackKind(game.ITEMS.brass_syringe) === 'throw', 'and so is a syringe');
+  const ranged = new Set(Object.values(game.ITEMS)
+    .filter(i => i.wstyle === 'ranged').map(i => attackKind(i)));
+  ok(ranged.size === 3, `the ranged weapons use ${ranged.size} motions between them: ${[...ranged].join(', ')}`);
+
+  /* and every attack spell should look like itself */
+  const magic = await import('../js/data/magic.js');
+  const attackSpells = magic.SPELLS.filter(s => s.kind === 'attack' || s.kind === 'drain');
+  for (const s of attackSpells) {
+    ok(SPELL_MOTIONS.includes(s.id), `${s.name} has a cast of its own`);
+  }
+  ok(SPELL_MOTIONS.length >= attackSpells.length,
+     `${SPELL_MOTIONS.length} spell motions for ${attackSpells.length} castable attacks`);
 }
 
 /* ============================================================
@@ -419,6 +439,63 @@ head('no two things claim the same id');
   const css = await readFile(rel('css/style.css'), 'utf8');
   ok(/#hud-layer\s*\{[^}]*pointer-events:\s*none/.test(css),
      'and it is the thing that ignores clicks, not the windows');
+
+  /*
+   * The level-up banner is drawn over the world, so where it sits is not a
+   * matter of taste: centred and full-height, it covered the character and
+   * the fight they were in for three and a half seconds.
+   */
+  const lu = /#levelup\s*\{([^}]*)\}/.exec(css);
+  ok(!!lu, 'the level-up banner has a rule');
+  if (lu) {
+    ok(!/inset:\s*0/.test(lu[1]), 'it does not cover the whole viewport');
+    ok(/top:\s*0/.test(lu[1]), 'it is pinned to the top');
+    ok(/align-items:\s*flex-start/.test(lu[1]), 'and hugs it rather than centring');
+  }
+  const inner = /\.lu-inner\s*\{([^}]*)\}/.exec(css);
+  ok(inner && /padding:\s*\d+px \d+px/.test(inner[1]), 'and is a small banner, not a card');
+}
+
+/* ============================================================
+   What floats over a head
+   ------------------------------------------------------------
+   A name drawn on top of its own health bar is worse than no
+   name at all: in a fight the bar is the only number that
+   matters, and it is the one thing that must never be hidden.
+   ============================================================ */
+
+head('names and health bars stack, rather than overlap');
+{
+  const { labelStack, BAR_H, GAP, TEXT_H } = await import('../js/engine/overlay.js');
+
+  const box = (kind, y) => kind === 'bar'
+    ? [y, y + BAR_H]                       // fillRect grows downward from y
+    : [y - TEXT_H + 3, y + 3];             // text hangs off its baseline
+
+  const overlap = (a, b) => a[0] < b[1] && b[0] < a[1];
+
+  const both = labelStack(200, { bar: true, name: true });
+  ok(both.bar !== null && both.name !== null, 'a hurt, named creature gets both');
+  ok(!overlap(box('bar', both.bar), box('text', both.name)),
+     `the name clears the bar by ${(both.bar - (both.name + 3)).toFixed(0)} px`);
+  ok(both.name < both.bar, 'with the name above it, not below');
+  ok(both.bar + BAR_H <= 200, 'and the bar sitting on the head, not floating over it');
+
+  const chat = labelStack(200, { bar: true, name: true, chat: true });
+  ok(chat.chat < chat.name, 'anything said goes above the name');
+  ok(!overlap(box('text', chat.name), [chat.chat - 15, chat.chat + 2]),
+     'and clears it too');
+
+  // the pieces slide down to fill the gaps when they are not all there
+  const nameOnly = labelStack(200, { name: true });
+  ok(nameOnly.bar === null && nameOnly.name === 200,
+     'an unhurt creature puts its name where the bar would have been');
+  const barOnly = labelStack(200, { bar: true });
+  ok(barOnly.name === null && barOnly.bar === 200 - BAR_H,
+     'and a nameless one just gets the bar');
+  ok(labelStack(200, {}).bar === null, 'something with nothing to say shows nothing');
+
+  ok(GAP >= 3, `the clearance is ${GAP} px, which is enough to read as separate`);
 }
 
 /* ============================================================

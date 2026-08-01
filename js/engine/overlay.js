@@ -19,6 +19,29 @@ import { NPCS } from '../data/npcs.js';
 import { parseChat, charColour, charOffset } from '../game/chatfx.js';
 import { drawMark, markPhase } from './clickmark.js';
 
+/*
+ * What floats over a head, and how tall each piece of it is. The stack is
+ * built from these rather than from guessed offsets, which is what stopped
+ * a name sitting on top of its own health bar.
+ */
+export const BAR_H = 4;      // the health bar's box
+export const GAP = 7;        // clearance between pieces
+export const TEXT_H = 11;    // a name, with its descenders
+
+/**
+ * Lays out the things above one creature, from the head upwards. Returns the
+ * y of each piece, or null for the ones it does not have: the bar's top edge,
+ * the name's baseline, and the chat bubble's anchor.
+ */
+export function labelStack(headY, { bar = false, name = false, chat = false } = {}) {
+  const out = { bar: null, name: null, chat: null };
+  let y = headY;
+  if (bar) { out.bar = y - BAR_H; y -= BAR_H + GAP; }
+  if (name) { out.name = y; y -= TEXT_H; }
+  if (chat) out.chat = y - GAP;
+  return out;
+}
+
 export class Overlay {
   constructor(r) {
     this.r = r;                         // the renderer that owns us
@@ -47,12 +70,27 @@ export class Overlay {
     this.clickMark(state);
 
     /*
-     * Everything gets a depth, and the far things are drawn first, so a
-     * label from across the square cannot land on top of the nurse standing
-     * in front of you.
+     * Everything that floats over somebody's head is collected first, laid
+     * out, and then drawn in two passes.
+     *
+     * The layout stacks upward from the head with the real heights of the
+     * things being stacked, so a name can never sit on its own health bar.
+     * The two passes are because a name can still land on somebody *else's*
+     * bar in a crowd - so every name in the scene is drawn before any bar
+     * is, and a bar is the one thing that cannot end up hidden.
      */
-    const labels = [];
-    const push = (s, fn) => { if (s.visible) labels.push({ d: s.depth, s, fn }); };
+    const tags = [];
+
+    const add = (s, { name, colour, frac = null, chat = null }) => {
+      if (!s.visible) return;
+      const at = labelStack(s.y, { bar: frac !== null, name: !!name, chat: !!chat });
+      tags.push({
+        d: s.depth,
+        bar: at.bar === null ? null : { x: s.x, y: at.bar, frac },
+        tag: at.name === null ? null : { x: s.x, y: at.name, text: name, colour },
+        chat: at.chat === null ? null : { x: s.x, y: at.chat, text: chat }
+      });
+    };
 
     for (const n of state.npcs) {
       if (n.dead) continue;
@@ -61,33 +99,37 @@ export class Overlay {
       const size = d.size || 1;
       const m = this.r.creatures.get(d.art);
       const s = this.head(n.rx + size / 2, n.ry + size / 2, m.height * (size > 1 ? 1.5 : 1) + 0.18);
-      push(s, () => {
-        const showBar = n.hp !== undefined && n.maxHp && n.hp < n.maxHp;
-        if (showBar) this.healthBar(s.x, s.y - 8, n.hp / n.maxHp);
-        if (!d.hostile) this.nameTag(s.x, s.y, d.name, '#e0b357');
-        if (n.chat && n.chat.ttl > 0) this.chatBubble(s.x, s.y - (showBar ? 20 : 12), n.chat.text);
+      add(s, {
+        name: d.hostile ? null : d.name,
+        colour: '#e0b357',
+        frac: n.hp !== undefined && n.maxHp && n.hp < n.maxHp ? n.hp / n.maxHp : null,
+        chat: n.chat && n.chat.ttl > 0 ? n.chat.text : null
       });
     }
 
     for (const o of state.others.values()) {
-      const s = this.head(o.rx + 0.5, o.ry + 0.5, 1.48);
-      push(s, () => {
-        this.nameTag(s.x, s.y, o.name, '#86b7e0');
-        if (o.chat && o.chat.ttl > 0) this.chatBubble(s.x, s.y - 14, o.chat.text);
+      add(this.head(o.rx + 0.5, o.ry + 0.5, 1.48), {
+        name: o.name, colour: '#86b7e0',
+        frac: o.hp !== undefined && o.maxHp && o.hp < o.maxHp ? o.hp / o.maxHp : null,
+        chat: o.chat && o.chat.ttl > 0 ? o.chat.text : null
       });
     }
 
-    {
-      const s = this.head(p.rx + 0.5, p.ry + 0.5, 1.48);
-      push(s, () => {
-        if (p.hp < p.maxHp) this.healthBar(s.x, s.y - 10, p.hp / p.maxHp);
-        this.nameTag(s.x, s.y, state.name, '#7fbf8f');
-        if (p.chat && p.chat.ttl > 0) this.chatBubble(s.x, s.y - (p.hp < p.maxHp ? 22 : 14), p.chat.text);
-      });
-    }
+    add(this.head(p.rx + 0.5, p.ry + 0.5, 1.48), {
+      name: state.name, colour: '#7fbf8f',
+      frac: p.hp < p.maxHp ? p.hp / p.maxHp : null,
+      chat: p.chat && p.chat.ttl > 0 ? p.chat.text : null
+    });
 
-    labels.sort((a, b) => b.d - a.d);
-    for (const l of labels) l.fn();
+    // far things first, so a near label lands on top of a far one
+    tags.sort((a, b) => b.d - a.d);
+    for (const t of tags) {
+      if (t.chat) this.chatBubble(t.chat.x, t.chat.y, t.chat.text);
+      if (t.tag) this.nameTag(t.tag.x, t.tag.y, t.tag.text, t.tag.colour);
+    }
+    for (const t of tags) {
+      if (t.bar) this.healthBar(t.bar.x, t.bar.y, t.bar.frac);
+    }
 
     for (const h of state.hitsplats) this.hitsplat(h);
     for (const f of state.floaters) this.floater(f);

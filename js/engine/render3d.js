@@ -34,17 +34,46 @@ import { Overlay } from './overlay.js';
 const SWING_MS = 420;
 
 /**
- * How a held item sits in the fist. Items are modelled grip-down with the
- * business end up, so this is a tilt away from standing straight up out of
- * the hand: a little forward, and a little out, which carries a scalpel
- * clear of the thigh and a spear clear of its owner's chest.
+ * How a held item sits in the fist, per kind of attack, as a tilt away from
+ * standing straight up out of the hand. Items are modelled grip-down with the
+ * business end up, so nought would run the shaft back through the forearm -
+ * which is what "held almost parallel to the arm" looks like, and why these
+ * are all well past a right angle.
  *
- * Straight up runs the shaft through the forearm; flat forward couches a
- * spear through the ribs; end over end plants it in the floor. This is the
- * narrow bit in between.
+ * `hand` is which arm holds it. A bow is the exception that needs it: you
+ * hold a bow in your leading hand and draw the string with the other.
  */
-const GRIP = -0.42;
-const GRIP_OUT = -0.30;        // negative leans it out to the right, away from the body
+/**
+ * What each spell looks like in the air. The renderer has to pick these
+ * because the server does not send projectiles at all - it deals the damage
+ * and reports it - so the bolt is the client drawing what it already knows.
+ */
+const SPELL_COLOURS = {
+  flesh_bolt:   '#d4586b',
+  nerve_strike: '#e8d84a',
+  bile_lance:   '#a3c94a',
+  vital_rend:   '#c0303f',
+  transfuse:    '#8f4ad4'
+};
+
+/*
+ * The outward lean matters as much as the forward one. A weapon held
+ * straight out in front points down the barrel of a camera that is usually
+ * behind its owner, and a foot of steel foreshortens into a smudge - so
+ * melee weapons are carried out to the side as well as forward, where their
+ * length is actually pointing across the view.
+ */
+const GRIPS = {
+  slash:  { angle: -0.75, out: -0.75, hand: 'armR' },
+  punch:  { angle: -0.75, out: -0.75, hand: 'armR' },
+  stab:   { angle: -1.00, out: -0.50, hand: 'armR' },
+  crush:  { angle: -0.60, out: -0.72, hand: 'armR' },
+  throw:  { angle: -1.05, out: -0.35, hand: 'armR' },
+  blow:   { angle: -2.15, out: -0.12, hand: 'armR' },   // angled up towards the mouth
+  draw:   { angle: -1.48, out: 0.10,  hand: 'armL' },   // stands the bow upright out front
+  cast:   { angle: -0.70, out: -0.60, hand: 'armR' }
+};
+const DEFAULT_GRIP = GRIPS.slash;
 
 /** How the world is lit. One key light from the north-west, and a fill. */
 const LIGHT = (() => {
@@ -97,6 +126,7 @@ export class Renderer3D {
 
     this.decals = this.buildDecals();
     this.pickup = this.buildPickup();
+    this.bolts = [];                  // cosmetic projectiles, launched by us
     this.ui = new Overlay(this);
 
     this.resize();
@@ -483,16 +513,21 @@ export class Renderer3D {
       });
     }
 
+    /* other nurses, wearing and holding what the snapshot says they are */
     for (const o of state.others.values()) {
       const cx = o.rx + 0.5, cz = o.ry + 0.5;
       const y = this.terrain.heightAt(cx, cz);
-      const m = this.creatures.player(o.color || '#b8a68f', null);
       if (!this.cam.visible(cx, y + 0.7, cz, 2.4)) continue;
+      const w = o.weapon ? item(o.weapon) : null;
+      const m = this.creatures.player(
+        o.body ? (item(o.body)?.art?.c || o.color) : (o.color || '#b8a68f'),
+        o.head ? (item(o.head)?.art?.c || '#ffffff') : null);
       this.drawRig(m, cx, y, cz, {
         yaw: this.headingOf(o),
         walk: this.walkPhase(o),
         swing: this.swing(o.swingAt),
-        attack: 'slash'
+        attack: attackKind(w),
+        weapon: w ? this.items.get(w.art) : null
       });
     }
 
@@ -512,19 +547,48 @@ export class Renderer3D {
      */
     const t = state.target;
     const fighting = t && t.kind === 'npc' && t.ref && !t.ref.dead;
+    const tsize = fighting ? (NPCS[t.ref.id]?.size || 1) / 2 : 0;
     const yaw = fighting
-      ? this.lookAt(p, cx, cz, t.ref.rx + (NPCS[t.ref.id]?.size || 1) / 2,
-                                t.ref.ry + (NPCS[t.ref.id]?.size || 1) / 2)
+      ? this.lookAt(p, cx, cz, t.ref.rx + tsize, t.ref.ry + tsize)
       : this.headingOf(p);
 
+    const kind = attackKind(weapon);
     this.drawRig(this.creatures.player(body, hat), cx, this.terrain.heightAt(cx, cz), cz, {
       yaw,
       walk: this.walkPhase(p),
       swing: this.swing(p.swingAt),
-      attack: attackKind(weapon),
+      attack: kind,
+      spell: state.autocast,
       weapon: weapon ? this.items.get(weapon.art) : null,
       shield: shield ? this.items.get(shield.art) : null
     });
+
+    /* a shot that puts nothing in the air does not read as a shot */
+    if (p.swingAt && p.swingAt !== this._lastSwing) {
+      this._lastSwing = p.swingAt;
+      if (fighting && (kind === 'throw' || kind === 'draw' || kind === 'blow' || kind === 'cast')) {
+        this.launch(state, cx, cz, t.ref.rx + tsize, t.ref.ry + tsize, kind, weapon);
+      }
+    }
+  }
+
+  /**
+   * A cosmetic bolt from here to there. The server never mentions
+   * projectiles - it deals the damage and says so - so this is the client
+   * drawing what it already knows must have happened.
+   */
+  launch(state, x, z, tx, tz, kind, weapon) {
+    const colour = kind === 'cast'
+      ? (SPELL_COLOURS[state.autocast] || '#d4586b')
+      : (item(state.equipment.ammo)?.art?.c || weapon?.art?.c || '#c6ced6');
+    this.bolts.push({
+      x, z, tx, tz, colour,
+      at: performance.now(),
+      ms: kind === 'cast' ? 260 : 200,
+      arc: kind === 'throw' ? 0.55 : kind === 'cast' ? 0.2 : 0.1,
+      spin: kind === 'cast'
+    });
+    if (this.bolts.length > 24) this.bolts.shift();
   }
 
   /**
@@ -534,16 +598,17 @@ export class Renderer3D {
    */
   drawRig(m, x, y, z, {
     yaw = 0, walk = 0, swing = 0, scale = 1, hurt = false,
-    attack = 'slash', weapon = null, shield = null
+    attack = 'slash', spell = null, weapon = null, shield = null
   }) {
     const gl = this.gl;
     gl.uniform3f(this.u.uTint, hurt ? 1.6 : 1, hurt ? 0.7 : 1, hurt ? 0.7 : 1);
 
+    const grip = GRIPS[attack] || DEFAULT_GRIP;
     const stride = walk ? Math.sin(walk * Math.PI * 2) : 0;
     const bounce = walk ? Math.abs(Math.cos(walk * Math.PI * 2)) * 0.035 : 0;
     const idle = m.kind !== 'humanoid';
     const breathe = idle ? 0 : Math.sin(this.time * 1.7 + x * 3) * 0.012;
-    const pose = swing ? ATTACKS[attack](swing) : null;
+    const pose = swing ? (ATTACKS[attack] || ATTACKS.slash)(swing, spell) : null;
 
     for (const part of m.parts) {
       modelMatrix(this.mat, x, y + bounce, z, yaw, scale);
@@ -592,12 +657,12 @@ export class Renderer3D {
        * of the fist, forward and clear of the leg, which is where a hand
        * carrying something actually holds it.
        */
-      if (part.joint === 'armR' && weapon && posed) {
+      if (part.joint === grip.hand && weapon && posed) {
         limb(this.handMat, this.limbMat, 0.02 * scale, -0.46 * scale, -0.05 * scale,
-             GRIP, GRIP_OUT);
+             grip.angle, grip.out * (grip.hand === 'armL' ? -1 : 1));
         gl.uniformMatrix4fv(this.u.uModel, false, this.handMat);
         weapon.draw();
-      } else if (part.joint === 'armL' && shield && posed) {
+      } else if (part.joint === 'armL' && shield && grip.hand !== 'armL' && posed) {
         // a shield hangs flat on the forearm, facing the way the body faces
         limb(this.handMat, this.limbMat, -0.04 * scale, -0.30 * scale, -0.06 * scale, 0, -0.25);
         gl.uniformMatrix4fv(this.u.uModel, false, this.handMat);
@@ -649,15 +714,42 @@ export class Renderer3D {
     return o.anim;
   }
 
+  /**
+   * Bolts in flight: whatever the client launched, plus anything the game
+   * state happens to be carrying. They fly a shallow arc from thrower to
+   * target and are gone in a fifth of a second, which is about how long a
+   * dart should look like it is in the air over six tiles.
+   */
   drawProjectiles(state) {
-    if (!state.projectiles.length) return;
     const gl = this.gl;
+    const now = performance.now();
+
+    for (let i = this.bolts.length - 1; i >= 0; i--) {
+      const b = this.bolts[i];
+      const p = (now - b.at) / b.ms;
+      if (p >= 1) { this.bolts.splice(i, 1); continue; }
+
+      const x = b.x + (b.tx - b.x) * p;
+      const z = b.z + (b.tz - b.z) * p;
+      // up and over: a flat line between two points reads as a laser
+      const y = this.terrain.heightAt(x, z) + 0.78 + Math.sin(p * Math.PI) * b.arc;
+      if (!this.cam.visible(x, y, z, 1)) continue;
+
+      const c = rgb(b.colour);
+      gl.uniform3f(this.u.uTint, c[0], c[1], c[2]);
+      const heading = Math.atan2(b.tx - b.x, -(b.tz - b.z));
+      modelMatrix(this.mat, x, y, z, b.spin ? this.time * 9 : heading, 0.5);
+      limb(this.limbMat, this.mat, 0, 0, 0, b.spin ? this.time * 6 : Math.PI / 2, 0);
+      gl.uniformMatrix4fv(this.u.uModel, false, this.limbMat);
+      this.pickup.draw();
+    }
+
     for (const pr of state.projectiles) {
       const x = pr.x + 0.5, z = pr.y + 0.5;
-      const y = this.terrain.heightAt(x, z) + 0.75;
+      const y = this.terrain.heightAt(x, z) + 0.78;
       const c = rgb(pr.color || '#e0b357');
       gl.uniform3f(this.u.uTint, c[0], c[1], c[2]);
-      modelMatrix(this.mat, x, y, z, pr.angle || 0, 0.45);
+      modelMatrix(this.mat, x, y, z, pr.angle || 0, 0.5);
       gl.uniformMatrix4fv(this.u.uModel, false, this.mat);
       this.pickup.draw();
     }
@@ -741,13 +833,25 @@ export class Renderer3D {
    so a positive forward angle raises the arm in front of you.
    ============================================================ */
 
-/** Which motion a weapon uses. Nothing else in the renderer decides this. */
+/**
+ * Which motion a weapon uses. Nothing else in the renderer decides this.
+ *
+ * Injection covers three quite different things and they should not look
+ * alike: a dart is thrown, a bow is drawn, a blowpipe is blown through.
+ * Anatomancy is one motion with a variation per spell, chosen further down.
+ */
 export function attackKind(weapon) {
   if (!weapon) return 'punch';
-  if (weapon.wstyle === 'ranged') return 'shoot';
   if (weapon.wstyle === 'magic') return 'cast';
+  if (weapon.wstyle === 'ranged') {
+    switch (weapon.art?.k) {
+      case 'bow': return 'draw';
+      case 'blowpipe': return 'blow';
+      default: return 'throw';           // darts, syringes, anything hurled
+    }
+  }
   switch (weapon.art?.k) {
-    case 'spear': case 'pick': case 'needle': case 'syringe': return 'stab';
+    case 'spear': case 'pick': case 'needle': return 'stab';
     case 'hammer': return 'crush';
     default: return 'slash';
   }
@@ -794,25 +898,127 @@ const ATTACKS = {
     lunge: 0
   }),
 
-  /* Level it, hold, and take the recoil. */
-  shoot: t => {
-    const kick = t > 0.45 ? Math.max(0, 1 - (t - 0.45) / 0.25) * 0.3 : 0;
+  /* ---- Injection: three ways of putting something in somebody ---- */
+
+  /* Back over the shoulder, then everything whips through together. */
+  throw: t => {
+    const wind = Math.min(1, t / 0.38);
+    const rel = t < 0.38 ? 0 : (t - 0.38) / 0.62;
     return {
-      armR: [1.35 - kick, 0.12],
-      armL: [1.20, 0.45],
-      lean: -kick * 0.25,
+      armR: t < 0.38
+        ? [-2.15 * wind, 0.55 * wind]
+        : [-2.15 + rel * 3.75, 0.55 - rel * 0.45],
+      armL: [0.75 * wind - rel * 0.55, 0.30],
+      lean: t < 0.38 ? -0.22 * wind : -0.22 + rel * 0.52,
+      lunge: rel * 0.18
+    };
+  },
+
+  /* The bow arm holds still; the string hand does all the work. */
+  draw: t => {
+    const pull = t < 0.55 ? t / 0.55 : 1;
+    const loose = t < 0.6 ? 0 : (t - 0.6) / 0.4;
+    return {
+      // the left arm is the bow arm: out, level, and rock steady
+      armL: [1.42, 0.06],
+      armR: [1.30 - pull * 0.55 + loose * 0.45, 0.18 + pull * 0.55 - loose * 0.5],
+      lean: -0.05 * pull,
       lunge: 0
     };
   },
 
-  /* Raise it, and let the arm shake while whatever it is happens. */
-  cast: t => ({
+  /* Up to the mouth, a pause, then a sharp puff and the kick back. */
+  blow: t => {
+    const raise = Math.min(1, t / 0.3);
+    const puff = t > 0.6 ? Math.max(0, 1 - (t - 0.6) / 0.3) : 0;
+    return {
+      armR: [1.55 * raise + puff * 0.18, -0.30 * raise],
+      armL: [1.15 * raise + puff * 0.12, 0.34 * raise],
+      lean: -0.16 * raise - puff * 0.14,
+      lunge: 0
+    };
+  },
+
+  /* ---- Anatomancy ---- */
+
+  /**
+   * One motion per spell, so you can see which one you are throwing. The
+   * spell id comes from the autocast the server has already told us about,
+   * and anything unrecognised falls back to raising the staff.
+   */
+  cast: (t, spell) => (SPELL_CASTS[spell] || SPELL_CASTS._)(t)
+};
+
+const SPELL_CASTS = {
+  /* Flesh bolt: a knot of tissue, hurled underarm. Quick and low. */
+  flesh_bolt: t => ({
+    armR: t < 0.3
+      ? [-0.75 * (t / 0.3), -0.15]
+      : [-0.75 + (t - 0.3) / 0.7 * 2.35, -0.15 - (t - 0.3) / 0.7 * 0.25],
+    armL: [0.25, 0.2],
+    lean: 0.14 * Math.sin(t * Math.PI),
+    lunge: 0
+  }),
+
+  /* Nerve strike: the arm snaps straight out and stays there, shaking. */
+  nerve_strike: t => {
+    const out = Math.min(1, t / 0.18);
+    const buzz = t > 0.18 ? Math.sin(t * 90) * 0.07 * (1 - t) : 0;
+    return {
+      armR: [1.55 * out + buzz, -0.10 + buzz * 0.5],
+      armL: [-0.30 * out, 0.35],
+      lean: -0.10 * out,
+      lunge: 0
+    };
+  },
+
+  /* Bile lance: both arms drive forward together, like aiming a hose. */
+  bile_lance: t => {
+    const up = Math.min(1, t / 0.35);
+    const push = t > 0.35 ? (t - 0.35) / 0.65 : 0;
+    return {
+      armR: [1.05 * up + push * 0.5, -0.45 * up + push * 0.35],
+      armL: [0.95 * up + push * 0.5, 0.40 * up - push * 0.3],
+      lean: -0.22 * up + push * 0.34,
+      lunge: push * 0.20
+    };
+  },
+
+  /* Vital rend: hands together, then wrenched apart. */
+  vital_rend: t => {
+    const grip = Math.min(1, t / 0.4);
+    const tear = t > 0.4 ? (t - 0.4) / 0.6 : 0;
+    return {
+      armR: [1.25 * grip, -0.55 * grip + tear * 1.5],
+      armL: [1.25 * grip, -0.55 * grip + tear * 1.5],
+      lean: -0.18 * grip - tear * 0.12,
+      lunge: 0
+    };
+  },
+
+  /* Transfuse: reach out, take hold, and drag it back into your chest. */
+  transfuse: t => {
+    const reach = Math.min(1, t / 0.35);
+    const pull = t > 0.45 ? (t - 0.45) / 0.55 : 0;
+    return {
+      armR: [1.50 * reach - pull * 1.15, -0.20 * reach + pull * 0.55],
+      armL: [1.30 * reach - pull * 1.05, 0.25 * reach - pull * 0.45],
+      lean: -0.20 * reach + pull * 0.42,
+      lunge: -pull * 0.12
+    };
+  },
+
+  /* Anything else: raise it, and let the arm shake while it happens. */
+  _: t => ({
     armR: [1.05 + 0.55 * Math.sin(t * Math.PI) + Math.sin(t * 40) * 0.05 * (1 - t), -0.45],
     armL: [0.35 * Math.sin(t * Math.PI), 0.25],
     lean: -0.12 * Math.sin(t * Math.PI),
     lunge: 0
   })
 };
+
+/** Every spell that has a motion of its own, for the tests to check against. */
+export const SPELL_MOTIONS = Object.keys(SPELL_CASTS).filter(k => k !== '_');
 
 /**
  * Where a ray enters an upright cylinder, or null. Used for every click on

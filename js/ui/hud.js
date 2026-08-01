@@ -141,10 +141,12 @@ export class Hud {
       const s = SKILL_BY_ID[skill];
       this.levelup.hidden = false;
       this.levelup.querySelector('.lu-icon').textContent = s.icon;
+      // one short line: the banner sits over the world, and the full
+      // sentence is in the chat log a moment later anyway
       this.levelup.querySelector('.lu-text').innerHTML =
-        `Congratulations, you just advanced a <b>${s.name}</b> level.<br>You are now level <b>${level}</b>.`;
+        `<b>${s.name}</b> level <b>${level}</b>`;
       clearTimeout(this._luTimer);
-      this._luTimer = setTimeout(() => { this.levelup.hidden = true; }, 3400);
+      this._luTimer = setTimeout(() => { this.levelup.hidden = true; }, 3000);
       this.addLine(`Congratulations, you just advanced a ${s.name} level. You are now level ${level}.`, 'good');
     });
   }
