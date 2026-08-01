@@ -21,6 +21,16 @@ import { loadContent, loadedPacks } from '../js/data/content.js';
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.resolve(__dirname, '..');
 const PORT = Number(process.env.PORT) || 8080;
+
+/*
+ * The bulletin, and when the file it came from was last written. Declared up
+ * here because the boot below reads it before the rest of the file has run,
+ * and a `let` further down would still be in its dead zone. See
+ * readPatchNotes().
+ */
+const PATCH_FILE = path.join(ROOT, 'content/patchnotes.json');
+let patchNotes = null;
+let patchStamp = 0;
 const HOST = process.env.HOST || '0.0.0.0';
 const MAX_PLAYERS = Number(process.env.MAX_PLAYERS) || 100;
 
@@ -85,7 +95,7 @@ initStore();
  * has not loaded would be a server nobody can walk around in.
  */
 await loadContent();
-const patchNotes = await readPatchNotes();
+await readPatchNotes();
 
 const accounts = new Accounts();
 await accounts.load();
@@ -187,13 +197,18 @@ server.on('upgrade', (req, socket) => {
   socket.on('error', () => drop(client));
   socket.on('close', () => drop(client));
 
-  send(client, {
-    t: 'hello',
-    players: sim.playerCount,
-    accounts: accounts.count,
-    // the login screen shows the notes when this is newer than what the
-    // browser remembers having read
-    patch: patchNotes
+  // the bulletin is checked for freshness per greeting, so a delivery posted
+  // while the ward is up reaches the next person through the door
+  readPatchNotes().then(patch => {
+    if (!clients.has(client)) return;
+    send(client, {
+      t: 'hello',
+      players: sim.playerCount,
+      accounts: accounts.count,
+      // the login screen shows the notes when this is newer than what the
+      // browser remembers having read
+      patch
+    });
   });
 });
 
@@ -391,16 +406,23 @@ async function authenticate(client, msg) {
 /**
  * Only the newest few entries travel with the greeting; the client fetches
  * the whole file if the player asks to read further back.
+ *
+ * Re-read when the file changes on disk rather than once at boot. The daily
+ * pipeline commits a bulletin while the ward is up, and reading this once
+ * meant nobody was told about anything until somebody happened to restart
+ * the server - which is most of why the bulletin stopped appearing at all.
  */
 async function readPatchNotes() {
   try {
-    const raw = await fs.promises.readFile(path.join(ROOT, 'content/patchnotes.json'), 'utf8');
-    const all = JSON.parse(raw);
+    const stat = await fs.promises.stat(PATCH_FILE);
+    if (patchNotes && stat.mtimeMs === patchStamp) return patchNotes;
+    const all = JSON.parse(await fs.promises.readFile(PATCH_FILE, 'utf8'));
     const list = Array.isArray(all) ? all : all.entries || [];
-    if (!list.length) return null;
-    return { latest: list[0].version, entries: list.slice(0, 3) };
+    patchStamp = stat.mtimeMs;
+    patchNotes = list.length ? { latest: list[0].version, entries: list.slice(0, 3) } : null;
+    return patchNotes;
   } catch {
-    return null;
+    return patchNotes;                  // a bad write must not lose the last good read
   }
 }
 

@@ -20,6 +20,8 @@ export const YAW_RATE = 2.2;               // radians a second while held
 export const PITCH_RATE = 1.3;
 export const ZOOM_MIN = 5;
 export const ZOOM_MAX = 22;
+export const DRAG_YAW = 0.0062;            // radians per pixel dragged
+export const DRAG_PITCH = 0.0050;
 const FOV = 0.86;                          // ~49 degrees vertical
 const NEAR = 0.3, FAR = 140;
 
@@ -48,6 +50,21 @@ export class Camera {
     if (k.has('ArrowUp'))    this.pitch = Math.min(PITCH_MAX, this.pitch + PITCH_RATE * dt);
     if (k.has('ArrowDown'))  this.pitch = Math.max(PITCH_MIN, this.pitch - PITCH_RATE * dt);
 
+    if (this.yaw > Math.PI) this.yaw -= Math.PI * 2;
+    if (this.yaw < -Math.PI) this.yaw += Math.PI * 2;
+  }
+
+  /**
+   * Dragging with the middle button, which is the other way RuneScape lets
+   * you move the camera. It does exactly what the arrow keys do, in the
+   * direction you drag: pull left and it turns the way holding Left turns it.
+   *
+   * Taking pixels rather than a rate keeps it independent of frame rate, and
+   * means a slow drag turns slowly, which a key cannot do.
+   */
+  dragBy(dx, dy) {
+    this.yaw -= dx * DRAG_YAW;
+    this.pitch = Math.max(PITCH_MIN, Math.min(PITCH_MAX, this.pitch - dy * DRAG_PITCH));
     if (this.yaw > Math.PI) this.yaw -= Math.PI * 2;
     if (this.yaw < -Math.PI) this.yaw += Math.PI * 2;
   }

@@ -854,3 +854,48 @@ button, input { font-family: inherit; font-size: inherit; color: inherit; }
   #hud-orbs { transform: scale(.8); transform-origin: top right; }
   .skill-grid { grid-template-columns: repeat(2, 1fr); }
 }
+
+/* ---------------- the world map ---------------------------- */
+
+#worldmap {
+  position: fixed; inset: 0; z-index: 130;
+  display: flex; align-items: center; justify-content: center;
+  background: rgba(6,3,5,.86);
+}
+.wm-panel {
+  width: min(1080px, 94vw); height: min(760px, 90vh);
+  display: flex; flex-direction: column;
+  background: var(--panel-grad);
+  border: 2px solid #6b3d4c; border-radius: 10px;
+  box-shadow: 0 24px 60px rgba(0,0,0,.7);
+  overflow: hidden;
+}
+.wm-head {
+  display: flex; align-items: baseline; gap: 12px;
+  padding: 10px 14px; border-bottom: 1px solid #6b3d4c; background: #4a2b36;
+}
+.wm-title { font-size: 16px; font-weight: 700; color: var(--gold); }
+.wm-where { flex: 1; font-size: 11px; color: var(--bone-dim); }
+.wm-close {
+  width: 26px; height: 26px; line-height: 1; padding: 0;
+  font-size: 17px; color: var(--bone-dim);
+  background: #331a23; border: 1px solid #6b3d4c; border-radius: 5px; cursor: pointer;
+}
+.wm-close:hover { color: var(--bone); background: #4a2b36; }
+/* the canvas fills whatever is left, and is the only thing that scrolls */
+.wm-canvas { flex: 1; width: 100%; min-height: 0; display: block; cursor: grab; }
+.wm-canvas.dragging { cursor: grabbing; }
+.wm-foot {
+  display: flex; align-items: center; gap: 12px;
+  padding: 8px 14px; border-top: 1px solid #6b3d4c; background: #2a1620;
+}
+.wm-hint { flex: 1; font-size: 11px; color: #7c6a72; }
+.wm-hint b { color: var(--bone-dim); }
+.wm-centre {
+  padding: 4px 12px; font-size: 11px; color: var(--bone);
+  background: #4a2b36; border: 1px solid #6b3d4c; border-radius: 5px; cursor: pointer;
+}
+.wm-centre:hover { background: #5c3644; }
+
+/* middle-dragging the world turns the camera, so say so with the cursor */
+#view.dragging { cursor: move; }

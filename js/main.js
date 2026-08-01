@@ -22,6 +22,7 @@ import { Net, TOKEN_KEY, TICK_MS } from './net.js';
 import { COLOURS, MOTIONS } from './game/chatfx.js';
 import { loadContent } from './data/content.js';
 import { showPatchNotes, markPatchSeen, latestSeen } from './ui/patchnotes.js';
+import { WorldMap } from './ui/worldmap.js';
 
 const COLOUR_NAMES = Object.keys(COLOURS);
 const MOTION_NAMES = Object.keys(MOTIONS);
@@ -236,7 +237,9 @@ function startGame(state, net) {
   renderer.lowDetail = state.settings.lowDetail;
   state.snapCam = true;
 
-  game = { state, world, renderer, hud, panels, windows, net, audio };
+  const worldmap = new WorldMap(state, world);
+
+  game = { state, world, renderer, hud, panels, windows, net, audio, worldmap };
   window.__throatscape = game;
 
   wireInput(game);
@@ -248,9 +251,10 @@ function startGame(state, net) {
   log(state, `Welcome to Throatscape, ${state.name}.`, 'quest');
   log(state, 'Left-click to walk and interact. Right-click for more options.', 'system');
   if (renderer.keys) {
-    log(state, 'Arrow keys turn and tilt the camera, the wheel zooms, ' +
-               'and the compass faces you north.', 'system');
+    log(state, 'Arrow keys turn and tilt the camera, or hold the middle mouse ' +
+               'button and move. The wheel zooms, and the compass faces you north.', 'system');
   }
+  log(state, 'Press M, or click the minimap, for the world map.', 'system');
   log(state, 'Your progress is kept on the server. Speak to Orderly Punn to begin.', 'system');
 
   startLoop(game);
@@ -266,16 +270,22 @@ function startLoop(game) {
     const alpha = net.alpha();
     const p = state.player;
 
-    p.rx = lerp(p.ix ?? p.x, p.x, alpha);
-    p.ry = lerp(p.iy ?? p.y, p.y, alpha);
-    for (const n of state.npcs) {
-      n.rx = lerp(n.ix ?? n.x, n.x, alpha);
-      n.ry = lerp(n.iy ?? n.y, n.y, alpha);
-    }
-    for (const o of state.others.values()) {
-      o.rx = lerp(o.ix ?? o.x, o.x, alpha);
-      o.ry = lerp(o.iy ?? o.y, o.y, alpha);
-    }
+    /*
+     * Something that did not move this tick sits exactly on its tile rather
+     * than a hair short of it. Interpolating anyway leaves a remainder that
+     * the next tick only halves, so a stopped character drifts towards its
+     * own feet forever and never arrives - which is what kept the walk
+     * animation running and what turned everyone east when they stopped.
+     */
+    const place = e => {
+      if (!e.stepping) { e.rx = e.x; e.ry = e.y; return; }
+      e.rx = lerp(e.ix ?? e.x, e.x, alpha);
+      e.ry = lerp(e.iy ?? e.y, e.y, alpha);
+    };
+
+    place(p);
+    for (const n of state.npcs) place(n);
+    for (const o of state.others.values()) place(o);
 
     for (let i = state.hitsplats.length - 1; i >= 0; i--) {
       if (--state.hitsplats[i].ttl <= 0) state.hitsplats.splice(i, 1);
@@ -393,6 +403,11 @@ function wireInput(game) {
       hud.showTooltip(m.x, m.y, 'Face', 'north');
       return;
     }
+    if (renderer.minimapAt && renderer.minimapAt(m.x, m.y)) {
+      state.hoverObj = null;
+      hud.showTooltip(m.x, m.y, 'Open', 'world map');
+      return;
+    }
     const hit = probe(game, m.x, m.y);
     state.hoverObj = hit.kind === 'obj' ? hit.ref : null;
     const l = labelFor(hit);
@@ -409,6 +424,9 @@ function wireInput(game) {
     if (hud.ctxOpen) { hud.closeCtx(); return; }
     const m = local(e);
     if (renderer.compassAt && renderer.compassAt(m.x, m.y)) { renderer.faceNorth(); return; }
+    // the dial holds forty tiles of a map that is a hundred and ninety square,
+    // so clicking it asks for the rest of it
+    if (renderer.minimapAt && renderer.minimapAt(m.x, m.y)) { game.worldmap.show(); return; }
     const hit = probe(game, m.x, m.y);
 
     if (state.useSel != null) {
@@ -437,6 +455,46 @@ function wireInput(game) {
   }
 
   /*
+   * Hold the middle button and move the mouse to swing the camera, the other
+   * way RuneScape lets you do it.
+   *
+   * The browser wants the middle button for autoscroll, and it claims it on
+   * mousedown rather than on click, so the default has to be refused there
+   * and on auxclick both. Pointer capture keeps the drag alive when the
+   * mouse leaves the canvas, which it will - a drag that stops at the edge
+   * of the view is worse than no drag.
+   */
+  if (renderer.cam?.dragBy) {
+    let dragging = 0, lx = 0, ly = 0;
+
+    canvas.addEventListener('pointerdown', e => {
+      if (e.button !== 1) return;
+      e.preventDefault();
+      dragging = e.pointerId;
+      lx = e.clientX; ly = e.clientY;
+      canvas.setPointerCapture(e.pointerId);
+      canvas.classList.add('dragging');
+    });
+
+    canvas.addEventListener('pointermove', e => {
+      if (dragging !== e.pointerId) return;
+      renderer.cam.dragBy(e.clientX - lx, e.clientY - ly);
+      lx = e.clientX; ly = e.clientY;
+    });
+
+    const endDrag = e => {
+      if (dragging !== e.pointerId) return;
+      dragging = 0;
+      canvas.classList.remove('dragging');
+      if (canvas.hasPointerCapture(e.pointerId)) canvas.releasePointerCapture(e.pointerId);
+    };
+    canvas.addEventListener('pointerup', endDrag);
+    canvas.addEventListener('pointercancel', endDrag);
+    // stops the autoscroll cursor appearing, and the paste on X11
+    canvas.addEventListener('auxclick', e => { if (e.button === 1) e.preventDefault(); });
+  }
+
+  /*
    * The arrow keys drive the camera and nothing else, so they are tracked as
    * held rather than pressed: the camera turns however long the key was down
    * for, which is smooth at any frame rate. Anyone typing keeps their arrows.
@@ -462,6 +520,7 @@ function wireInput(game) {
     const chat = $('#chat-input');
     if (document.activeElement === chat) return;
     if (e.key === 'Enter') { chat.focus(); e.preventDefault(); return; }
+    if (e.key === 'm' || e.key === 'M') { game.worldmap.toggle(); e.preventDefault(); return; }
     if (e.key >= '1' && e.key <= '7') {
       panels.show(['inventory', 'equipment', 'skills', 'quests', 'vigil', 'magic', 'settings'][+e.key - 1]);
     }
@@ -602,9 +661,12 @@ function command(game, cmd) {
   switch (name.toLowerCase()) {
     case 'help':
       log(state, 'Commands: /tell <name> <message>, /r <message>, /trade <name>, ' +
-                 '/add <name>, /remove <name>, /friends, /where, /players, ' +
+                 '/add <name>, /remove <name>, /friends, /where, /players, /map, ' +
                  '/effects, /patch, /logout', 'system');
       log(state, 'Names with a space need quotes: /tell "Nurse Vell" hello.', 'system');
+      break;
+    case 'map': case 'worldmap':
+      game.worldmap.toggle();
       break;
     case 'effects':
       log(state, 'Prefix a message with a colour and a motion, e.g. ' +

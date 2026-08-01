@@ -1,5 +1,33 @@
 [
   {
+    "version": "2026.08.01.2",
+    "date": "2026-08-01",
+    "title": "A map, a steadier camera, and a longer rest",
+    "notes": [
+      "feature: A world map. Press M, click the minimap, or type /map. Drag it about, wheel to zoom, and it marks the banks, altars, furnaces, anvils, ranges, cauldrons, sewing tables and wells, along with anyone near enough to see.",
+      "feature: Hold the middle mouse button and move to swing the camera. It does what the arrow key pointing the same way does, and a slow drag turns slowly, which a key cannot.",
+      "fix: Characters stopped walking when they stopped moving. The legs kept going on the spot indefinitely, because the check for having arrived compared two positions that never quite met.",
+      "fix: The same arithmetic was turning everybody to face east the moment they came to a halt. It read the last millionth of a tile as a direction.",
+      "balance: The dead stay dead for at least twenty-five seconds, and most things for thirty. Fifteen was not long enough to pick up what they dropped, and it made every resource sharing ground with a spawn a waste of time.",
+      "fix: The bulletin you are reading now. It had stopped appearing after an update, for two reasons: the ward only ever posted one for a content delivery and never for anything hand-made, and the server read this file once when it started and never looked again."
+    ]
+  },
+  {
+    "version": "2026.08.01.1",
+    "date": "2026-08-01",
+    "title": "Weapons in hand, spells in the air",
+    "notes": [
+      "fix: The level-up notice is a small line at the top. It used to cover your character and half the room for three seconds.",
+      "fix: Names and health bars stack instead of sitting on top of one another, and every name is drawn before any bar, so nobody can hide an enemy bar with their own.",
+      "feature: Weapons are held properly and are about twice the size. A scalpel you cannot see is a scalpel you do not know you are swinging.",
+      "feature: Injection has three motions instead of one — a dart is thrown, a bow is drawn, a blowpipe is blown through — and each of them puts something in the air.",
+      "feature: Anatomancy has a cast, a bolt and a sound for each spell. Flesh bolt is hurled underarm, nerve strike snaps out and shakes, bile lance is driven two-handed, vital rend takes hold and pulls apart, and transfuse reaches out and drags back.",
+      "feature: Gathering looks like the job it is. You turn to face the node, and you swing an axe at a tree, a pick at a seam, a net over a pool and a gaff into an eel hole, with the tool in your hand while you do it.",
+      "balance: Trees are three and a half tiles tall, and the rest of the resource nodes grew with them. A throatwood used to be shorter than the nurse chopping it.",
+      "fix: A worked-out node becomes a stump, a broken seam or a picked stem, instead of the same thing drawn slightly fainter."
+    ]
+  },
+  {
     "version": "2026.08.01",
     "date": "2026-08-01",
     "title": "Ring Fauna",
@@ -7,6 +35,21 @@
     "notes": [
       "content: The Cartilage Rings have more living in them than the two that were counted. Cartilage maggots and chalk moths work the seams; a lapsed orderly and something called a ring howler work the maggots and moths.",
       "content: Chalk moth dust and chalk spurs can both be picked off what you kill out there."
+    ]
+  },
+  {
+    "version": "2026.07.31.4",
+    "date": "2026-07-31",
+    "title": "The Throat in three dimensions",
+    "notes": [
+      "feature: The ward is drawn as a place rather than as a picture of one. The floor rises and falls, everything standing on it is a model, and the light comes from somewhere.",
+      "feature: The camera turns. Arrow keys orbit and tilt it, the wheel pulls it in and out, and the compass on the minimap puts it back on north. The map still reads north-up whichever way you are facing.",
+      "feature: Every click leaves a mark on the tile it landed on — yellow for going somewhere or using something, red for attacking.",
+      "fix: Clicks on the shop and bank windows were falling through to the ward behind them and walking you off mid-purchase. The interface layer had taken an element id the windows were already using.",
+      "fix: Your character faces what it is fighting. It also holds what it is fighting with, which it had never done.",
+      "fix: A dropped item lies on the floor as itself. Every drop in the game used to be the same grey lump.",
+      "fix: Doors open away from whoever is pushing them instead of rotating into the wall.",
+      "balance: The old flat view is still there under Settings, for anything that cannot run the new one."
     ]
   },
   {

@@ -397,6 +397,12 @@ export class Renderer3D {
     return !!c && Math.hypot(px - c.x, py - c.y) <= c.r;
   }
 
+  /** And is it on the dial itself? The compass rides its rim, so ask that first. */
+  minimapAt(px, py) {
+    const m = this.minimap;
+    return !!m && Math.hypot(px - m.x, py - m.y) <= m.r;
+  }
+
   /* ---------------- terrain --------------------------------- */
 
   drawTerrain() {
@@ -804,10 +810,19 @@ export class Renderer3D {
     gl.uniform3f(this.u.uTint, 1, 1, 1);
   }
 
-  /** Which way something is walking, remembered so it does not snap back to north. */
+  /**
+   * Which way something is walking, remembered so it does not snap back to
+   * north when it stops.
+   *
+   * The step it is taking has to be a real one. Interpolation leaves a
+   * vanishing remainder behind after every walk - a millionth of a tile due
+   * east of where you stopped - and taking the direction of that reads as a
+   * heading of exactly ninety degrees, which turned everyone to face east the
+   * moment they arrived anywhere.
+   */
   headingOf(e) {
     const dx = e.x - (e.ix ?? e.x), dy = e.y - (e.iy ?? e.y);
-    if (dx || dy) e._heading = Math.atan2(dx, -dy);
+    if (Math.abs(dx) > 0.05 || Math.abs(dy) > 0.05) e._heading = Math.atan2(dx, -dy);
     return e._heading ?? 0;
   }
 
@@ -827,8 +842,17 @@ export class Renderer3D {
     return cur;
   }
 
+  /**
+   * How far through a stride something is, or 0 for standing still.
+   *
+   * `stepping` is set by the snapshot that moved it, so this is a question
+   * about tiles rather than about pixels. Asking whether the interpolated
+   * position had caught up with the real one instead - which is what this
+   * used to do - is a float comparison that never comes out true, and the
+   * legs never stopped.
+   */
   walkPhase(e) {
-    if (e.ix === undefined || (e.ix === e.x && e.iy === e.y)) return 0;
+    if (!e.stepping) return 0;
     const half = (e.steps || 0) % 2 ? 0.5 : 0;
     return half + Math.min(0.999, this.alpha) * 0.5 + 0.0001;
   }

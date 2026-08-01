@@ -241,6 +241,129 @@ head('the camera');
   ok(!cam.visible(40, 1, 60 - 200, 1), 'something two hundred tiles behind it does not');
 }
 
+/* ============================================================
+   Arriving somewhere
+   ------------------------------------------------------------
+   The walk cycle used to ask whether the interpolated position
+   had caught up with the real one. It is a float comparison and
+   it never came out true: a snapshot arriving a few ms early
+   leaves the interpolation a hair short and every tick after
+   only halves the gap. So the legs walked on the spot forever,
+   and headingOf read the leftover hair as a direction.
+   ============================================================ */
+
+head('a character that has stopped walking stops walking');
+{
+  const { Renderer3D } = await import('../js/engine/render3d.js');
+  const walkPhase = e => Renderer3D.prototype.walkPhase.call({ alpha: 0.5 }, e);
+  const headingOf = e => Renderer3D.prototype.headingOf.call({}, e);
+  const lerp = (a, b, t) => a + (b - a) * t;
+
+  /*
+   * A player walking one tile east and then standing still, run exactly the
+   * way net.js and the render loop run it: the snapshot copies the render
+   * position into ix, and the frame interpolates towards the tile.
+   */
+  /*
+   * Deliberately without the snap the render loop also does. The renderer has
+   * to be right on its own: if it only stops walking because something else
+   * tidied the numbers up first, then any caller that does not tidy them gets
+   * the bug back, and this check would not notice.
+   */
+  const step = (e, toX, toY, stepping, lastAlpha) => {
+    e.stepping = stepping;                       // net.js, from the tile change
+    e.ix = e.rx; e.iy = e.ry;
+    e.x = toX; e.y = toY;
+    if (stepping) e.steps = (e.steps || 0) + 1;
+    e.rx = lerp(e.ix, e.x, lastAlpha);
+    e.ry = lerp(e.iy, e.y, lastAlpha);
+  };
+
+  const e = { x: 29, y: 40, ix: 29, iy: 40, rx: 29, ry: 40 };
+  step(e, 30, 40, true, 0.93);                   // one stride east, snapshot a touch early
+  ok(walkPhase(e) > 0, 'mid-stride the legs are moving');
+  ok(Math.abs(headingOf(e) - Math.PI / 2) < 1e-6, 'and it is facing east, where it is going');
+
+  // now it stands still, and is asked about for ten seconds of ticks
+  let stillWalking = 0;
+  let worstResidue = 0;
+  for (let tick = 0; tick < 16; tick++) {
+    step(e, 30, 40, false, 0.93);
+    if (walkPhase(e) !== 0) stillWalking++;
+    worstResidue = Math.max(worstResidue, Math.abs(e.rx - e.x));
+  }
+  ok(!stillWalking, stillWalking
+    ? `the legs kept going for ${stillWalking} of 16 ticks after it arrived`
+    : 'the legs stop on the tick it arrives, and stay stopped');
+  ok(worstResidue > 0,
+     `and they stop while the interpolation is still ${worstResidue.toExponential(1)} of a ` +
+     'tile short, which is the state it never gets out of');
+
+  /*
+   * The render loop puts a stopped body exactly on its tile as well, so the
+   * residue above never actually reaches the screen. That is the policy, and
+   * this is it stated where a test can see it.
+   */
+  const place = (o, alpha) => o.stepping
+    ? { rx: lerp(o.ix, o.x, alpha), ry: lerp(o.iy, o.y, alpha) }
+    : { rx: o.x, ry: o.y };
+  const parked = place({ x: 30, y: 40, ix: 29.999999, iy: 40, stepping: false }, 0.93);
+  ok(parked.rx === 30 && parked.ry === 40, 'a stopped body sits on its tile, not a hair short of it');
+  const mid = place({ x: 30, y: 40, ix: 29, iy: 40, stepping: true }, 0.5);
+  ok(mid.rx === 29.5, 'and one mid-stride is still interpolated');
+
+  /*
+   * The heading is the other half of the same bug: a remainder of a
+   * millionth of a tile due east reads as a heading of exactly ninety
+   * degrees, so everyone turned to face east the moment they stopped.
+   */
+  const north = { x: 40, y: 39, ix: 40, iy: 40, rx: 40, ry: 40, stepping: true };
+  ok(Math.abs(headingOf(north)) < 1e-6, 'a step north faces north');
+  const settled = { x: 40, y: 39, ix: 40, iy: 39 + 1e-9, rx: 40, ry: 39, stepping: false,
+                    _heading: 0 };
+  ok(headingOf(settled) === 0, 'and a millionth of a tile left over is not a new direction');
+
+  ok(walkPhase({ x: 1, y: 1, ix: 1, iy: 1 }) === 0,
+     'something that has never had a snapshot is standing still, not walking');
+}
+
+head('the camera can be dragged as well as keyed');
+{
+  const { Camera, PITCH_MIN, PITCH_MAX, DRAG_YAW } = await import('../js/engine/gl/camera.js');
+
+  /*
+   * Dragging does what the arrow key of the same direction does, which is
+   * the only mapping that does not need explaining to somebody who has
+   * already learned the keys.
+   */
+  const keyed = new Camera(), dragged = new Camera();
+  keyed.keys.add('ArrowLeft');
+  for (let i = 0; i < 30; i++) keyed.step(1 / 60);
+  dragged.dragBy(-120, 0);
+  ok(Math.sign(keyed.yaw) === Math.sign(dragged.yaw) && dragged.yaw !== 0,
+     `dragging left turns the same way holding Left does (${dragged.yaw.toFixed(2)} rad)`);
+
+  const up = new Camera(), keyUp = new Camera();
+  keyUp.keys.add('ArrowUp');
+  for (let i = 0; i < 30; i++) keyUp.step(1 / 60);
+  up.dragBy(0, -120);
+  ok(up.pitch > 0.62 && keyUp.pitch > 0.62, 'and dragging up tilts the same way Up does');
+
+  const c = new Camera();
+  for (let i = 0; i < 200; i++) c.dragBy(0, -80);
+  ok(c.pitch <= PITCH_MAX + 1e-9, `dragged to the top it stops at ${c.pitch.toFixed(2)} rad`);
+  for (let i = 0; i < 400; i++) c.dragBy(0, 80);
+  ok(c.pitch >= PITCH_MIN - 1e-9, `and at the bottom, ${c.pitch.toFixed(2)} rad`);
+
+  const spin = new Camera();
+  let big = 0;
+  for (let i = 0; i < 2000; i++) { spin.dragBy(40, 0); big = Math.max(big, Math.abs(spin.yaw)); }
+  ok(big <= Math.PI + 1e-9, `spinning by hand never winds past +-pi (peak ${big.toFixed(3)})`);
+
+  ok(DRAG_YAW > 0.001 && DRAG_YAW < 0.05,
+     `a pixel is ${DRAG_YAW} rad, so a 300 px drag is ${(DRAG_YAW * 300).toFixed(2)} rad`);
+}
+
 head('the camera keys stay inside their limits');
 {
   const cam = new Camera();
@@ -832,6 +955,76 @@ head('every click that does something marks the tile');
     : 'every branch marks the tile before it sends the intent');
   ok(/markClick\(state, hit\.ref\.x, hit\.ref\.y, 'attack'\)/.test(body),
      'and attacking is the one marked in red');
+}
+
+/* ============================================================
+   The world map
+   ------------------------------------------------------------
+   The dial in the corner holds about forty tiles of a world
+   that is a hundred and ninety square, so everything outside
+   it has to be findable some other way.
+   ============================================================ */
+
+head('the world map can show you the whole Throat');
+{
+  const { landmarks, LANDMARKS, terrainImage } = await import('../js/engine/mapimage.js');
+  const world = game.world.buildWorld();
+
+  /*
+   * A stub canvas that records its size, so the image the map is drawn from
+   * can be checked without a browser. The pixels themselves are the same
+   * routine the minimap has always used.
+   */
+  let made = null;
+  globalThis.document.createElement = () => ({
+    width: 0, height: 0,
+    getContext: () => ({
+      createImageData: (w, h) => ({ data: new Uint8ClampedArray(w * h * 4) }),
+      putImageData: () => { made = true; },
+      drawImage: () => {}, fillRect: () => {}, set fillStyle(v) {}
+    })
+  });
+
+  const img = terrainImage(world);
+  ok(img.width === world.w && img.height === world.h,
+     `the map is ${img.width} by ${img.height}, one pixel a tile`);
+  ok(made, 'and its pixels are painted, not left blank');
+  ok(terrainImage(world) === img, 'it is built once and shared with the minimap');
+
+  const pins = landmarks(world);
+  ok(pins.length > 3, `${pins.length} landmarks worth walking back to`);
+  const kinds = new Set(pins.map(p => p.station));
+  ok(kinds.has('bank'), 'the bank is on it — the one thing everybody looks for');
+  for (const k of kinds) ok(!!LANDMARKS[k], `"${k}" has a colour and a name`);
+  ok(pins.every(p => p.x >= 0 && p.x < world.w && p.y >= 0 && p.y < world.h),
+     'and every pin is inside the map');
+
+  /*
+   * A row of four bank booths is one bank. Without that the map is a drift of
+   * identical labels on top of each other wherever anything is doubled up.
+   */
+  const banks = pins.filter(p => p.station === 'bank');
+  const booths = world.objects.filter(o => game.world.OBJ[o.type]?.station === 'bank').length;
+  ok(banks.length < booths || booths <= 1,
+     `${booths} bank booths are shown as ${banks.length} pin(s)`);
+  ok(landmarks(world) === pins, 'and the pins are worked out once');
+
+  /* the view never scrolls off the edge of the world */
+  const clampCentre = (cx, cy, zoom, vw, vh) => {
+    const halfW = vw / 2 / zoom, halfH = vh / 2 / zoom;
+    const w = world.w, h = world.h;
+    const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
+    return {
+      x: w > halfW * 2 ? clamp(cx, halfW, w - halfW) : w / 2,
+      y: h > halfH * 2 ? clamp(cy, halfH, h - halfH) : h / 2
+    };
+  };
+  const far = clampCentre(9999, -9999, 4, 900, 600);
+  ok(far.x < world.w && far.x > 0 && far.y < world.h && far.y > 0,
+     `dragged off the edge it settles at ${far.x.toFixed(0)}, ${far.y.toFixed(0)}`);
+  const zoomedOut = clampCentre(10, 10, 1, 900, 600);
+  ok(zoomedOut.x === world.w / 2 && zoomedOut.y === world.h / 2,
+     'and when the whole map fits, it simply centres');
 }
 
 head('the mesh builder');

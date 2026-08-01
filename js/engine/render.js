@@ -416,7 +416,10 @@ export class Renderer {
    * so the parity of the destination tile decides which leg is leading.
    */
   walkPhase(e) {
-    if (e.ix === undefined || (e.ix === e.x && e.iy === e.y)) return 0;
+    // `stepping` is set by the snapshot that moved it. Asking instead whether
+    // the interpolated position had caught up with the real one is a float
+    // comparison that never comes out true, so the legs never stopped.
+    if (!e.stepping) return 0;
     // which foot leads comes from a step counter, not tile parity: running
     // covers two tiles a tick, and parity would then never alternate
     const half = (e.steps || 0) % 2 ? 0.5 : 0;

@@ -177,6 +177,11 @@ Give it `"talk": "<dialogue tree>"` to make it a quest giver, or
 }
 ```
 
+Creature `respawn` is in the same ticks, and is held to a floor of 42 (about
+25 seconds) however low the number you write — anything faster is back on its
+feet before the player has picked up what it dropped, and makes any resource
+sharing its ground unharvestable.
+
 A node with a `respawn` above zero can be caught empty, and while it is
 empty it has to *look* empty — a stump rather than a faded tree. Only these
 arts have a worked-out shape to become, so a gatherable that respawns must

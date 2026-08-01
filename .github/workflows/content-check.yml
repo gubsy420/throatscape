@@ -48,8 +48,22 @@ jobs:
               if (!e.version || !e.date || !e.title || !Array.isArray(e.notes)) {
                 throw new Error('malformed entry: ' + JSON.stringify(e).slice(0, 120));
               }
+              if (!e.notes.length) throw new Error(e.version + ' says nothing');
             }
             const versions = list.map(e => e.version);
             if (new Set(versions).size !== versions.length) throw new Error('duplicate versions');
-            console.log(list.length + ' bulletins, newest ' + versions[0]);
+            /*
+             * Newest first. The server hands the client list[0] as the latest
+             * and shows the notice when it is newer than what the browser has
+             * read, so an entry filed out of order is an update nobody is told
+             * about — or one everybody is told about twice.
+             */
+            for (let i = 1; i < list.length; i++) {
+              if (list[i].date > list[i - 1].date) {
+                throw new Error(
+                  'out of order: ' + list[i].version + ' (' + list[i].date + ') is filed under ' +
+                  list[i - 1].version + ' (' + list[i - 1].date + '), so nobody would be shown it');
+              }
+            }
+            console.log(list.length + ' bulletins, newest ' + versions[0] + ' on ' + list[0].date);
           "

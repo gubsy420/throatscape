@@ -338,10 +338,27 @@ export function dealDamageToNpc(state, n, dmg, skillOverride, noXpBase) {
   if (n.hp <= 0) killNpc(state, n);
 }
 
+/*
+ * How long something stays dead, in ticks of 600 ms.
+ *
+ * The old default was 25 - fifteen seconds - which is barely long enough to
+ * pick up what it dropped. Anything sharing ground with a herb patch or an
+ * ore vein was back on its feet before you had finished the swing, and the
+ * resource was effectively unminable.
+ *
+ * The floor is applied to whatever a definition asks for rather than to the
+ * default alone, so a content pack cannot quietly undercut it either.
+ */
+export const RESPAWN_DEFAULT = 50;          // 30 seconds
+export const RESPAWN_MIN = 42;              // ~25 seconds, the fastest anything comes back
+
+export const respawnTicks = d =>
+  Math.max(RESPAWN_MIN, (d && d.respawn) || RESPAWN_DEFAULT);
+
 function killNpc(state, n) {
   const d = NPCS[n.id];
   n.dead = true;
-  n.respawnIn = d.respawn || 25;
+  n.respawnIn = respawnTicks(d);
   n.path = [];
   n.target = null;
   if (state.target?.ref === n) { state.target = null; state.action = null; }

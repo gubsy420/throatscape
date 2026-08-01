@@ -16,7 +16,9 @@ const def = o => { LIST.push(o); return o; };
 function mob(id, name, cfg) {
   return def(Object.assign({
     id, name, hostile: true,
-    respawn: 25,          // ticks
+    // ticks of 600 ms. combat.js holds everything to a floor as well, so a
+    // number below RESPAWN_MIN here does not actually get one
+    respawn: 50,
     wander: 4,
     aggroRange: 0,        // 0 = never initiates
     speed: 4,             // attack cooldown in ticks

@@ -257,6 +257,18 @@ export class Net {
     const self = msg.self;
     const wasDead = p.dead;
     const moved = p.x !== self.x || p.y !== self.y;
+    /*
+     * Whether a tile actually changed, recorded rather than inferred.
+     *
+     * The renderer used to work this out by asking whether the interpolated
+     * position had reached the real one, which is a float comparison that
+     * never comes out true: a snapshot arriving a few milliseconds early
+     * leaves the interpolation a hair short, and every tick after that only
+     * halves the gap. So the legs kept walking on the spot forever, and
+     * headingOf read the leftover hair as a direction and snapped whoever it
+     * was to face east.
+     */
+    p.stepping = moved;
     p.ix = p.rx; p.iy = p.ry;
     if (p.x !== self.x) p.facing = self.x > p.x ? 1 : -1;
     p.x = self.x; p.y = self.y;
@@ -306,7 +318,8 @@ export class Net {
       } else {
         e.ix = e.rx; e.iy = e.ry;
         e.path = (e.x !== n.x || e.y !== n.y) ? [1] : [];   // drives the walk bob
-        if (e.path.length) e.steps = (e.steps || 0) + 1;
+        e.stepping = e.path.length > 0;
+        if (e.stepping) e.steps = (e.steps || 0) + 1;
         e.x = n.x; e.y = n.y;
         if (n.hp < e.hp) e.hurtFlash = 3;
         e.hp = n.hp;
@@ -334,6 +347,7 @@ export class Net {
       } else {
         e.ix = e.rx; e.iy = e.ry;
         e.moving = e.x !== o.x || e.y !== o.y;
+        e.stepping = e.moving;
         if (e.moving) e.steps = (e.steps || 0) + 1;
         e.x = o.x; e.y = o.y;
         e.name = o.n;

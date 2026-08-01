@@ -203,6 +203,36 @@ async function playtest(candidate) {
     }
   }
 
+  /* ---- how long the dead stay dead ------------------------- */
+
+  head('Nothing comes back before you have picked up what it dropped');
+  {
+    const { respawnTicks, RESPAWN_MIN } = await import('../js/game/combat.js');
+    const TICK = 0.6;
+    const hostiles = Object.values(game.NPCS).filter(n => n.hostile);
+    ok(hostiles.length > 5, `${hostiles.length} things in the Throat fight back`);
+
+    /*
+     * The old default was 25 ticks - fifteen seconds - which is not long
+     * enough to loot a kill, let alone to work a herb patch sharing the
+     * ground with it. The floor is applied to whatever a definition asks
+     * for, so a content pack cannot undercut it either.
+     */
+    const quick = hostiles.filter(n => respawnTicks(n) < RESPAWN_MIN);
+    ok(!quick.length, quick.length
+      ? `back too fast: ${quick.map(n => `${n.id} (${respawnTicks(n)})`).join(', ')}`
+      : `the fastest respawn in the game is ${Math.min(...hostiles.map(respawnTicks)) * TICK}s`);
+
+    const fromPack = hostiles.filter(n => n.fromPack);
+    if (fromPack.length) {
+      ok(fromPack.every(n => respawnTicks(n) >= RESPAWN_MIN),
+         `including the ${fromPack.length} that arrived in a content pack`);
+    }
+    ok(respawnTicks({ respawn: 1 }) >= RESPAWN_MIN, 'a definition asking for one tick is refused');
+    ok(respawnTicks({}) >= RESPAWN_MIN, 'and so is one that forgets to ask');
+    ok(respawnTicks({ respawn: 400 }) === 400, 'but a boss that wants longer keeps it');
+  }
+
   /* ---- no tool is sold for nothing ------------------------- */
 
   head('Every tool has something to use it on');

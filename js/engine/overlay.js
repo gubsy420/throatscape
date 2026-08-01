@@ -18,6 +18,7 @@ import { TILE_INFO, T, OBJ } from '../data/world.js';
 import { NPCS } from '../data/npcs.js';
 import { parseChat, charColour, charOffset } from '../game/chatfx.js';
 import { drawMark, markPhase } from './clickmark.js';
+import { minimapImage } from './mapimage.js';
 
 /*
  * What floats over a head, and how tall each piece of it is. The stack is
@@ -250,35 +251,8 @@ export class Overlay {
 
   /* ---------------- minimap --------------------------------- */
 
-  /** One pixel per tile, built once. */
-  base() {
-    if (this._mm) return this._mm;
-    const w = this.world;
-    const c = document.createElement('canvas');
-    c.width = w.w; c.height = w.h;
-    const g = c.getContext('2d');
-    const img = g.createImageData(w.w, w.h);
-    for (let y = 0; y < w.h; y++) {
-      for (let x = 0; x < w.w; x++) {
-        const info = TILE_INFO[w.tileAt(x, y)] || TILE_INFO[T.VOID];
-        const hex = (hash2(x, y, 5) > 0.5 ? info.c2 : info.c).slice(1);
-        const n = parseInt(hex, 16);
-        const o = (y * w.w + x) * 4;
-        img.data[o] = (n >> 16) & 255;
-        img.data[o + 1] = (n >> 8) & 255;
-        img.data[o + 2] = n & 255;
-        img.data[o + 3] = 255;
-      }
-    }
-    g.putImageData(img, 0, 0);
-    for (const o of w.objects) {
-      const d = OBJ[o.type];
-      g.fillStyle = d.skill ? 'rgba(20,40,20,.55)' : 'rgba(230,200,120,.75)';
-      g.fillRect(o.x, o.y, 1, 1);
-    }
-    this._mm = c;
-    return c;
-  }
+  /** One pixel per tile, built once and shared with the world map. */
+  base() { return minimapImage(this.world); }
 
   minimap(state) {
     const ctx = this.ctx;
@@ -290,6 +264,9 @@ export class Overlay {
     const p = state.player;
     const yaw = this.r.cam.yaw;
     const cos = Math.cos(yaw), sin = Math.sin(yaw);
+
+    // where it is, so a click on it can open the world map
+    this.r.minimap = { x: cx, y: cy, r: size / 2 };
 
     ctx.save();
     ctx.beginPath();
