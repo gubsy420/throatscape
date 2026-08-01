@@ -1027,6 +1027,72 @@ head('the world map can show you the whole Throat');
      'and when the whole map fits, it simply centres');
 }
 
+/* ============================================================
+   The head in the dialogue box
+   ------------------------------------------------------------
+   Framing this off guessed proportions rather than off the
+   model put the camera inside the subject's face, and the panel
+   filled with one enormous cheek. The maths is separated out so
+   that it can be measured rather than looked at.
+   ============================================================ */
+
+head('whoever is talking fits inside the dialogue portrait');
+{
+  const { frameOn, MARGIN } = await import('../js/engine/portrait.js');
+  const models = new CreatureModels(gl);
+  const FOV = 0.55;
+  const ASPECT = 95 / 172;                 // the panel is tall and narrow
+
+  /*
+   * Only humanoids ever speak today, but a content pack can hand a
+   * shopkeeper any art in the game, so all of them are checked.
+   */
+  const arts = new Set(Object.values(game.NPCS).map(n => n.art.k));
+  ok(arts.size > 4, `${arts.size} kinds of creature to frame`);
+
+  const cramped = [], inside = [], lost = [];
+  for (const k of [...arts].sort()) {
+    const m = models.get({ k });
+    const { aim, dist, subject } = frameOn(m, ASPECT, FOV);
+    if (!Number.isFinite(aim) || !Number.isFinite(dist)) { lost.push(k); continue; }
+
+    // the camera has to be outside whatever it is looking at
+    if (dist <= (subject.hi[2] - subject.lo[2]) / 2) inside.push(`${k} (${dist.toFixed(2)})`);
+
+    // and the subject has to fall inside the frustum at that distance
+    const t = Math.tan(FOV / 2);
+    const halfH = dist * t, halfW = halfH * ASPECT;
+    const needH = Math.max(subject.hi[1] - aim, aim - subject.lo[1]);
+    const needW = Math.max(Math.abs(subject.hi[0]), Math.abs(subject.lo[0]));
+    if (needH > halfH || needW > halfW) {
+      cramped.push(`${k} needs ${needW.toFixed(2)}x${needH.toFixed(2)}, ` +
+                   `has ${halfW.toFixed(2)}x${halfH.toFixed(2)}`);
+    }
+  }
+  ok(!lost.length, lost.length ? `no framing at all for: ${lost.join(', ')}` : 'every kind gets a framing');
+  ok(!inside.length, inside.length ? `camera inside the subject: ${inside.join(', ')}` : 'the camera stands outside all of them');
+  ok(!cramped.length, cramped.length ? `cropped: ${cramped.join('; ')}` : `all ${arts.size} fit, with ${MARGIN}x margin`);
+
+  /* a person is framed on the face, not on their boots */
+  const person = models.get({ k: 'humanoid' });
+  const f = frameOn(person, ASPECT, FOV);
+  ok(f.aim > person.height * 0.6,
+     `a person is framed at ${f.aim.toFixed(2)} of ${person.height.toFixed(2)} tiles — head, not chest`);
+  ok(f.dist < person.height * 3, `and from ${f.dist.toFixed(2)} tiles, which is a portrait not a wide shot`);
+
+  /* a narrower panel has to push the camera back, or the ears are cut off */
+  const wide = frameOn(person, 1.6, FOV);
+  const narrow = frameOn(person, 0.4, FOV);
+  ok(narrow.dist > wide.dist,
+     `a narrow frame stands further back (${narrow.dist.toFixed(2)} vs ${wide.dist.toFixed(2)})`);
+
+  /* and something with no head at all is framed on the whole animal */
+  const rat = models.get({ k: 'rat' });
+  const rf = frameOn(rat, ASPECT, FOV);
+  ok(rf.subject.hi[1] - rf.subject.lo[1] > rat.height * 0.5,
+     'a rat is shown whole, since its face is not on top of it');
+}
+
 head('the mesh builder');
 {
   const b = new MeshBuilder();

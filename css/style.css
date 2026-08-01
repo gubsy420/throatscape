@@ -645,17 +645,28 @@ button, input { font-family: inherit; font-size: inherit; color: inherit; }
   box-shadow: 0 14px 40px rgba(0,0,0,.7);
   z-index: 18; overflow: hidden;
 }
-#dialogue .dlg-head {
-  display: flex; align-items: center; gap: 9px;
-  padding: 7px 12px; background: #4a2b36; border-bottom: 1px solid #6b3d4c;
-}
+/* whoever is speaking, on the left, with everything they say beside them */
+#dialogue { display: flex; align-items: stretch; }
 #dialogue .dlg-face {
-  width: 34px; height: 34px; border-radius: 50%;
-  background: #1b0d13; border: 1px solid #6b3d4c;
-  display: flex; align-items: center; justify-content: center; font-size: 19px;
+  position: relative;                  /* the canvas fills it, however tall it ends up */
+  flex: 0 0 96px; width: 96px; min-height: 96px;
+  background: #0e070b; border-right: 1px solid #6b3d4c;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 34px;                     /* only used if WebGL is unavailable */
 }
-#dialogue .dlg-name { font-weight: 700; color: var(--gold); }
-#dialogue .dlg-text { padding: 12px 14px; font-size: 14px; line-height: 1.55; min-height: 46px; }
+/*
+ * A canvas is a replaced element, so inset:0 alone leaves it at its intrinsic
+ * 300x150 rather than stretching it the way a div would. The size has to be
+ * asked for outright.
+ */
+#dialogue .dlg-portrait {
+  position: absolute; inset: 0; display: block; width: 100%; height: 100%;
+}
+#dialogue .dlg-body { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+#dialogue .dlg-name {
+  padding: 7px 12px 0; font-weight: 700; color: var(--gold); font-size: 14px;
+}
+#dialogue .dlg-text { padding: 5px 14px 10px; font-size: 14px; line-height: 1.55; min-height: 46px; }
 #dialogue .dlg-opts { list-style: none; margin: 0; padding: 0 6px 8px; }
 #dialogue .dlg-opts li {
   padding: 6px 10px; margin: 2px 0; cursor: pointer; border-radius: 4px; font-size: 13px;

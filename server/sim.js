@@ -60,6 +60,13 @@ class Session {
     this.chatTtl = 0;
     this.trade = null;         // the Trade this session is in, if any
     this.tradeReq = null;      // an outstanding request to someone else
+    /*
+     * What this player has been told about each piece of changeable scenery.
+     * Per session rather than global: two nurses standing in different parts
+     * of the ward know different things, and a change nobody was near to see
+     * still has to reach whoever walks up to it later.
+     */
+    this.objSent = new Map();  // object -> depleted|open bits, as last sent
 
     const st = saved ? deserialize(saved) : createState(name);
     st.name = name;
@@ -153,8 +160,6 @@ export class Sim {
     this.sessions = new Map();      // key -> Session
     this.tick = 0;
     this.fx = [];                   // public hitsplats for this tick
-    this.objectChanges = [];        // scenery depletion changes this tick
-    this.objState = new Map();      // object -> depleted|open bits, for diffing
     this.trades = new Trades(this);
 
     // spawnNpcs writes into state.npcs, so lend it a shim
@@ -204,7 +209,6 @@ export class Sim {
   step() {
     this.tick++;
     this.fx.length = 0;
-    this.objectChanges.length = 0;
 
     for (const s of this.sessions.values()) {
       const st = s.state;
@@ -224,15 +228,28 @@ export class Sim {
 
       // walking away ends the conversation, the way it does in the originals
       if (s.dialogue && st.player.x * 100000 + st.player.y !== wasAt) this.endDialogue(s);
+      // what was being worked before the tick ran, because a successful
+      // harvest ends the action and would otherwise take the node with it
+      const wasWorking = st.action && st.action.kind === 'gather' && !st.player.path.length
+        ? st.action.obj : null;
       tickAction(st, this.world, null);
       playerAttackTick(st, this.world);
       s.swung = st.player.attackAnim > anim0;
       tickPlayerEffects(st);
 
-      // the node being worked, so the client can shake it and throw chips
+      /*
+       * The node being worked, so the client can shake it, throw chips, swing
+       * the right tool at it and keep quiet about spells.
+       *
+       * The blow that finishes a node clears the action, so reading it only
+       * from st.action afterwards reports nothing on the one tick that
+       * matters most - the client then drew the last chop as a weapon swing
+       * and, with a staff equipped, played a spell for it.
+       */
       const act = st.action;
       s.gathering = act && act.kind === 'gather' && act.obj && !st.player.path.length
-        ? act.obj : null;
+        ? act.obj
+        : (s.swung ? wasWorking : null);
 
       if (s.chatTtl > 0 && --s.chatTtl === 0) st.player.chatText = null;
 
@@ -248,7 +265,6 @@ export class Sim {
     this.tickDoors();
     tickGround({ ground: this.ground });
     this.tickResources();
-    this.syncObjects();
 
     for (const s of this.sessions.values()) this.buildSnapshot(s);
   }
@@ -260,21 +276,21 @@ export class Sim {
   }
 
   /**
-   * Emits a change whenever a node flips between full and exhausted, or a
-   * door swings. Scenery is otherwise never transmitted - both ends generate
-   * the map - so these two bits are all the client knows about it.
+   * The scenery that can be in more than one state: a node that empties and
+   * fills again, and a door that swings. Everything else is generated
+   * identically at both ends and never transmitted.
    */
-  syncObjects() {
-    for (const o of this.world.objects) {
-      const gathered = !!OBJ[o.type]?.skill;
-      const swings = o.type === 'door' || o.type === 'gate';
-      if (!gathered && !swings) continue;
-      const now = (o.depleted > 0 ? 1 : 0) | (o.open ? 2 : 0);
-      if ((this.objState.get(o) ?? 0) !== now) {
-        this.objState.set(o, now);
-        this.objectChanges.push(o);
-      }
+  changeable() {
+    if (!this._changeable) {
+      this._changeable = this.world.objects.filter(o =>
+        !!OBJ[o.type]?.skill || o.type === 'door' || o.type === 'gate');
     }
+    return this._changeable;
+  }
+
+  /** The two bits of an object's state that the client is allowed to know. */
+  static bitsOf(o) {
+    return (o.depleted > 0 ? 1 : 0) | (o.open ? 2 : 0);
   }
 
   /**
@@ -490,10 +506,24 @@ export class Sim {
       snap.ground.push({ i: g.id, n: g.n, x: g.x, y: g.y });
     }
 
-    for (const o of this.objectChanges) {
-      if (near(o.x, o.y)) {
-        snap.objs.push({ x: o.x, y: o.y, d: o.depleted > 0 ? 1 : 0, p: o.open ? 1 : 0 });
-      }
+    /*
+     * Scenery is reconciled against what this player has actually been told,
+     * rather than broadcast at the moment it changes.
+     *
+     * Broadcasting the moment is a message you have to be standing there to
+     * receive: chop a tree, walk away, and the tick where it grows back finds
+     * you out of range and is dropped. Come back and it is still a stump,
+     * for as long as you stay logged in. Diffing against what was sent means
+     * walking back into range is itself the thing that corrects it.
+     */
+    for (const o of this.changeable()) {
+      if (!near(o.x, o.y)) continue;
+      const bits = Sim.bitsOf(o);
+      // an unrecorded object at rest is already what the client generated
+      if (!s.objSent.has(o) && bits === 0) { s.objSent.set(o, 0); continue; }
+      if (s.objSent.get(o) === bits) continue;
+      s.objSent.set(o, bits);
+      snap.objs.push({ x: o.x, y: o.y, d: bits & 1 ? 1 : 0, p: bits & 2 ? 1 : 0 });
     }
 
     for (const f of this.fx) {
@@ -540,8 +570,13 @@ export class Sim {
       vigil: { points: st.vigil.points, max: st.vigil.max, active: st.vigil.active },
       style: st.attackStyle,
       cast: st.autocast,
-      // scenery that is currently depleted, so new arrivals see stumps
-      objs: this.world.objects.filter(o => o.depleted > 0).map(o => ({ x: o.x, y: o.y, d: 1 }))
+      // scenery that is currently depleted, so new arrivals see stumps.
+      // Recorded as sent, because that is exactly what it is: from here on
+      // the snapshot only mentions one when this player's picture is wrong.
+      objs: this.world.objects.filter(o => o.depleted > 0).map(o => {
+        s.objSent.set(o, Sim.bitsOf(o));
+        return { x: o.x, y: o.y, d: 1 };
+      })
     };
   }
 
@@ -893,6 +928,9 @@ export class Sim {
 
     s.send({
       t: 'dialogue',
+      // the id as well as the name: the client draws whoever is talking, and
+      // it already has the model for every creature in the game
+      id: s.dialogue.npcId,
       npc: NPCS[s.dialogue.npcId]?.name || '',
       face: NPCS[s.dialogue.npcId]?.art?.k === 'patient' ? 'patient' : 'person',
       text, opts,

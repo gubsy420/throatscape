@@ -203,6 +203,85 @@ async function playtest(candidate) {
     }
   }
 
+  /* ---- what the client is told about scenery --------------- */
+
+  head('A node that grows back says so, even if nobody was watching');
+  {
+    const s = sim.add('smoke_obj', 'Smokeobj', null);
+    const node = sim.world.objects.find(o => game.OBJ[o.type]?.skill && game.OBJ[o.type].respawn > 0);
+    ok(!!node, node ? `watching ${node.type} at ${node.x},${node.y}` : 'no respawning node to watch');
+
+    // what this player would be told about that node, if a snapshot went now
+    const told = () => {
+      s.outbox.length = 0;
+      sim.buildSnapshot(s);
+      const snap = s.outbox.find(m => m.t === 'snap');
+      return (snap.objs || []).find(o => o.x === node.x && o.y === node.y) || null;
+    };
+
+    // stand next to it, and see it emptied
+    s.p.x = node.x; s.p.y = node.y + 1;
+    node.depleted = 5;
+    const emptied = told();
+    ok(emptied && emptied.d === 1, 'standing next to it, being emptied is reported');
+
+    /*
+     * Now walk out of sight and let it fill again. Broadcasting the moment it
+     * changes is a message you have to be standing there to receive, and this
+     * is the tick you are not: chop a tree, walk away, come back, and it was
+     * still a stump until you logged out.
+     */
+    s.p.x = node.x + 200; s.p.y = node.y;
+    let guard = 0;
+    while (node.depleted > 0 && guard++ < 500) sim.step();
+    ok(node.depleted === 0, 'it has grown back while we were away');
+    ok(!told(), 'and nothing is said about it while it is out of range');
+
+    // walk back: arriving is itself what corrects the picture
+    s.p.x = node.x; s.p.y = node.y + 1;
+    const back = told();
+    ok(back && back.d === 0,
+       back ? 'walking back into range is told it is full again'
+            : 'walking back into range is told NOTHING — it stays a stump');
+
+    // and it is not repeated once the client knows
+    ok(!told(), 'and it is not repeated every tick after that');
+    sim.remove('smoke_obj');
+  }
+
+  head('The blow that empties a node is still a harvest');
+  {
+    const s = sim.add('smoke_gather', 'Smokegather', null);
+    const type = Object.entries(game.OBJ)
+      .find(([, d]) => d.skill === 'foraging' && d.respawn > 0 && !d.tool);
+    const node = type ? sim.world.objects.find(o => o.type === type[0]) : null;
+    ok(!!node, node ? `foraging ${node.type} at ${node.x},${node.y}` : 'no bare-handed node');
+
+    if (node) {
+      s.p.x = node.x + 1; s.p.y = node.y;
+      node.depleted = 0;
+      sim.handle(s, { t: 'interact', x: node.x, y: node.y });
+
+      /*
+       * The tick that finishes a node ends the action, so reading the node
+       * only from st.action afterwards reports nothing on the one tick that
+       * matters. The client then drew the last swing as a weapon swing, and
+       * with a staff equipped it played a spell sound for picking a herb.
+       */
+      let swings = 0, silent = 0;
+      for (let i = 0; i < 60 && node.depleted === 0; i++) {
+        sim.step();
+        if (s.swung) { swings++; if (!s.gathering) silent++; }
+      }
+      ok(swings > 0, `${swings} swing(s) at it before it emptied`);
+      ok(node.depleted > 0, 'and it emptied');
+      ok(!silent, silent
+        ? `${silent} of ${swings} swings reported no node — those are the ones that sounded like a spell`
+        : 'every swing at it was reported as a harvest, including the last');
+    }
+    sim.remove('smoke_gather');
+  }
+
   /* ---- how long the dead stay dead ------------------------- */
 
   head('Nothing comes back before you have picked up what it dropped');

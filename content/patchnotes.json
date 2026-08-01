@@ -1,5 +1,15 @@
 [
   {
+    "version": "2026.08.01.3",
+    "date": "2026-08-01",
+    "title": "Faces on the people you talk to",
+    "notes": [
+      "feature: Whoever is speaking now appears in the dialogue box, drawn from their own model and animated while they talk, the way RuneScape has always done it.",
+      "fix: A resource node that grew back while you were somewhere else stayed a stump until you logged out. The ward announced the change at the moment it happened, which was a message you had to be standing there to hear.",
+      "fix: Harvesting with a staff on your back played an Anatomancy spell for the last swing at a node. The blow that empties something ends the job, and the ward was reporting the job rather than the blow."
+    ]
+  },
+  {
     "version": "2026.08.01.2",
     "date": "2026-08-01",
     "title": "A map, a steadier camera, and a longer rest",

@@ -9,6 +9,8 @@ import { SKILL_BY_ID } from '../data/skills.js';
 import { skillGuide, KIND_LABEL } from '../game/skillguide.js';
 import { fmt, fmtStack, escapeHtml } from '../util.js';
 import { iconImg } from '../engine/icons.js';
+import { Portrait } from '../engine/portrait.js';
+import { NPCS } from '../data/npcs.js';
 import { invCount, baseLevel, log, hasTool } from '../game/state.js';
 
 export class Windows {
@@ -121,18 +123,36 @@ export class Windows {
       const box = document.createElement('div');
       box.id = 'dialogue';
       box.innerHTML =
-        `<div class="dlg-head">
-           <div class="dlg-face"></div>
+        `<div class="dlg-face"></div>
+         <div class="dlg-body">
            <div class="dlg-name"></div>
-         </div>
-         <div class="dlg-text"></div>
-         <ul class="dlg-opts"></ul>
-         <div class="dlg-cont" hidden>Click to continue &rsaquo;</div>`;
+           <div class="dlg-text"></div>
+           <ul class="dlg-opts"></ul>
+           <div class="dlg-cont" hidden>Click to continue &rsaquo;</div>
+         </div>`;
       this.stage.appendChild(box);
       this.dlg = box;
     }
 
-    this.dlg.querySelector('.dlg-face').textContent = msg.face === 'patient' ? '🛏️' : '🧑‍⚕️';
+    /*
+     * Whoever is speaking, drawn from their own model and animated while they
+     * do it. Built once and moved between conversations: a WebGL context per
+     * chat would run the browser out of them inside an afternoon.
+     */
+    const face = this.dlg.querySelector('.dlg-face');
+    if (!this.portrait) this.portrait = new Portrait();
+    if (this.portrait.ok) {
+      if (this.portrait.canvas.parentNode !== face) face.appendChild(this.portrait.canvas);
+      const art = NPCS[msg.id]?.art;
+      // a new speaker gets rebuilt; the same one carries on talking
+      if (msg.id !== this._face) { this.portrait.set(art); this._face = msg.id; }
+      else this.portrait.speak();
+      this.portrait.start();
+    } else if (!face.textContent) {
+      // no WebGL: the emoji this replaced is better than an empty box
+      face.textContent = msg.face === 'patient' ? '🛏️' : '🧑‍⚕️';
+    }
+
     this.dlg.querySelector('.dlg-name').textContent = msg.npc || '';
     this.dlg.querySelector('.dlg-text').textContent = msg.text || '';
 
@@ -155,6 +175,9 @@ export class Windows {
   }
 
   closeDialogue() {
+    // the head stops drawing but keeps its context, ready for the next talk
+    this.portrait?.stop();
+    this._face = null;
     if (this.dlg) { this.dlg.remove(); this.dlg = null; }
   }
 
