@@ -6,7 +6,13 @@ name: Daily content
 
 on:
   schedule:
-    - cron: '31 1 * * *'          # 03:20 UTC, a quiet hour
+    # Always UTC - GitHub has no timezone setting for cron, and no notion of
+    # daylight saving. 06:00 UTC is 02:00 Eastern while the clocks are forward
+    # and 01:00 Eastern once they go back in November; move it to '0 7' then if
+    # 2am is what matters. GitHub queues scheduled runs on a best-effort basis
+    # and delays of an hour or more are normal, so treat this as "not before",
+    # not "at".
+    - cron: '0 6 * * *'           # 06:00 UTC = 02:00 EDT
   workflow_dispatch:
     inputs:
       beat:
