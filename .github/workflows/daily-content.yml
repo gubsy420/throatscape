@@ -6,7 +6,7 @@ name: Daily content
 
 on:
   schedule:
-    - cron: '20 3 * * *'          # 03:20 UTC, a quiet hour
+    - cron: '31 1 * * *'          # 03:20 UTC, a quiet hour
   workflow_dispatch:
     inputs:
       beat:
