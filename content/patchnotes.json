@@ -1,5 +1,15 @@
 [
   {
+    "version": "2026.08.03",
+    "date": "2026-08-03",
+    "title": "Chalkbone Seams",
+    "beat": "resource",
+    "notes": [
+      "content: Chalkbone seams have turned up in the Cartilage Rings, cores of old bone fused into the chalk.",
+      "content: Smelt chalkbone ore at a furnace, with a little chalk lump, for a bar worth carrying home."
+    ]
+  },
+  {
     "version": "2026.08.01.3",
     "date": "2026-08-01",
     "title": "Faces on the people you talk to",

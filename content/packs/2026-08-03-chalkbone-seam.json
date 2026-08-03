@@ -1,0 +1,65 @@
+{
+  "id": "chalkbone_seam",
+  "version": "2026.08.03",
+  "date": "2026-08-03",
+  "beat": "resource",
+  "title": "Chalkbone Seams",
+  "summary": "Old bone, fused into the chalk of the Rings, and worth the trip to the furnace.",
+  "author": "claude",
+
+  "notes": [
+    "content: Chalkbone seams have turned up in the Cartilage Rings, cores of old bone fused into the chalk.",
+    "content: Smelt chalkbone ore at a furnace, with a little chalk lump, for a bar worth carrying home."
+  ],
+
+  "items": [
+    {
+      "id": "chalkbone_ore",
+      "name": "Chalkbone ore",
+      "stack": true,
+      "value": 85,
+      "examine": "Bone gone the colour of the walls around it.",
+      "art": { "k": "ore", "c": "#d7cdb8" }
+    },
+    {
+      "id": "chalkbone_bar",
+      "name": "Chalkbone bar",
+      "value": 230,
+      "examine": "Smelted down and dense. Smells faintly of the ward.",
+      "art": { "k": "bar", "c": "#c7bda6" }
+    }
+  ],
+
+  "objects": [
+    {
+      "id": "chalkbone_seam",
+      "name": "Chalkbone seam",
+      "act": "Mine",
+      "skill": "delving",
+      "level": 38,
+      "xp": 170,
+      "yield": "chalkbone_ore",
+      "tool": "delving",
+      "respawn": 75,
+      "art": "rock",
+      "c": "#d7cdb8",
+      "examine": "A core of old bone, fused into the chalk. The pick still finds the seam."
+    }
+  ],
+
+  "recipes": [
+    {
+      "station": "smelting",
+      "skill": "forging",
+      "level": 38,
+      "xp": 98,
+      "need": { "chalkbone_ore": 1, "chalk_lump": 1 },
+      "out": "chalkbone_bar",
+      "count": 1
+    }
+  ],
+
+  "scatter": [
+    { "type": "chalkbone_seam", "region": "rings", "count": 16, "allow": ["CHALK", "STONE"] }
+  ]
+}
