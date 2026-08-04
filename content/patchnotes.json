@@ -1,5 +1,16 @@
 [
   {
+    "version": "2026.08.04",
+    "date": "2026-08-04",
+    "title": "The Sunken Ring",
+    "beat": "boss",
+    "notes": [
+      "content: Something has been living where the tenth ring of the Cartilage Rings should be. The waystation sign was right not to count it.",
+      "content: The Tenth Ring keeps a pit south-east of the waystation. It drops unkept marrow every time, and sometimes a lance or a cape cut from itself.",
+      "content: A sign stands over the pit. Read it before you go down."
+    ]
+  },
+  {
     "version": "2026.08.03",
     "date": "2026-08-03",
     "title": "Chalkbone Seams",

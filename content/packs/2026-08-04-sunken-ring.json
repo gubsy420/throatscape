@@ -1,0 +1,103 @@
+{
+  "id": "sunken_ring",
+  "version": "2026.08.04",
+  "date": "2026-08-04",
+  "beat": "boss",
+  "title": "The Sunken Ring",
+  "summary": "The waystation sign said nine rings kept, tenth not found. It was found. It grew.",
+  "author": "claude",
+
+  "notes": [
+    "content: Something has been living where the tenth ring of the Cartilage Rings should be. The waystation sign was right not to count it.",
+    "content: The Tenth Ring keeps a pit south-east of the waystation. It drops unkept marrow every time, and sometimes a lance or a cape cut from itself.",
+    "content: A sign stands over the pit. Read it before you go down."
+  ],
+
+  "items": [
+    {
+      "id": "unkept_marrow",
+      "name": "Unkept marrow",
+      "stack": true,
+      "value": 650,
+      "examine": "Marrow from a ring that was never supposed to grow any.",
+      "art": { "k": "bone", "c": "#4a4038" }
+    },
+    {
+      "id": "tenth_ring_lance",
+      "name": "Tenth ring lance",
+      "slot": "weapon",
+      "value": 4800,
+      "req": { "lancing": 38 },
+      "speed": 5,
+      "examine": "Cast from the one ring that grew a point.",
+      "b": { "aStab": 68, "aSlash": 18, "str": 50, "dStab": 6 },
+      "art": { "k": "spear", "c": "#4a4038" }
+    },
+    {
+      "id": "ring_bound_cape",
+      "name": "Ring-bound cape",
+      "slot": "cape",
+      "value": 3200,
+      "req": { "warding": 34 },
+      "examine": "Stitched from the wrap that used to hold the tenth ring shut.",
+      "b": { "dStab": 20, "dSlash": 20, "dCrush": 18, "dMagic": 10, "str": 6 },
+      "art": { "k": "cape", "c": "#4a4038" }
+    }
+  ],
+
+  "npcs": [
+    {
+      "id": "tenth_ring",
+      "name": "The Tenth Ring",
+      "hostile": true,
+      "lvl": 66,
+      "stats": { "att": 56, "str": 58, "def": 53, "hp": 104 },
+      "bon": { "atk": 50, "str": 53, "def": 47 },
+      "examine": "Nine rings were counted. Something was asked to be the tenth.",
+      "art": { "k": "boss", "c": "#4a4038" },
+      "wander": 2,
+      "aggroRange": 8,
+      "speed": 4,
+      "respawn": 60,
+      "size": 2,
+      "boss": true,
+      "drops": [
+        { "id": "unkept_marrow", "n": [1, 1], "weight": 100 },
+        { "id": "coins", "n": [800, 1550], "weight": 45 },
+        { "id": "chalkbone_ore", "n": [2, 5], "weight": 18 },
+        { "id": "steel_bar", "n": [1, 3], "weight": 14 },
+        { "id": "tenth_ring_lance", "n": [1, 1], "weight": 4 },
+        { "id": "ring_bound_cape", "n": [1, 1], "weight": 4 },
+        { "id": "greater_salve", "n": [2, 5], "weight": 15 },
+        { "id": null, "weight": 20 }
+      ]
+    }
+  ],
+
+  "sites": [
+    {
+      "id": "sunken_ring_pit",
+      "name": "The Sunken Ring",
+      "region": "rings",
+      "x": 216, "y": 29, "w": 13, "h": 11,
+      "ground": "CAVE",
+      "building": {
+        "x": 218, "y": 31, "w": 9, "h": 7,
+        "floor": "STONE",
+        "doors": [{ "x": 222, "y": 37 }]
+      },
+      "objects": [
+        { "type": "rubble", "x": 219, "y": 32 },
+        { "type": "gravestone", "x": 225, "y": 33 },
+        { "type": "brazier", "x": 222, "y": 32 }
+      ],
+      "spawns": [
+        { "npc": "tenth_ring", "x": 222, "y": 35 }
+      ],
+      "sign": {
+        "x": 222, "y": 39,
+        "text": "SUNKEN RING — the tenth was never found. Do not go looking for it now."
+      }
+    }
+  ]
+}
