@@ -39,6 +39,13 @@ jobs:
       - name: The campaign can still be finished
         run: node tools/quests.mjs
 
+      # The pipeline's own gate. It decides whether a night's delivery is
+      # published or discarded, and until it had a test it was inline shell
+      # nobody could run — which is how it spent a week reading a leftover
+      # scratch file as an attempt to tamper with the game.
+      - name: The content pipeline's guard still guards
+        run: node tools/guard.mjs --self-test
+
       - name: The bulletin is well formed
         run: |
           node -e "

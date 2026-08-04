@@ -33,3 +33,10 @@ tmp/
 # these have to be invisible to git or the run fails on its own leftovers.
 /brief.json
 /.smoke-data/
+
+# Somewhere for the daily delivery to think. Claude reaches for a throwaway
+# script to count or check something, and until this existed the only place to
+# put one was the repository root, where the guard found it and threw the whole
+# day away. tools/guard.mjs now sweeps such things up rather than failing, but
+# a leftover that git never sees is better than one that has to be forgiven.
+/.scratch/

@@ -42,6 +42,22 @@ ceilings the validator will enforce. Read it before writing anything.
 A delivery only brings what its beat is for. A `bestiary` day that also adds a
 region is rejected. The budgets are in `content/schedule.json`.
 
+## What a delivery may touch
+
+One pack, under `content/packs/`, and nothing else. `tools/guard.mjs` checks
+this before anything is published, and a delivery that edited, deleted or moved
+a tracked file elsewhere is thrown away however good its pack was — a pack that
+changes the validator is not a pack that passed the validator.
+
+Two practical consequences:
+
+- **Write one file.** Both packs are committed but only one is validated, so
+  two packs is a failure rather than a choice. Changing your mind about a name
+  means deleting the old file, not leaving it.
+- **Throwaway scripts go in `.scratch/`.** Git ignores that directory, which is
+  the point. Anything untracked left elsewhere gets swept up rather than
+  ending the run, but the sweep is a safety net and not somewhere to work.
+
 ## Writing it
 
 1. `node tools/beat.mjs --out brief.json` — what is wanted today.

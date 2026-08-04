@@ -59,6 +59,7 @@ jobs:
             const out = require('fs');
             out.appendFileSync(process.env.GITHUB_OUTPUT, 'beat=' + b.beat + '\n');
             out.appendFileSync(process.env.GITHUB_OUTPUT, 'reason=' + b.reason + '\n');
+            out.appendFileSync(process.env.GITHUB_OUTPUT, 'date=' + b.date + '\n');
             console.log('beat   ', b.beat);
             console.log('why    ', b.reason);
             console.log('target ', b.target.name, '(levels ' + b.target.combatLevelBand.join('-') + ')');
@@ -76,74 +77,115 @@ jobs:
           node tools/smoke.mjs --no-server
           node tools/quests.mjs
           node tools/render3d.mjs
+          node tools/guard.mjs --self-test
 
+      # The assignment is composed once and used twice - the attempt, and one
+      # more if the first died before it wrote anything. Actions has no YAML
+      # anchors, so keeping the prompt in the workflow meant two copies of it
+      # drifting apart. It lives in .github/prompts/ instead, where it can be
+      # read and reviewed as prose rather than as an argument to an action.
+      - name: Compose the assignment
+        env:
+          BEAT: ${{ steps.beat.outputs.beat }}
+          REASON: ${{ steps.beat.outputs.reason }}
+          DATE: ${{ steps.beat.outputs.date }}
+        run: |
+          node -e '
+            const fs = require("fs");
+            let p = fs.readFileSync(".github/prompts/daily-delivery.md", "utf8");
+            for (const key of ["BEAT", "REASON", "DATE"]) {
+              const v = process.env[key];
+              if (!v) throw new Error("the beat step did not report " + key);
+              p = p.split("{{" + key + "}}").join(v);
+            }
+            /*
+             * A prompt that still has a placeholder in it is a prompt that
+             * asks Claude to write a file called {{DATE}}-something.json, and
+             * the run would fail four steps later for no visible reason.
+             */
+            const left = p.match(/\{\{[A-Z_]+\}\}/);
+            if (left) throw new Error("nothing filled in " + left[0]);
+            fs.appendFileSync(process.env.GITHUB_ENV,
+              "DELIVERY_PROMPT<<THROATSCAPE_ASSIGNMENT\n" + p.trim() +
+              "\nTHROATSCAPE_ASSIGNMENT\n");
+            console.log(p);
+          '
+
+      # What Claude may reach for. This is not the security boundary - Bash(node:*)
+      # is enough to do anything at all, and what actually keeps the pipeline to
+      # its own corner is tools/guard.mjs plus the fact that only content/ is ever
+      # committed. This list is about not wasting the session's turns: every denied
+      # call costs a turn, and on 2026-08-02 nine of them ran the delivery into the
+      # turn limit with the pack unfinished.
+      #
+      # git stays narrow on purpose. Reading history is useful; add, commit,
+      # restore and checkout are not, and a session that can restore a file can
+      # undo its own tampering before the guard looks.
+      #
+      # It is one long line on purpose. A shell line-continuation inside a
+      # quoted list keeps the indentation of the continued line, so the
+      # tidy-looking version of this quietly produces
+      # "Bash(cat:*),        Bash(ls:*)" and every tool after the first break
+      # stops matching anything.
+      - name: Settle what the session may use
+        run: |
+          mkdir -p .scratch
+          echo 'CLAUDE_ARGS=--allowedTools "Read,Write,Edit,Glob,Grep,TodoWrite,Bash(node:*),Bash(cat:*),Bash(ls:*),Bash(head:*),Bash(tail:*),Bash(wc:*),Bash(grep:*),Bash(sed:*),Bash(awk:*),Bash(sort:*),Bash(uniq:*),Bash(cut:*),Bash(jq:*),Bash(diff:*),Bash(date:*),Bash(echo:*),Bash(printf:*),Bash(mkdir:*),Bash(rm:*),Bash(mv:*),Bash(cp:*),Bash(git status:*),Bash(git diff:*),Bash(git log:*),Bash(git show:*),Bash(git ls-files:*)" --max-turns 120' >> "$GITHUB_ENV"
+
+      # continue-on-error, because "the session ended badly" and "the pack is no
+      # good" are different things and only the second should end the day. A run
+      # that hits the turn limit having already written something valid used to be
+      # thrown away; now the gate below gets to judge the pack on its merits.
       - name: Write the delivery
         id: write
+        continue-on-error: true
         uses: anthropics/claude-code-action@v1
         with:
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
           github_token: ${{ secrets.GITHUB_TOKEN }}
-          claude_args: >-
-            --allowedTools "Read,Write,Edit,Glob,Grep,Bash(node:*),Bash(cat:*),Bash(ls:*),Bash(git diff:*),Bash(git status:*)"
-            --max-turns 60
-          prompt: |
-            You are writing today's content delivery for Throatscape, a browser
-            MMORPG set in a hospital inside a body called Xavin's Throat.
+          claude_args: ${{ env.CLAUDE_ARGS }}
+          prompt: ${{ env.DELIVERY_PROMPT }}
 
-            Read `content/AUTHORING.md` first. It is the complete brief: the
-            file format, the tone, and what the gate will and will not accept.
-            Follow it exactly.
+      - name: Did the first attempt write anything?
+        id: firsttry
+        run: |
+          if git status --porcelain content/packs | grep -q .; then
+            echo "wrote=yes" >> "$GITHUB_OUTPUT"
+          else
+            echo "wrote=no" >> "$GITHUB_OUTPUT"
+            echo "the first attempt produced no pack"
+          fi
 
-            Today's assignment is in `brief.json` at the repository root. It
-            names the beat, the region to aim at, the level band, and the exact
-            numeric ceilings the validator enforces. Read it before writing
-            anything. Today's beat is **${{ steps.beat.outputs.beat }}**, because
-            ${{ steps.beat.outputs.reason }}
+      # One more go, and only if the first left nothing at all. That covers the
+      # session that dies on turn one having spent nothing - an expired token, a
+      # rate limit, a bad minute at the API, which is how 2026-08-01 was lost.
+      #
+      # Deliberately not retried when a pack exists: a second session would write
+      # a second pack under a different name, and two packs fail the run.
+      - name: Ask again if the first attempt never got started
+        id: retry
+        if: steps.write.outcome == 'failure' && steps.firsttry.outputs.wrote == 'no'
+        uses: anthropics/claude-code-action@v1
+        with:
+          claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          claude_args: ${{ env.CLAUDE_ARGS }}
+          prompt: ${{ env.DELIVERY_PROMPT }}
 
-            Before you write, read `js/data/items.js` and `js/data/npcs.js` and
-            match their voice. Plain, dry, a little grim, written the way a
-            tired nurse on a night shift would name things. No fantasy
-            vocabulary, no exclamation marks, no winking at the player.
-
-            Write exactly one file:
-              content/packs/$(date -u +%Y-%m-%d)-<short-name>.json
-
-            Then get it through the gate, fixing the pack until both pass:
-              node tools/validate.mjs content/packs/<your-file>.json
-              node tools/smoke.mjs content/packs/<your-file>.json
-
-            Rules that are not negotiable:
-              - Only edit files under content/packs/. Nothing else in the
-                repository may change. If the gate reports a problem that
-                appears to be a bug in the game rather than in your pack, stop,
-                leave the pack in place, and say so in your final message.
-              - Do not weaken, skip or edit the validator or the smoke test.
-              - Do not run tools/publish.mjs. A later step does that.
-              - `beat` in the pack must be "${{ steps.beat.outputs.beat }}".
-
-            Finish by printing a two-line summary: what you added, and what a
-            player will notice.
+      # Before anything is read back, and before anything is committed: the
+      # pipeline may add content and nothing else. Tampering stops the run;
+      # scratch left lying about is swept up. See tools/guard.mjs.
+      - name: Nothing outside content/packs may have changed
+        run: node tools/guard.mjs
 
       # The gate again, from outside Claude's session, so a pack that was
       # never actually checked cannot reach the game.
       - name: Find the pack
         id: pack
         run: |
-          file=$(git status --porcelain content/packs | awk '{print $2}' | head -1)
-          if [ -z "$file" ]; then
-            echo "no pack was written" >&2
-            exit 1
-          fi
+          file=$(node tools/guard.mjs --pack)
           echo "file=$file" >> "$GITHUB_OUTPUT"
           echo "Wrote $file"
-
-      - name: Nothing outside content/packs may have changed
-        run: |
-          if git status --porcelain -- . ':!content/packs' | grep -q .; then
-            echo "The delivery touched files outside content/packs:" >&2
-            git status --porcelain -- . ':!content/packs' >&2
-            exit 1
-          fi
 
       - name: Validate
         run: node tools/validate.mjs "${{ steps.pack.outputs.file }}"
@@ -196,23 +238,67 @@ jobs:
           if-no-files-found: ignore
           retention-days: 14
 
+      # Say which step broke and what state the delivery was in when it did.
+      # The previous version of this said only "did not make it through the
+      # gate", which meant every failure began with twenty minutes of reading
+      # a four-thousand-line log to find out that two scratch files had been
+      # left in the root.
       - name: Open an issue if the delivery failed
         if: failure()
         uses: actions/github-script@v7
         with:
           script: |
             const beat = '${{ steps.beat.outputs.beat }}' || 'unknown';
+            const pack = '${{ steps.pack.outputs.file }}';
+            const wrote = '${{ steps.firsttry.outputs.wrote }}';
+            const retried = '${{ steps.retry.outcome }}';
+            const run = `${context.serverUrl}/${context.repo.owner}/${context.repo.repo}` +
+                        `/actions/runs/${context.runId}`;
+
+            // Ask the API which step actually failed, rather than guessing.
+            let broke = '(could not tell)';
+            try {
+              const { data } = await github.rest.actions.listJobsForWorkflowRun({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                run_id: context.runId
+              });
+              const steps = data.jobs.flatMap(j => j.steps || []);
+              const bad = steps.find(s => s.conclusion === 'failure');
+              if (bad) broke = `**${bad.name}**`;
+            } catch (e) {
+              broke = `(lookup failed: ${e.message})`;
+            }
+
+            const body = [
+              `The ${beat} delivery did not make it through the gate.`,
+              '',
+              `| | |`,
+              `|---|---|`,
+              `| Failed at | ${broke} |`,
+              `| Pack written | ${pack || (wrote === 'yes' ? 'yes, but not identified' : 'none')} |`,
+              `| Second attempt | ${!retried || retried === 'skipped' ? 'not needed' : retried} |`,
+              '',
+              `Run: ${run}`,
+              '',
+              'The brief and whatever was written are attached to the run as an artifact,',
+              'so a pack that was merely unlucky can be replayed by hand:',
+              '',
+              '```',
+              'gh run download <run-id>',
+              'cp delivery-<run-id>/content/packs/*.json content/packs/',
+              'node tools/validate.mjs content/packs/<file>.json',
+              'node tools/smoke.mjs content/packs/<file>.json',
+              'node tools/publish.mjs content/packs/<file>.json',
+              '```',
+              '',
+              'Nothing was published, so the live game is unchanged.'
+            ].join('\n');
+
             await github.rest.issues.create({
               owner: context.repo.owner,
               repo: context.repo.repo,
               title: `Daily content failed (${beat}) — ${new Date().toISOString().slice(0, 10)}`,
               labels: ['content-pipeline'],
-              body: [
-                `The ${beat} delivery did not make it through the gate.`,
-                '',
-                `Run: ${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}`,
-                '',
-                'The brief and whatever was written are attached to the run as an artifact.',
-                'Nothing was published, so the live game is unchanged.'
-              ].join('\n')
+              body
             });
