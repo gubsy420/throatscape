@@ -715,6 +715,11 @@ button, input { font-family: inherit; font-size: inherit; color: inherit; }
 .bank-grid { display: grid; grid-template-columns: repeat(8, 1fr); gap: 3px; }
 .bank-grid .slot, .shop-grid .slot { font-size: 10px; }
 
+/* Sold out. Still clickable, so the refusal comes from the shopkeeper and
+   the slot keeps its place on the shelf rather than vanishing. */
+.shop-grid .slot.out-of-stock { opacity: .34; }
+.shop-grid .slot.out-of-stock .qty { color: #e0707a; }
+
 .make-list { display: flex; flex-direction: column; gap: 4px; }
 .make-row {
   display: flex; align-items: center; gap: 9px;

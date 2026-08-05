@@ -73,10 +73,22 @@ export const RECIPES = {
     R('suturing', 8,  34,  { lint: 5, gut_thread: 2 }, 'linen_body'),
     R('suturing', 10, 18,  { lint: 2, gut_thread: 1 }, 'linen_gloves'),
     R('suturing', 11, 18,  { lint: 2, gut_thread: 1 }, 'linen_boots'),
+    /*
+     * The wards, gloves and clogs of the cloth line. armourSet() has always
+     * made a ward for every non-magic set and a pair of gloves and clogs for
+     * every set, but the table only ever learned to sew some of them - so a
+     * canvas ward existed, could be worn, was priced and drawn, and there was
+     * no way in the game to come by one. The plate line beside this one is
+     * complete for all three of its sets, which is what these follow.
+     */
+    R('suturing', 12, 24,  { lint: 3, gut_thread: 1 }, 'linen_ward'),
     R('suturing', 14, 30,  { cotton_bale: 1 }, 'gut_thread', 6),
     R('suturing', 16, 44,  { cotton_bale: 1, gut_thread: 1 }, 'canvas_helm'),
     R('suturing', 18, 52,  { cotton_bale: 1, gut_thread: 2 }, 'canvas_legs'),
     R('suturing', 20, 62,  { cotton_bale: 2, gut_thread: 2 }, 'canvas_body'),
+    R('suturing', 21, 52,  { cotton_bale: 1, gut_thread: 2 }, 'canvas_ward'),
+    R('suturing', 22, 34,  { cotton_bale: 1, gut_thread: 1 }, 'canvas_gloves'),
+    R('suturing', 23, 34,  { cotton_bale: 1, gut_thread: 1 }, 'canvas_boots'),
     R('suturing', 24, 70,  { lint: 4, cotton_bale: 1 }, 'pressure_dressing'),
     R('suturing', 30, 96,  { cotton_bale: 2, gut_thread: 2 }, 'mercy_cape'),
     R('suturing', 36, 120, { silkgut: 1, gut_thread: 2 }, 'weave_helm'),

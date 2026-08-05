@@ -175,7 +175,12 @@ export class Net {
       case 'toast':    toast(s, msg.text, msg.cls || ''); break;
       case 'levelup':  s.bus.emit('levelup', { skill: msg.skill, level: msg.level }); break;
       case 'chat':     s.bus.emit('public', { who: msg.who, text: msg.text }); break;
-      case 'ui':       s.bus.emit('serverui', msg); break;
+      case 'ui':
+        // a shop invitation carries the shelf with it, so the panel it is
+        // about to open has the real numbers on its first draw
+        if (msg.kind === 'shop' && msg.stock) this.applyStock([{ id: msg.id, stock: msg.stock }]);
+        s.bus.emit('serverui', msg);
+        break;
       case 'dialogue': s.bus.emit('dialogue', msg); break;
       case 'cue':      s.bus.emit('cue', msg.name); break;
 
@@ -369,6 +374,8 @@ export class Net {
       if ('p' in o) obj.open = !!o.p;
     }
 
+    this.applyStock(msg.shops);
+
     for (const f of msg.fx || []) {
       s.hitsplats.push({ x: f.x, y: f.y, dmg: f.d, self: !!f.s, ttl: 30,
                          off: Math.floor(Math.random() * 12) - 6 });
@@ -394,6 +401,22 @@ export class Net {
   interact(x, y)             { this.send({ t: 'interact', x, y }); }
   pickup(x, y, id)           { this.send({ t: 'pickup', x, y, i: id }); }
   talk(uid)                  { this.send({ t: 'talk', u: uid }); }
+  /**
+   * What is on the shelves, as the server last told us.
+   *
+   * Kept beside the player's state rather than in it: this is world state on
+   * loan, shared with everyone else in the Throat, and it is the server's to
+   * change. The panel falls back to the numbers the shop was written with for
+   * any shop we have not been told about yet.
+   */
+  applyStock(list) {
+    if (!list || !list.length) return;
+    const s = this.state;
+    s.shopStock ||= {};
+    for (const { id, stock } of list) s.shopStock[id] = Object.fromEntries(stock);
+    s.bus.emit('shopstock', list.map(e => e.id));
+  }
+
   dialogue(choice)           { this.send({ t: 'dialogue', choice }); }
   useItem(idx)               { this.send({ t: 'use', idx }); }
   equip(idx)                 { this.send({ t: 'equip', idx }); }

@@ -93,7 +93,7 @@ export function craft(state, station, recipe, qty) {
 }
 
 /** Buys up to n of an item, stopping when the coins or the space run out. */
-export function buy(state, shop, itemId, n) {
+export function buy(state, shop, itemId, n, stock) {
   const def = ITEMS[itemId];
   if (!def || !shop) return { bought: 0 };
   if (!shop.stock.some(([id]) => id === itemId)) {
@@ -104,25 +104,37 @@ export function buy(state, shop, itemId, n) {
   const price = buyPrice(shop, def.value);
   const want = clamp(Number(n) || 1, 1, 1000);
   let bought = 0;
+  let ranOut = false;
 
   for (let i = 0; i < want; i++) {
     if (invCount(state, 'coins') < price) break;
     if (!canHold(state, itemId, 1)) break;
+    /*
+     * The shelf, before the coins. Taking the money for something the shop
+     * does not have is the one outcome here that cannot be undone by walking
+     * back and selling it again.
+     */
+    if (stock && !stock.take(shop.id, itemId)) { ranOut = true; break; }
     removeItem(state, 'coins', price);
     addItem(state, itemId, 1);
     bought++;
   }
 
   if (!bought) {
-    log(state, invCount(state, 'coins') < price ? "I can't afford that." : 'My inventory is full.', 'bad');
+    const why = ranOut ? 'They have none of those left.'
+      : invCount(state, 'coins') < price ? "I can't afford that."
+      : 'My inventory is full.';
+    log(state, why, 'bad');
   } else {
     log(state, `You buy ${bought > 1 ? bought + ' x ' : ''}${def.name} for ${price * bought} gp.`);
+    // asked for ten, got three: say so, or the shortfall looks like a bug
+    if (ranOut) log(state, `That is all the ${def.name.toLowerCase()} they had.`);
   }
   return { bought, price };
 }
 
 /** Sells from an inventory slot. Quest items are worthless to everyone. */
-export function sell(state, shop, invIdx, n) {
+export function sell(state, shop, invIdx, n, stock) {
   const slot = state.inventory[invIdx];
   if (!slot || !shop) return { sold: 0 };
   const def = ITEMS[slot.id];
@@ -135,6 +147,8 @@ export function sell(state, shop, invIdx, n) {
   const amount = Math.min(clamp(Number(n) || 1, 1, 100000), slot.n);
   removeItem(state, slot.id, amount);
   addItem(state, 'coins', price * amount);
+  // back on the shelf, if it is something they stock — see ShopStock.give
+  if (stock) stock.give(shop.id, slot.id, amount);
   log(state, `You sell ${amount > 1 ? amount + ' x ' : ''}${def.name} for ${price * amount} gp.`);
   return { sold: amount, price };
 }

@@ -1,5 +1,18 @@
 [
   {
+    "version": "2026.08.05.1",
+    "date": "2026-08-05",
+    "title": "The shops count what is on the shelf",
+    "beat": "fix",
+    "notes": [
+      "fix: Shop stock is real. The number beside each item was decoration before — you could buy four hundred ironblood bars out of a stock of fourteen. Buying now takes them off the shelf, and when the shelf is empty the shopkeeper says so.",
+      "fix: Selling puts goods back out for sale, if it is something that shop deals in. Whatever a shop has too much or too little of drifts back towards its usual stock over the next few minutes.",
+      "fix: One shelf, shared by everyone. If somebody clears out the antivenin before you get there, you will find it cleared out — and you will see it go while you are standing at the counter.",
+      "fix: The general store no longer sells unlimited bones. It has none of its own; it only has what people have sold it.",
+      "content: The sewing table has learned the rest of the cloth line — linen and canvas wards, and canvas gloves and clogs. A canvas ward could be worn and priced but there was no way in the game to come by one."
+    ]
+  },
+  {
     "version": "2026.08.05",
     "date": "2026-08-05",
     "title": "The Chalkbone Cleaver",

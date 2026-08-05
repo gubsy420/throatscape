@@ -34,6 +34,7 @@ import {
 } from '../js/game/actions.js';
 import { makeQuestApi, questHook } from '../js/game/questapi.js';
 import { craft, buy, sell, findRecipe } from '../js/game/economy.js';
+import { ShopStock } from '../js/game/shopstock.js';
 import { MAX_FRIENDS } from '../js/game/state.js';
 import { keyFor, NAME_RE } from './accounts.js';
 import { Trades, TRADE_RANGE } from './trade.js';
@@ -67,6 +68,13 @@ class Session {
      * still has to reach whoever walks up to it later.
      */
     this.objSent = new Map();  // object -> depleted|open bits, as last sent
+    /*
+     * And the same for shop shelves, for the same reason. Somebody else buying
+     * the last antivenin is a change this player was not present for, so it
+     * cannot be announced as it happens - it has to be reconciled against what
+     * they were last told, whenever they are near enough to see it.
+     */
+    this.stockSent = new Map();  // shopId -> the counts, as last sent
 
     const st = saved ? deserialize(saved) : createState(name);
     st.name = name;
@@ -97,7 +105,16 @@ class Session {
     b.on('levelup', ({ skill, level }) => this.send({ t: 'levelup', skill, level }));
 
     b.on('openbank', () => this.send({ t: 'ui', kind: 'bank' }));
-    b.on('openshop', id => this.send({ t: 'ui', kind: 'shop', id }));
+    /*
+     * The shelf travels with the invitation. Otherwise the panel opens showing
+     * the numbers the shop was written with and corrects itself a tick later,
+     * which reads as a glitch even though it settles on the truth.
+     */
+    b.on('openshop', id => {
+      const stock = this.sim.stock.listFor(id);
+      this.stockSent.set(id, stock.map(([, n]) => n).join(','));
+      this.send({ t: 'ui', kind: 'shop', id, stock });
+    });
     b.on('openmake', station => this.send({ t: 'ui', kind: 'make', station }));
 
     // quests advance on kills; in the browser main.js wired this up
@@ -161,6 +178,8 @@ export class Sim {
     this.tick = 0;
     this.fx = [];                   // public hitsplats for this tick
     this.trades = new Trades(this);
+    // what is on the shelves, shared by everyone — see js/game/shopstock.js
+    this.stock = new ShopStock();
 
     // spawnNpcs writes into state.npcs, so lend it a shim
     const shim = { npcs: [] };
@@ -265,6 +284,7 @@ export class Sim {
     this.tickDoors();
     tickGround({ ground: this.ground });
     this.tickResources();
+    this.stock.drift(this.tick);
 
     for (const s of this.sessions.values()) this.buildSnapshot(s);
   }
@@ -526,6 +546,20 @@ export class Sim {
       snap.objs.push({ x: o.x, y: o.y, d: bits & 1 ? 1 : 0, p: bits & 2 ? 1 : 0 });
     }
 
+    /*
+     * Shelves, for any shop this player is standing close enough to deal with.
+     * Only when the numbers have moved since they were last told, so standing
+     * at a counter does not resend twenty items every 600ms.
+     */
+    for (const shopId of Object.keys(SHOPS)) {
+      if (!this.nearShop(st, shopId)) continue;
+      const list = this.stock.listFor(shopId);
+      const wire = list.map(([, n]) => n).join(',');
+      if (s.stockSent.get(shopId) === wire) continue;
+      s.stockSent.set(shopId, wire);
+      (snap.shops ||= []).push({ id: shopId, stock: list });
+    }
+
     for (const f of this.fx) {
       if (near(f.x, f.y)) snap.fx.push(f);
     }
@@ -781,14 +815,14 @@ export class Sim {
       case 'buy': {
         const shop = SHOPS[String(msg.shop || '')];
         if (!shop || !this.nearShop(st, shop.id)) return;
-        buy(st, shop, String(msg.item || ''), int(msg.n) ?? 1);
+        buy(st, shop, String(msg.item || ''), int(msg.n) ?? 1, this.stock);
         break;
       }
 
       case 'sell': {
         const shop = SHOPS[String(msg.shop || '')];
         if (!shop || !this.nearShop(st, shop.id)) return;
-        sell(st, shop, int(msg.idx), int(msg.n) ?? 1);
+        sell(st, shop, int(msg.idx), int(msg.n) ?? 1, this.stock);
         break;
       }
 

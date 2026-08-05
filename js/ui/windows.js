@@ -29,6 +29,10 @@ export class Windows {
     // These only keep an already-open window in step with new state.
     state.bus.on('inv', () => this.refreshOpen());
     state.bus.on('bank', () => this.refreshOpen());
+    // somebody else cleared out the shelf you are standing at
+    state.bus.on('shopstock', ids => {
+      if (this._open?.kind === 'shop' && ids.includes(this._open.arg)) this.refreshOpen();
+    });
 
     window.addEventListener('keydown', e => {
       if (e.key === 'Escape') this.closeAll();
@@ -400,12 +404,22 @@ export class Windows {
       left.appendChild(sub('For sale — click to buy one'));
       const grid = document.createElement('div');
       grid.className = 'shop-grid';
-      for (const [itemId, stockN] of shop.stock) {
+      /*
+       * The live shelf, not the number the shop was written with. Until the
+       * server has said otherwise those are the same, which is what a shop
+       * nobody has been to yet looks like anyway.
+       */
+      const live = s.shopStock?.[shop.id];
+      for (const [itemId, written] of shop.stock) {
         const def = ITEMS[itemId];
         if (!def) continue;
         const price = buyPrice(shop, def.value);
-        const d = slotEl(itemId, stockN, true);
-        d.title = `${def.name}\n${fmt(price)} gp\n\n${def.examine || ''}`;
+        const stockN = live ? (live[itemId] ?? 0) : written;
+        const d = slotEl(itemId, stockN, true, true);
+        if (!stockN) d.classList.add('out-of-stock');
+        d.title = stockN
+          ? `${def.name}\n${fmt(price)} gp\n${stockN} in stock\n\n${def.examine || ''}`
+          : `${def.name}\nNone left — they will get more in\n\n${def.examine || ''}`;
         d.addEventListener('click', () => this.net.buy(shop.id, itemId, 1));
         d.addEventListener('contextmenu', e => {
           e.preventDefault();
@@ -415,6 +429,7 @@ export class Windows {
             { label: 'Buy 5', obj: '', run: () => this.net.buy(shop.id, itemId, 5) },
             { label: 'Buy 10', obj: '', run: () => this.net.buy(shop.id, itemId, 10) },
             { label: `Value: ${fmt(price)} gp`, obj: '', run: () => {} },
+            { label: `In stock: ${stockN}`, obj: '', run: () => {} },
             { label: 'Examine', obj: def.name, run: () => log(s, def.examine || '') }
           ]);
         });
@@ -589,15 +604,26 @@ export class Windows {
 
 /* ---------------- helpers ----------------------------------- */
 
-function slotEl(id, n, showQty) {
+/*
+ * `alwaysQty` is for shelves, where nought and one are the two numbers that
+ * matter most and hiding them is the whole reason stock looked infinite.
+ *
+ * There used to be a `n === 0 ? '∞'` here, unreachable behind `n > 1`, from an
+ * intention that was never wired up: a stock of zero meaning unlimited. It is
+ * gone, because zero plainly means none - the general store is written with
+ * `['bones', 0]`, and bones are junk creatures drop, needed by no recipe and
+ * no quest. Unlimited would have made them a two-gold shortcut to Vigil
+ * levels, which is exactly what they were while nothing counted the shelf.
+ */
+function slotEl(id, n, showQty, alwaysQty) {
   const d = document.createElement('div');
   d.className = 'slot filled';
   d.appendChild(iconImg(id, 34));
   const def = ITEMS[id];
-  if ((def?.stack || showQty) && n > 1) {
+  if ((def?.stack || showQty) && (n > 1 || alwaysQty)) {
     const q = document.createElement('span');
     q.className = 'qty' + (n >= 100000 ? ' huge' : n >= 10000 ? ' big' : '');
-    q.textContent = n === 0 ? '∞' : fmtStack(n);
+    q.textContent = fmtStack(n);
     d.appendChild(q);
   }
   if (!d.title) d.title = def?.name || id;

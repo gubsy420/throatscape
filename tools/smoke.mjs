@@ -233,7 +233,7 @@ async function playtest(candidate) {
     return { made, bench, why: made ? '' : (why || 'nothing came out, and nothing was said about why') };
   };
 
-  const { findRecipe } = await import('../js/game/economy.js');
+  const { findRecipe, buy, sell } = await import('../js/game/economy.js');
   const { STATION_TOOL } = game.recipes;
 
   const newRecipes = packs.flatMap(p => p.recipes || []);
@@ -546,6 +546,220 @@ async function playtest(candidate) {
                       path[path.length - 1].y === target.y;
       ok(arrived, `${R.name} is ${path.length} steps from the ward respawn`);
     }
+  }
+
+  /* ---- shelves are finite ---------------------------------- */
+
+  /*
+   * Shop stock used to be decoration: the number was written in the data,
+   * drawn in the panel, and consulted by nothing. You could buy four hundred
+   * ironblood bars out of a stock of fourteen, and the general store's
+   * `['bones', 0]` sold unlimited two-gold bones to bury for Vigil.
+   */
+  head('A shop can be sold out, and gets more in');
+  {
+    const { ShopStock, RESTOCK_TICKS } = await import('../js/game/shopstock.js');
+    const shop = game.SHOPS.forge;
+    const stock = new ShopStock();
+    const S = sim.add('smoke_shop', 'Smokeshop', null);
+    const buyer = S.state;
+
+    // stand at the counter with money to burn
+    const keeper = sim.npcs.find(n => !n.dead && game.NPCS[n.id].shop === shop.id);
+    ok(!!keeper, keeper ? `${game.NPCS[keeper.id].name} keeps the ${shop.id}` : 'nobody keeps the forge');
+    if (keeper) {
+      buyer.player.x = buyer.player.ix = keeper.x;
+      buyer.player.y = buyer.player.iy = keeper.y;
+    }
+    state.addItem(buyer, 'coins', 100000000);
+
+    const [item, base] = shop.stock.find(([, n]) => n > 0 && n < 20);
+    ok(stock.count(shop.id, item) === base,
+       `the ${shop.id} opens with ${base} × ${game.ITEMS[item].name}, as written`);
+
+    // clear the shelf, one at a time, and then ask for one more
+    let got = 0;
+    for (let i = 0; i < base; i++) {
+      got += buy(buyer, shop, item, 1, stock).bought;
+    }
+    ok(got === base, `bought all ${base} of them`);
+    ok(stock.count(shop.id, item) === 0, 'and the shelf is empty');
+
+    const after = buy(buyer, shop, item, 1, stock);
+    ok(after.bought === 0, 'the next one is refused rather than conjured');
+
+    // asking for ten when there are two gets two, not ten
+    stock.give(shop.id, item, 2);
+    const grab = buy(buyer, shop, item, 10, stock);
+    ok(grab.bought === 2, `asking for ten of two got ${grab.bought}`);
+
+    /*
+     * Selling puts it back. Three calls rather than one because bars do not
+     * stack, so a slot holds exactly one and `sell(..., 3)` can only ever take
+     * what that slot has - the same as the panel's "sell all" on a single item.
+     */
+    const held = state.invCount(buyer, item);
+    for (let i = 0; i < 3; i++) {
+      sell(buyer, shop, buyer.inventory.findIndex(s => s && s.id === item), 1, stock);
+    }
+    ok(stock.count(shop.id, item) === 3, 'three sold back are three on the shelf');
+    ok(state.invCount(buyer, item) === held - 3, 'and they left the pack');
+
+    /*
+     * One clock for every drift from here on. `drift` only fires when enough
+     * ticks have passed since the last one, so a loop that restarts its own
+     * count silently does nothing at all.
+     */
+    let clock = 0;
+    const restock = rounds => {
+      let fired = 0;
+      for (let i = 0; i < rounds; i++) { clock += RESTOCK_TICKS; if (stock.drift(clock)) fired++; }
+      return fired;
+    };
+
+    // back up to what the shop is meant to keep
+    const climbed = restock(base + 4);
+    ok(stock.count(shop.id, item) === base,
+       `restocked to ${base} after ${climbed} restock(s)`);
+
+    // and down again, from the other side
+    stock.give(shop.id, item, 40);
+    restock(60);
+    ok(stock.count(shop.id, item) === base, 'and a shelf piled too high settles back down');
+
+    /*
+     * `['bones', 0]` is written as nothing-in-stock on purpose: bones are junk
+     * creatures drop, wanted by no recipe and no quest, so the store only has
+     * any because somebody sold theirs. Buying them was free Vigil experience
+     * for as long as the shelf meant nothing.
+     */
+    const gen = game.SHOPS.general;
+    if (gen.stock.some(([id]) => id === 'bones')) {
+      ok(stock.count('general', 'bones') === 0, 'the general store has no bones of its own');
+      ok(buy(buyer, gen, 'bones', 1, stock).bought === 0, 'so none can be bought');
+      stock.give('general', 'bones', 4);
+      ok(buy(buyer, gen, 'bones', 1, stock).bought === 1, 'until somebody sells some');
+      restock(6);
+      ok(stock.count('general', 'bones') === 0, 'and then they go again');
+    }
+
+    sim.sessions.delete('smoke_shop');
+  }
+
+  /*
+   * The shelf is one shelf. Somebody else buying the last antivenin is a change
+   * this player was not present for, so it cannot be announced as it happens -
+   * it is reconciled against what each player was last told, the same way a
+   * stump that grew back while nobody watched is.
+   */
+  head('One shelf, shared: what you buy, the next nurse sees');
+  {
+    const one = sim.add('smoke_shop_1', 'Shopone', null);
+    const two = sim.add('smoke_shop_2', 'Shoptwo', null);
+    const keeper = sim.npcs.find(n => !n.dead && game.NPCS[n.id].shop === 'forge');
+    for (const s of [one, two]) {
+      s.state.player.x = s.state.player.ix = keeper.x;
+      s.state.player.y = s.state.player.iy = keeper.y + 1;
+      state.addItem(s.state, 'coins', 500000);
+    }
+
+    /** What this player's next snapshot would say about the forge, if anything. */
+    const told = s => {
+      s.outbox.length = 0;
+      sim.buildSnapshot(s);
+      const snap = s.outbox.find(m => m.t === 'snap');
+      const sh = (snap.shops || []).find(x => x.id === 'forge');
+      return sh ? Object.fromEntries(sh.stock) : null;
+    };
+
+    const standing = sim.stock.count('forge', 'ironblood_bar');
+    const first = told(two);
+    ok(first && first.ironblood_bar === standing,
+       `standing at the counter, two is told the forge has ${standing} bars`);
+    ok(told(two) === null, 'and is not told again every tick while nothing moves');
+
+    // the other nurse buys, through the real handler, range check and all
+    sim.handle(one, { t: 'buy', shop: 'forge', item: 'ironblood_bar', n: 3 });
+    ok(sim.stock.count('forge', 'ironblood_bar') === standing - 3,
+       'the other nurse takes three off the shelf');
+
+    const after = told(two);
+    ok(after && after.ironblood_bar === standing - 3,
+       'and two is told about it, having done nothing at all');
+    ok(told(two) === null, 'once, not for ever');
+
+    sim.sessions.delete('smoke_shop_1');
+    sim.sessions.delete('smoke_shop_2');
+  }
+
+  /* ---- nothing exists that cannot be got ------------------- */
+
+  /*
+   * An item that can be worn, priced and drawn but obtained by no route at all
+   * is invisible to every other check here: it validates, it renders, it
+   * equips. The canvas ward sat like that from the beginning - armourSet()
+   * makes a ward for every non-magic set, and the sewing table had only ever
+   * learned three of the canvas pieces.
+   *
+   * KNOWN_UNOBTAINABLE is a ratchet, not an excuse. It may only get shorter
+   * without somebody editing this list on purpose, so a pack cannot quietly
+   * add a fourteenth.
+   */
+  const KNOWN_UNOBTAINABLE = new Set([
+    // the ranged style is unfinished: a tier ladder of launchers, and the
+    // armour that goes with them, none of it made or sold anywhere
+    'dart_bandolier', 'bile_blowpipe', 'gasper_bow',
+    'leather_helm', 'leather_body', 'leather_legs',
+    'leather_gloves', 'leather_boots', 'leather_ward',
+    'rod_reknitting',                 // the anatomancy equivalent
+    'amulet_mercy', 'recall_ring'     // uniques, waiting for something to award them
+  ]);
+  /*
+   * Not on that list because this check is about things you wear: mercy_key and
+   * anatomy_notes are quest items with no slot, and nothing in the game
+   * references either of them - no dialogue hands them over and no step wants
+   * them. They are groundwork for content never written, and harmless.
+   */
+
+  head('Nothing can be worn that cannot be got');
+  {
+    const source = new Map();
+    const note = (id, how) => {
+      if (!game.ITEMS[id]) return;
+      if (!source.has(id)) source.set(id, new Set());
+      source.get(id).add(how);
+    };
+
+    for (const s of Object.values(game.SHOPS)) for (const [id] of s.stock) note(id, 'shop');
+    for (const list of Object.values(game.RECIPES)) for (const r of list) note(r.out, 'recipe');
+    for (const n of Object.values(game.NPCS)) for (const d of n.drops || []) note(d.id, 'drop');
+    for (const o of Object.values(game.OBJ)) {
+      if (o.yield) note(o.yield, 'gathered');
+      if (o.extra?.id) note(o.extra.id, 'gathered');
+    }
+    for (const q of Object.values(game.quests.QUESTS)) {
+      for (const it of q.rewards?.items || []) note(Array.isArray(it) ? it[0] : it.id, 'quest');
+      for (const st of q.steps || []) if (st?.item) note(st.item, 'quest');
+    }
+    // handed over in dialogue, which only the source text knows about
+    const questSrc = await readFile(rel('js/data/quests.js'), 'utf8');
+    for (const m of questSrc.matchAll(/give\(\s*['"]([a-z0-9_]+)/g)) note(m[1], 'quest');
+    note('burnt_offering', 'the range, on a bad day');
+
+    const orphans = Object.values(game.ITEMS)
+      .filter(i => i.slot && !source.has(i.id))
+      .map(i => i.id);
+
+    const fresh = orphans.filter(id => !KNOWN_UNOBTAINABLE.has(id));
+    ok(!fresh.length, fresh.length
+      ? `no way to obtain: ${fresh.map(id => game.ITEMS[id].name).join(', ')}`
+      : `every one of ${Object.values(game.ITEMS).filter(i => i.slot).length} wearable items has a way in, bar ${orphans.length} known`);
+
+    // and the list may not rot: anything on it that became obtainable comes off
+    const stale = [...KNOWN_UNOBTAINABLE].filter(id => game.ITEMS[id] && source.has(id));
+    ok(!stale.length, stale.length
+      ? `now obtainable, so take them off the known list: ${stale.join(', ')}`
+      : 'and the known list has nothing stale on it');
   }
 
   /* ---- saves still load ------------------------------------ */
