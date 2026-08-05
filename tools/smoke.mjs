@@ -24,6 +24,12 @@ const ok = (c, m) => { say((c ? '  ok   ' : '  FAIL ') + m); if (!c) fails++; };
 const head = m => say('\n== ' + m);
 const sleep = ms => new Promise(r => setTimeout(r, ms));
 
+/** Which piece of furniture each crafting station is. */
+const BENCH = {
+  smelting: 'furnace', forging: 'anvil', apothecary: 'cauldron',
+  suturing: 'sewing_table', cooking: 'cook_range'
+};
+
 /* ============================================================
    The world, played headlessly
    ============================================================ */
@@ -177,30 +183,90 @@ async function playtest(candidate) {
 
   /* ---- every new recipe can be made ------------------------ */
 
+  /*
+   * Walk a nurse up to the right bench with everything the recipe asks for and
+   * see whether the thing comes out. One function, used both for what a pack
+   * adds and for the game's own recipes at every bench, because the two used
+   * to be set up separately and drifted: this path forgot the bench's tool.
+   *
+   * The anvil, the cauldron and the sewing table all refuse to work without
+   * one - a rule the game means and the section below deliberately proves -
+   * while the furnace and the range need none. So a smelting recipe sailed
+   * through and a forging recipe could not pass however good it was, which is
+   * how 2026-08-05 rejected a perfectly sound cleaver with "I need a hammer
+   * for that".
+   */
+  const canBeMade = (session, station, out) => {
+    const recipe = findRecipe(station, out);
+    if (!recipe) return { why: `no recipe for ${out} at the ${station}` };
+
+    const bench = BENCH[station];
+    const at = world.objects.find(o => o.type === bench);
+    if (!at) return { why: `there is no ${bench} in the world` };
+
+    equip(session);
+    const p = session.state.player;
+    const spot = beside(world, at.x, at.y) || { x: at.x, y: at.y + 1 };
+    p.x = p.ix = spot.x; p.y = p.iy = spot.y;
+    for (const [id, n] of Object.entries(recipe.need)) state.addItem(session.state, id, n * 2);
+
+    const tool = STATION_TOOL[station];
+    if (tool) {
+      const item = Object.values(game.ITEMS).find(i => i.tool === tool);
+      if (!item) return { why: `nothing in the game is a ${tool} tool, so the ${bench} can never be used` };
+      state.addItem(session.state, item.id, 1);
+    }
+
+    /*
+     * craft() says why it refused, and this used to throw that away - the whole
+     * failure was the line "FAIL Chalkbone cleaver made at the anvil", which
+     * says what was attempted and nothing about what went wrong.
+     */
+    let why = '';
+    const off = session.state.bus.on('chat', m => { if (m.cls === 'bad') why = m.text; });
+    const before = state.invCount(session.state, out);
+    sim.handle(session, { t: 'craft', station, out, qty: 1 });
+    for (let i = 0; i < 40; i++) sim.step();
+    off();
+
+    const made = state.invCount(session.state, out) > before;
+    return { made, bench, why: made ? '' : (why || 'nothing came out, and nothing was said about why') };
+  };
+
+  const { findRecipe } = await import('../js/game/economy.js');
+  const { STATION_TOOL } = game.recipes;
+
   const newRecipes = packs.flatMap(p => p.recipes || []);
   if (newRecipes.length) {
     head('New recipes can be made');
-    const { findRecipe } = await import('../js/game/economy.js');
     for (const r of newRecipes) {
-      const recipe = findRecipe(r.station, r.out);
-      if (!recipe) { ok(false, `no recipe for ${r.out} at the ${r.station}`); continue; }
-
-      // stand at a station of the right kind with the ingredients in hand
-      const wanted = { smelting: 'furnace', forging: 'anvil', apothecary: 'cauldron',
-                       suturing: 'sewing_table', cooking: 'cook_range' }[r.station];
-      const station = world.objects.find(o => o.type === wanted);
-      equip(A);
-      const p = A.state.player;
-      const spot = beside(world, station.x, station.y) || { x: station.x, y: station.y + 1 };
-      p.x = p.ix = spot.x; p.y = p.iy = spot.y;
-      for (const [id, n] of Object.entries(recipe.need)) state.addItem(A.state, id, n * 2);
-
-      const before = state.invCount(A.state, r.out);
-      sim.handle(A, { t: 'craft', station: r.station, out: r.out, qty: 1 });
-      for (let i = 0; i < 40; i++) sim.step();
-      ok(state.invCount(A.state, r.out) > before,
-         `${game.ITEMS[r.out]?.name || r.out} made at the ${wanted}`);
+      const name = game.ITEMS[r.out]?.name || r.out;
+      const { made, bench, why } = canBeMade(A, r.station, r.out);
+      ok(made, made
+        ? `${name} made at the ${bench}`
+        : `${name} could not be made at the ${bench || r.station} — ${why}`);
     }
+  }
+
+  /*
+   * And the same walk-up-and-make-it path against the game's own recipes, at
+   * every bench, every run.
+   *
+   * This exists because the check above only ever exercises the benches that
+   * today's pack happens to use. For five days that was the furnace alone, so
+   * a setup that could not work an anvil sat there passing until the first
+   * arsenal delivery arrived and was blamed for it. A gate that is only as
+   * good as the content that shows up is not a gate.
+   */
+  head('Every bench can be worked, whatever today brought');
+  for (const [station, bench] of Object.entries(BENCH)) {
+    const own = (game.RECIPES[station] || [])[0];
+    if (!own) { ok(false, `nothing can be made at the ${bench} at all`); continue; }
+    const name = game.ITEMS[own.out]?.name || own.out;
+    const { made, why } = canBeMade(B, station, own.out);
+    ok(made, made
+      ? `the ${bench} works: ${name}`
+      : `the ${bench} cannot be worked even with the game's own ${name} — ${why}`);
   }
 
   /* ---- what the client is told about scenery --------------- */
@@ -315,7 +381,6 @@ async function playtest(candidate) {
   /* ---- no tool is sold for nothing ------------------------- */
 
   head('Every tool has something to use it on');
-  const { STATION_TOOL } = game.recipes;
   const wanted = new Set([
     ...Object.values(game.OBJ).map(o => o.tool).filter(Boolean),
     ...Object.values(STATION_TOOL).filter(Boolean)
@@ -333,8 +398,7 @@ async function playtest(candidate) {
     if (!tool) continue;
     const recipe = (game.RECIPES[station] || [])[0];
     if (!recipe) continue;
-    const bench = { smelting: 'furnace', forging: 'anvil', apothecary: 'cauldron',
-                    suturing: 'sewing_table', cooking: 'cook_range' }[station];
+    const bench = BENCH[station];
     const at = world.objects.find(o => o.type === bench);
     if (!at) { ok(false, `no ${bench} in the world`); continue; }
 
