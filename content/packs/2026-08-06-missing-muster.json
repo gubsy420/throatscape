@@ -1,0 +1,140 @@
+{
+  "id": "missing_muster",
+  "version": "2026.08.06",
+  "date": "2026-08-06",
+  "beat": "quest",
+  "title": "The Missing Muster",
+  "summary": "Three orderlies signed into the Cartilage Rings. None of them signed back out.",
+  "author": "claude",
+
+  "notes": [
+    "content: A checkpoint has gone up where the cave road meets the Cartilage Rings. Dispatch Clerk Orne keeps the muster there — who went in, and who came back out.",
+    "content: New quest — The Missing Muster. Three orderlies never checked back in, and Orne would rather not be the one to go looking.",
+    "content: A muster ring can be earned from the quest, cut from a checkpoint tally chain."
+  ],
+
+  "items": [
+    {
+      "id": "tally_slip",
+      "name": "Tally slip",
+      "value": 0,
+      "questItem": true,
+      "examine": "Half a name, and a time nobody finished writing.",
+      "art": { "k": "scroll", "c": "#d9d2c0" }
+    },
+    {
+      "id": "muster_ring",
+      "name": "Muster ring",
+      "slot": "ring",
+      "value": 3200,
+      "req": { "vigil": 28 },
+      "examine": "Cut from a checkpoint tally chain. Counts you in, technically.",
+      "b": { "dStab": 10, "dSlash": 10, "dCrush": 10, "dRange": 8, "dMagic": 8 },
+      "art": { "k": "ring", "c": "#9c8f6a" }
+    }
+  ],
+
+  "npcs": [
+    {
+      "id": "dispatch_clerk_orne",
+      "name": "Dispatch Clerk Orne",
+      "hostile": false,
+      "examine": "Keeps the muster board like it owes them money.",
+      "art": { "k": "humanoid", "c": "#9c8f6a", "hat": "#e8dcc8" },
+      "talk": "missing_muster"
+    }
+  ],
+
+  "sites": [
+    {
+      "id": "ring_checkpoint",
+      "name": "The Ring Checkpoint",
+      "region": "rings",
+      "x": 190, "y": 8, "w": 11, "h": 9,
+      "ground": "STONE",
+      "building": {
+        "x": 192, "y": 9, "w": 7, "h": 5,
+        "floor": "FLOOR",
+        "doors": [{ "x": 195, "y": 13 }]
+      },
+      "objects": [
+        { "type": "crate", "x": 193, "y": 10 },
+        { "type": "rubble", "x": 197, "y": 10 },
+        { "type": "brazier", "x": 191, "y": 15 }
+      ],
+      "spawns": [
+        { "npc": "dispatch_clerk_orne", "x": 195, "y": 15 }
+      ],
+      "sign": {
+        "x": 199, "y": 15,
+        "text": "RING CHECKPOINT — sign in, sign out. No exceptions, allegedly."
+      }
+    }
+  ],
+
+  "quests": [
+    {
+      "id": "missing_muster",
+      "name": "The Missing Muster",
+      "difficulty": "Experienced",
+      "length": "Short",
+      "qp": 2,
+      "start": "Speak to Dispatch Clerk Orne at the Ring Checkpoint, where the cave road meets the Cartilage Rings.",
+      "desc": "Three orderlies were sent in to restock the Ring Waystation, and Orne has not crossed a single name off the board since. Someone needs to find out why, since Orne will not be the one to go looking.",
+      "reqs": { "skills": { "vigil": 20 }, "quests": ["the_sounding"] },
+
+      "dialogue": {
+        "tree": "missing_muster",
+        "intro": [
+          "Sign here. Sign again on your way out. That is the whole job, and three of them still could not manage it.",
+          "Three orderlies, sent in to restock the waystation. Not one of them signed back in.",
+          "I am not paid enough to go and look for them. You might be."
+        ],
+        "accept": "I'll go and look.",
+        "refuse": "Not my post to keep.",
+        "briefing": "Start with whatever is wearing their coats now. Then find what they were carrying.",
+        "nudge": "You have not signed back in. That usually means you have not finished.",
+        "finish": [
+          "So that is what became of them.",
+          "Take this for the trouble. Sign out on your way past — I do keep the muster."
+        ],
+        "after": "Still checking the board. Still hoping I am wrong about the rest of the shift.",
+        "locked": "Come back once you have kept a vigil or two. I am not sending anyone else in green."
+      },
+
+      "steps": [
+        {
+          "kind": "kill",
+          "npc": "lapsed_orderly",
+          "count": 4,
+          "text": "Find out what happened to the missing orderlies.",
+          "tick": "One fewer coat moving that will not answer to a name.",
+          "done": "Four accounted for. None of them well."
+        },
+        {
+          "kind": "search",
+          "obj": "rubble",
+          "item": "tally_slip",
+          "text": "Search the rubble at the checkpoint for anything one of them dropped.",
+          "done": "A tally slip, still folded. Somebody meant to hand it in."
+        },
+        {
+          "kind": "fetch",
+          "item": "cartilage_shard",
+          "count": 5,
+          "text": "Bring back five cartilage shards — Orne wants proof the ground out there is worth the risk.",
+          "done": "That is proof enough. The next roster will know what it is walking into."
+        }
+      ],
+
+      "reportText": "Four found, a slip recovered, and shard enough to prove the ground. Orne should hear all of it.",
+      "doneText": "The muster board has four names crossed off, finally, and a note added: the Rings are worth mining, if you send someone who can fight.",
+
+      "rewards": {
+        "qp": 2,
+        "xp": { "vigil": 2200, "vitality": 500, "delving": 300 },
+        "items": [["coins", 1500], ["muster_ring", 1]]
+      }
+    }
+  ]
+}

@@ -1,5 +1,16 @@
 [
   {
+    "version": "2026.08.06",
+    "date": "2026-08-06",
+    "title": "The Missing Muster",
+    "beat": "quest",
+    "notes": [
+      "content: A checkpoint has gone up where the cave road meets the Cartilage Rings. Dispatch Clerk Orne keeps the muster there — who went in, and who came back out.",
+      "content: New quest — The Missing Muster. Three orderlies never checked back in, and Orne would rather not be the one to go looking.",
+      "content: A muster ring can be earned from the quest, cut from a checkpoint tally chain."
+    ]
+  },
+  {
     "version": "2026.08.05.1",
     "date": "2026-08-05",
     "title": "The shops count what is on the shelf",
