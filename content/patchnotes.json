@@ -1,5 +1,14 @@
 [
   {
+    "version": "2026.08.07",
+    "date": "2026-08-07",
+    "title": "The Chalkbone Plate",
+    "beat": "arsenal",
+    "notes": [
+      "content: Marrow's Forge will now grind chalkbone bar and cartilage shard into a chalkbone plate, body armour to go with the cleaver."
+    ]
+  },
+  {
     "version": "2026.08.06",
     "date": "2026-08-06",
     "title": "The Missing Muster",

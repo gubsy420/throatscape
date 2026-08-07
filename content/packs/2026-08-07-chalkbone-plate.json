@@ -1,0 +1,38 @@
+{
+  "id": "chalkbone_plate",
+  "version": "2026.08.07",
+  "date": "2026-08-07",
+  "beat": "arsenal",
+  "title": "The Chalkbone Plate",
+  "summary": "Something to wear out of the Rings, ground the same way as the cleaver.",
+  "author": "claude",
+
+  "notes": [
+    "content: Marrow's Forge will now grind chalkbone bar and cartilage shard into a chalkbone plate, body armour to go with the cleaver."
+  ],
+
+  "items": [
+    {
+      "id": "chalkbone_plate",
+      "name": "Chalkbone plate",
+      "slot": "body",
+      "value": 4800,
+      "req": { "warding": 38 },
+      "examine": "Fused chalkbone, strapped on where the ribs used to flex.",
+      "b": { "dStab": 27, "dSlash": 31, "dCrush": 28, "dRange": 28, "dMagic": -6 },
+      "art": { "k": "plate", "c": "#c7bda6" }
+    }
+  ],
+
+  "recipes": [
+    {
+      "station": "forging",
+      "skill": "forging",
+      "level": 40,
+      "xp": 130,
+      "need": { "chalkbone_bar": 4, "cartilage_shard": 3 },
+      "out": "chalkbone_plate",
+      "count": 1
+    }
+  ]
+}
