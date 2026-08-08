@@ -1,0 +1,129 @@
+{
+  "id": "ring_tenants",
+  "version": "2026.08.08",
+  "date": "2026-08-08",
+  "beat": "bestiary",
+  "title": "The Rings' Other Tenants",
+  "summary": "Four more things have made a home in the Cartilage Rings, and none of them signed in.",
+  "author": "claude",
+
+  "notes": [
+    "content: The Cartilage Rings hold more than the last count found. Ring rats and bone ticks work the seams the diggers leave open, a counting monk paces the rows reciting a number it never reaches, and something is still out there hauling a sack that stopped being worth carrying months ago.",
+    "content: Bone tick shells and cracked ration seals can both be picked off what you kill out there."
+  ],
+
+  "items": [
+    {
+      "id": "bone_tick_shell",
+      "name": "Bone tick shell",
+      "stack": true,
+      "value": 140,
+      "examine": "Empty. Whatever filled it moved on to the next rib.",
+      "art": { "k": "bone", "c": "#cbb896" }
+    },
+    {
+      "id": "ration_seal",
+      "name": "Ration seal",
+      "stack": true,
+      "value": 320,
+      "examine": "Stamped, cracked, and still legible enough to matter.",
+      "art": { "k": "seal", "c": "#9c5a34" }
+    }
+  ],
+
+  "npcs": [
+    {
+      "id": "ring_rat",
+      "name": "Ring rat",
+      "hostile": true,
+      "lvl": 58,
+      "stats": { "att": 38, "str": 36, "def": 32, "hp": 62 },
+      "bon": { "atk": 32, "str": 30, "def": 26 },
+      "examine": "Bred fat on the marrow the diggers leave behind.",
+      "art": { "k": "rat", "c": "#8a7d64" },
+      "wander": 5,
+      "aggroRange": 3,
+      "speed": 3,
+      "respawn": 24,
+      "drops": [
+        { "id": "bones", "n": [1, 1], "weight": 100 },
+        { "id": "coins", "n": [20, 420], "weight": 42 },
+        { "id": "chalk_lump", "n": [1, 2], "weight": 16 },
+        { "id": "moth_dust", "n": [1, 2], "weight": 10 },
+        { "id": null, "weight": 32 }
+      ]
+    },
+    {
+      "id": "bone_tick",
+      "name": "Bone tick",
+      "hostile": true,
+      "lvl": 60,
+      "stats": { "att": 42, "str": 40, "def": 36, "hp": 72 },
+      "bon": { "atk": 36, "str": 34, "def": 30 },
+      "examine": "Fastens to a rib and does not let go until the rib is gone.",
+      "art": { "k": "crawler", "c": "#cfc4a8" },
+      "wander": 3,
+      "aggroRange": 4,
+      "speed": 4,
+      "respawn": 26,
+      "drops": [
+        { "id": "bones", "n": [1, 1], "weight": 100 },
+        { "id": "coins", "n": [30, 600], "weight": 40 },
+        { "id": "bone_tick_shell", "n": [1, 3], "weight": 30 },
+        { "id": "chalk_lump", "n": [1, 2], "weight": 14 },
+        { "id": null, "weight": 28 }
+      ]
+    },
+    {
+      "id": "ration_bearer",
+      "name": "Ration bearer",
+      "hostile": true,
+      "lvl": 62,
+      "stats": { "att": 46, "str": 48, "def": 40, "hp": 82 },
+      "bon": { "atk": 40, "str": 42, "def": 34 },
+      "examine": "Still hauling the sack. Whatever was in it went bad months ago.",
+      "art": { "k": "humanoid", "c": "#9c8f74" },
+      "wander": 4,
+      "aggroRange": 5,
+      "speed": 4,
+      "respawn": 30,
+      "drops": [
+        { "id": "thick_bones", "n": [1, 1], "weight": 100 },
+        { "id": "coins", "n": [80, 950], "weight": 40 },
+        { "id": "ration_seal", "n": [1, 1], "weight": 18 },
+        { "id": "chalk_lump", "n": [1, 3], "weight": 14 },
+        { "id": "cartilage_shard", "n": [1, 2], "weight": 12 },
+        { "id": null, "weight": 26 }
+      ]
+    },
+    {
+      "id": "counting_monk",
+      "name": "Counting monk",
+      "hostile": true,
+      "lvl": 65,
+      "stats": { "att": 52, "str": 48, "def": 50, "hp": 92 },
+      "bon": { "atk": 46, "str": 42, "def": 46 },
+      "examine": "Counts to nine, then starts over. Never once reaches ten.",
+      "art": { "k": "monk", "c": "#6b6258" },
+      "wander": 4,
+      "aggroRange": 6,
+      "speed": 4,
+      "respawn": 34,
+      "drops": [
+        { "id": "thick_bones", "n": [1, 1], "weight": 100 },
+        { "id": "coins", "n": [150, 1300], "weight": 40 },
+        { "id": "nerve_rune", "n": [5, 15], "weight": 14 },
+        { "id": "gauze_wrap", "n": [1, 2], "weight": 16 },
+        { "id": "chalk_spur", "n": [1, 1], "weight": 6 },
+        { "id": null, "weight": 24 }
+      ]
+    }
+  ],
+
+  "spawns": [
+    { "npc": "ring_rat", "region": "rings", "count": 10, "allow": ["CHALK", "STONE"] },
+    { "npc": "bone_tick", "region": "rings", "count": 8, "allow": ["CHALK", "STONE"] },
+    { "npc": "ration_bearer", "region": "rings", "count": 6, "allow": ["CHALK", "STONE"] },
+    { "npc": "counting_monk", "region": "rings", "count": 6, "allow": ["CHALK", "MOSS"] }
+  ]
+}
