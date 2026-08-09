@@ -13,7 +13,7 @@ import { buyPrice, sellPrice } from '../data/shops.js';
 import { SKILL_BY_ID } from '../data/skills.js';
 import { clamp, chance } from '../util.js';
 import {
-  addItem, removeItem, invCount, canHold, freeSlots,
+  addItem, removeItem, removeFrom, invCount, canHold, freeSlots,
   addXp, baseLevel, log, floater, hasTool
 } from './state.js';
 
@@ -143,12 +143,22 @@ export function sell(state, shop, invIdx, n, stock) {
     return { sold: 0 };
   }
 
+  const id = slot.id;
   const price = sellPrice(shop, def.value);
-  const amount = Math.min(clamp(Number(n) || 1, 1, 100000), slot.n);
-  removeItem(state, slot.id, amount);
+  /*
+   * "Sell 5" means five of them wherever they are sitting, stackable or not,
+   * beginning with the one that was clicked. This used to take `slot.n` as the
+   * ceiling, so selling five ironblood ore sold one - and then remove them by
+   * id from the top of the pack, so the slot that emptied was never the slot
+   * that was clicked.
+   */
+  const want = clamp(Number(n) || 1, 1, 100000);
+  const amount = removeFrom(state, invIdx, Math.min(want, invCount(state, id)));
+  if (amount <= 0) return { sold: 0 };
+
   addItem(state, 'coins', price * amount);
   // back on the shelf, if it is something they stock — see ShopStock.give
-  if (stock) stock.give(shop.id, slot.id, amount);
+  if (stock) stock.give(shop.id, id, amount);
   log(state, `You sell ${amount > 1 ? amount + ' x ' : ''}${def.name} for ${price * amount} gp.`);
   return { sold: amount, price };
 }

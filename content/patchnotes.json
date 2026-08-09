@@ -1,5 +1,16 @@
 [
   {
+    "version": "2026.08.09.1",
+    "date": "2026-08-09",
+    "title": "Five of something means five",
+    "beat": "fix",
+    "notes": [
+      "fix: \"Deposit 5\" and \"Sell 5\" now move five. For anything that does not stack — ore, bars, logs — five of them is five slots holding one each, and the count was being read off the single slot you clicked, so it only ever moved one.",
+      "fix: Depositing and selling now start with the item you actually clicked. They used to take from the top of your pack downwards, so the slot that emptied was never the slot you picked.",
+      "content: Every counter in the game — the vault, both sides of a shop, both sides of a trade — now offers \"X\", for typing an amount. Useful for gold and runes, where 1, 5, 10 and 50 are not much help. Leaving the box empty means all of them, and asking for more than you have gives you what you have."
+    ]
+  },
+  {
     "version": "2026.08.09",
     "date": "2026-08-09",
     "title": "Tick-shell Gauntlets",

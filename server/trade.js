@@ -16,7 +16,7 @@ import { ITEMS } from '../js/data/items.js';
 import { cheb } from '../js/util.js';
 import { keyFor } from './accounts.js';
 import {
-  addItem, removeSlot, invCount, freeSlots, canHoldAll, log
+  addItem, removeFrom, invCount, freeSlots, canHoldAll, log
 } from '../js/game/state.js';
 
 /** How far apart two nurses may drift before the trade lapses. */
@@ -134,9 +134,7 @@ export class Trades {
       return;
     }
 
-    const moved = def.stack
-      ? removeStack(st, slot.id, want)
-      : removeInstances(st, slot.id, want, invIdx);
+    const moved = removeFrom(st, invIdx, want);
     if (moved <= 0) return;
 
     if (existing) existing.n += moved;
@@ -302,28 +300,9 @@ export class Trades {
   }
 }
 
-/** Takes n of a stackable across however many slots hold it. */
-function removeStack(state, id, n) {
-  let left = n;
-  for (let i = 0; i < state.inventory.length && left > 0; i++) {
-    const s = state.inventory[i];
-    if (!s || s.id !== id) continue;
-    left -= removeSlot(state, i, left);
-  }
-  return n - left;
-}
-
-/**
- * Takes n copies of a non-stackable, starting with the one that was clicked
- * so that offering a single item never quietly reaches past it.
+/*
+ * removeStack and removeInstances used to live here. They were the only code in
+ * the game that got "n of them, wherever they are sitting, starting with the one
+ * you clicked" right, while the bank and the shops each got it wrong in their own
+ * way. They are now one removeFrom in js/game/state.js, shared by all three.
  */
-function removeInstances(state, id, n, firstIdx) {
-  let left = n;
-  if (state.inventory[firstIdx]?.id === id) left -= removeSlot(state, firstIdx, 1);
-  for (let i = 0; i < state.inventory.length && left > 0; i++) {
-    const s = state.inventory[i];
-    if (!s || s.id !== id) continue;
-    left -= removeSlot(state, i, 1);
-  }
-  return n - left;
-}

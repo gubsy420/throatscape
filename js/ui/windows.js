@@ -2,7 +2,7 @@
    Overlay windows - dialogue, bank, shop, and production
    ============================================================ */
 
-import { ITEMS, itemName, toolName } from '../data/items.js';
+import { ITEMS, toolName } from '../data/items.js';
 import { RECIPES, STATION_TITLE, STATION_SKILL, STATION_TOOL } from '../data/recipes.js';
 import { SHOPS, buyPrice, sellPrice } from '../data/shops.js';
 import { SKILL_BY_ID } from '../data/skills.js';
@@ -207,14 +207,8 @@ export class Windows {
         d.addEventListener('click', () => this.net.bank('wd', { idx: i, n: 1 }));
         d.addEventListener('contextmenu', e => {
           e.preventDefault();
-          const r = this.stage.getBoundingClientRect();
-          this.hud.openCtx(e.clientX - r.left, e.clientY - r.top, [
-            { label: 'Withdraw 1', obj: itemName(b.id), run: () => this.net.bank('wd', { idx: i, n: 1 }) },
-            { label: 'Withdraw 5', obj: '', run: () => this.net.bank('wd', { idx: i, n: 5 }) },
-            { label: 'Withdraw 10', obj: '', run: () => this.net.bank('wd', { idx: i, n: 10 }) },
-            { label: 'Withdraw all', obj: '', run: () => this.net.bank('wd', { idx: i, n: b.n }) },
-            { label: 'Examine', obj: itemName(b.id), run: () => log(s, ITEMS[b.id].examine || '') }
-          ]);
+          this.qtyMenu(e, ITEMS[b.id], 'Withdraw',
+                       n => this.net.bank('wd', { idx: i, n }), b.n);
         });
         bank.appendChild(d);
       });
@@ -230,12 +224,9 @@ export class Windows {
         d.addEventListener('click', () => this.net.bank('dep', { idx: i, n: 1 }));
         d.addEventListener('contextmenu', e => {
           e.preventDefault();
-          const r = this.stage.getBoundingClientRect();
-          this.hud.openCtx(e.clientX - r.left, e.clientY - r.top, [
-            { label: 'Deposit 1', obj: itemName(it.id), run: () => this.net.bank('dep', { idx: i, n: 1 }) },
-            { label: 'Deposit 5', obj: '', run: () => this.net.bank('dep', { idx: i, n: 5 }) },
-            { label: 'Deposit all', obj: '', run: () => this.net.bank('depall', { id: it.id }) }
-          ]);
+          // how many are in the pack, not how many are in this one slot
+          this.qtyMenu(e, ITEMS[it.id], 'Deposit',
+                       n => this.net.bank('dep', { idx: i, n }), invCount(s, it.id));
         });
         inv.appendChild(d);
       });
@@ -297,7 +288,7 @@ export class Windows {
           d.addEventListener('click', () => this.net.tradeOffer(i, 1));
           d.addEventListener('contextmenu', e => {
             e.preventDefault();
-            this.qtyMenu(e, def, 'Offer', n => this.net.tradeOffer(i, n), it.n);
+            this.qtyMenu(e, def, 'Offer', n => this.net.tradeOffer(i, n), invCount(s, it.id));
           });
           inv.appendChild(d);
         });
@@ -379,14 +370,94 @@ export class Windows {
     return col;
   }
 
-  /** 1 / 5 / 10 / All, the quantities every interface in the game offers. */
-  qtyMenu(e, def, verb, run, max) {
+  /**
+   * The quantities every counter in the game offers, in one place.
+   *
+   * The bank, both sides of a shop and both sides of a trade each used to build
+   * their own list, which is how they came to disagree: some offered "5" for
+   * things you only had one of, others hid it for things you had thirty of.
+   * `max` is how many you actually have, not how many are in the slot.
+   *
+   * `extra` is for entries only one counter has - a shop wants to tell you the
+   * price and what is left on the shelf.
+   */
+  qtyMenu(e, def, verb, run, max, extra = []) {
     const r = this.stage.getBoundingClientRect();
-    const entries = [1, 5, 10].filter(n => n <= max || n === 1)
+    const entries = [1, 5, 10, 50].filter(n => n < max)
       .map(n => ({ label: `${verb} ${n}`, obj: n === 1 ? def.name : '', run: () => run(n) }));
-    entries.push({ label: `${verb} all`, obj: '', run: () => run(max) });
+
+    entries.push(max > 1
+      ? { label: `${verb} all`, obj: `${max}`, run: () => run(max) }
+      : { label: `${verb} 1`, obj: def.name, run: () => run(1) });
+
+    // for gold, runes, and anything else there are hundreds of
+    if (max > 1) {
+      entries.push({ label: `${verb} X…`, obj: '', run: () => this.askQty(verb, def, max, run) });
+    }
+
+    entries.push(...extra);
     entries.push({ label: 'Examine', obj: def.name, run: () => log(this.state, def.examine || def.name) });
     this.hud.openCtx(e.clientX - r.left, e.clientY - r.top, entries);
+  }
+
+  /**
+   * "How many?" - a small prompt over whatever is already open.
+   *
+   * Deliberately not a `frame()`: that closes the current window to rebuild it,
+   * and the bank has to still be there to deposit into when this is answered.
+   * So it is its own layer above the overlay, and it puts focus in the field so
+   * the whole thing is type-a-number-and-press-return.
+   */
+  askQty(verb, def, max, run) {
+    document.getElementById('qty-ask')?.remove();
+
+    const wrap = el('div', 'qty-ask');
+    wrap.id = 'qty-ask';
+    const box = el('div', 'qty-box');
+    box.appendChild(el('div', 'qty-title', `${verb} how many?`));
+    // "up to", not "you have" — the same prompt asks about your pack, your
+    // vault, an offer and a shop's shelf
+    box.appendChild(el('div', 'qty-sub', `${def.name} — up to ${fmt(max)}`));
+
+    const input = document.createElement('input');
+    input.className = 'qty-input';
+    input.type = 'text';
+    input.inputMode = 'numeric';
+    input.autocomplete = 'off';
+    input.placeholder = String(max);
+    box.appendChild(input);
+
+    const row = el('div', 'qty-row');
+    const ok = document.createElement('button');
+    ok.className = 'btn';
+    ok.textContent = verb;
+    const cancel = document.createElement('button');
+    cancel.className = 'btn';
+    cancel.textContent = 'Cancel';
+    row.append(ok, cancel);
+    box.appendChild(row);
+    wrap.appendChild(box);
+
+    const close = () => wrap.remove();
+    const accept = () => {
+      // an empty field means "all of them", which is what the placeholder says
+      const raw = input.value.trim();
+      const n = raw === '' ? max : Math.floor(Number(raw.replace(/[^0-9]/g, '')));
+      close();
+      if (Number.isFinite(n) && n > 0) run(Math.min(n, max));
+    };
+
+    ok.addEventListener('click', accept);
+    cancel.addEventListener('click', close);
+    // Escape here must not reach the window behind, which closes on it
+    wrap.addEventListener('keydown', ev => {
+      if (ev.key === 'Enter') { ev.preventDefault(); accept(); }
+      else if (ev.key === 'Escape') { ev.stopPropagation(); close(); }
+    });
+    wrap.addEventListener('mousedown', ev => { if (ev.target === wrap) close(); });
+
+    this.stage.appendChild(wrap);
+    input.focus();
   }
 
   /* ---------------- shop ------------------------------------ */
@@ -423,14 +494,9 @@ export class Windows {
         d.addEventListener('click', () => this.net.buy(shop.id, itemId, 1));
         d.addEventListener('contextmenu', e => {
           e.preventDefault();
-          const r = this.stage.getBoundingClientRect();
-          this.hud.openCtx(e.clientX - r.left, e.clientY - r.top, [
-            { label: 'Buy 1', obj: def.name, run: () => this.net.buy(shop.id, itemId, 1) },
-            { label: 'Buy 5', obj: '', run: () => this.net.buy(shop.id, itemId, 5) },
-            { label: 'Buy 10', obj: '', run: () => this.net.buy(shop.id, itemId, 10) },
+          this.qtyMenu(e, def, 'Buy', n => this.net.buy(shop.id, itemId, n), stockN, [
             { label: `Value: ${fmt(price)} gp`, obj: '', run: () => {} },
-            { label: `In stock: ${stockN}`, obj: '', run: () => {} },
-            { label: 'Examine', obj: def.name, run: () => log(s, def.examine || '') }
+            { label: `In stock: ${stockN}`, obj: '', run: () => {} }
           ]);
         });
         grid.appendChild(d);
@@ -450,13 +516,8 @@ export class Windows {
         d.addEventListener('click', () => this.net.sell(shop.id, i, 1));
         d.addEventListener('contextmenu', e => {
           e.preventDefault();
-          const r = this.stage.getBoundingClientRect();
-          this.hud.openCtx(e.clientX - r.left, e.clientY - r.top, [
-            { label: 'Sell 1', obj: def.name, run: () => this.net.sell(shop.id, i, 1) },
-            { label: 'Sell 5', obj: '', run: () => this.net.sell(shop.id, i, 5) },
-            { label: 'Sell all', obj: '', run: () => this.net.sell(shop.id, i, it.n) },
-            { label: 'Examine', obj: def.name, run: () => log(s, def.examine || '') }
-          ]);
+          this.qtyMenu(e, def, 'Sell', n => this.net.sell(shop.id, i, n), invCount(s, it.id),
+                       [{ label: `Sells for ${fmt(price)} gp each`, obj: '', run: () => {} }]);
         });
         inv.appendChild(d);
       });

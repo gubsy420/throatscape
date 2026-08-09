@@ -230,6 +230,51 @@ export function removeSlot(state, idx, n = Infinity) {
   return take;
 }
 
+/**
+ * Takes up to n of whatever is in `idx`, that slot first and then any other
+ * slot holding the same thing. Returns how many were actually taken.
+ *
+ * A quantity and a slot are not the same thing for anything that does not
+ * stack: five ironblood ore is five slots holding one each. So "deposit 5" has
+ * to reach past the slot that was clicked - `removeSlot` alone can never take
+ * more than the one, which is why "deposit 5" deposited one.
+ *
+ * And it has to *start* there. `removeItem` walks from the top of the pack
+ * down, so selling the ore in the twelfth slot emptied the third and left the
+ * twelfth sitting where it was. Interchangeable items or not, being handed back
+ * a pack that is not the one you asked for reads as a bug, because it is one.
+ */
+export function removeFrom(state, idx, n = 1) {
+  const first = state.inventory[idx];
+  /*
+   * Whole, finite and positive, settled here rather than trusted from the
+   * caller. The wire is already guarded - sim.js runs everything through int()
+   * - but three counters call this and a fourth will, and a NaN reaching the
+   * arithmetic below does not fail, it banks NaN of something and leaves the
+   * entry broken for good. 1.7 is just as bad: fractional coins.
+   */
+  const want = Math.floor(Number(n));
+  if (!first || !Number.isFinite(want) || want <= 0) return 0;
+
+  const id = first.id;
+  const size = state.inventory.length;
+  let left = want;
+
+  /*
+   * The clicked slot, then down the pack from there, wrapping round to the top
+   * for any shortfall. One loop covers both kinds: a stack gives up the whole
+   * amount on the first visit, a single item gives up one and the walk finds
+   * the rest.
+   */
+  for (let step = 0; step < size && left > 0; step++) {
+    const i = (idx + step) % size;
+    const s = state.inventory[i];
+    if (!s || s.id !== id) continue;
+    left -= removeSlot(state, i, left);
+  }
+  return want - left;
+}
+
 export function swapSlots(state, a, b) {
   const t = state.inventory[a];
   state.inventory[a] = state.inventory[b];
@@ -391,14 +436,20 @@ export function unequip(state, slot) {
 export function bankDeposit(state, invIdx, n = 1) {
   const s = state.inventory[invIdx];
   if (!s) return;
-  const amount = Math.min(s.n, n);
-  const found = state.bank.find(b => b.id === s.id);
-  if (found) found.n += amount;
-  else {
-    if (state.bank.length >= BANK_SIZE) { log(state, 'My bank is full.', 'bad'); return; }
-    state.bank.push({ id: s.id, n: amount });
+  const id = s.id;
+
+  // room in the vault is settled before anything leaves the pack, so a full
+  // bank cannot swallow the items on the way
+  const found = state.bank.find(b => b.id === id);
+  if (!found && state.bank.length >= BANK_SIZE) {
+    log(state, 'My bank is full.', 'bad');
+    return;
   }
-  removeSlot(state, invIdx, amount);
+
+  const moved = removeFrom(state, invIdx, Math.min(n, invCount(state, id)));
+  if (moved <= 0) return;
+  if (found) found.n += moved;
+  else state.bank.push({ id, n: moved });
   emitLater(state, 'bank');
 }
 

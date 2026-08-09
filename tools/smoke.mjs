@@ -692,6 +692,108 @@ async function playtest(candidate) {
     sim.sessions.delete('smoke_shop_2');
   }
 
+  /* ---- quantities mean quantities -------------------------- */
+
+  /*
+   * "Deposit 5" of something that does not stack used to deposit one, because
+   * five ironblood ore is five slots holding one each and the ceiling was the
+   * clicked slot's own count. Selling had that and a second fault: it removed
+   * by item id from the top of the pack, so the slot that emptied was never the
+   * slot that was clicked.
+   */
+  head('Five of something means five, stacked or not');
+  {
+    const S = sim.add('smoke_qty', 'Smokeqty', null);
+    const st = S.state;
+    const bulk = 'ironblood_ore';            // does not stack
+    const stackable = 'coins';
+
+    /** A clean pack: n of the bulk item, in known slots, nothing else. */
+    const load = n => {
+      for (let i = 0; i < st.inventory.length; i++) st.inventory[i] = null;
+      st.bank.length = 0;
+      state.addItem(st, bulk, n);
+      return st.inventory.map((s, i) => (s && s.id === bulk ? i : -1)).filter(i => i >= 0);
+    };
+
+    ok(!game.ITEMS[bulk].stack, `${game.ITEMS[bulk].name} does not stack`);
+
+    // -- the bank --
+    let slots = load(5);
+    state.bankDeposit(st, slots[0], 5);
+    ok(state.invCount(st, bulk) === 0, 'depositing 5 of 5 leaves none in the pack');
+    ok(st.bank[0]?.n === 5, 'and puts 5 in the vault');
+
+    slots = load(5);
+    state.bankDeposit(st, slots[2], 2);
+    ok(state.invCount(st, bulk) === 3, 'depositing 2 of 5 leaves 3');
+    ok(st.inventory[slots[2]] === null, 'and it is the slot that was clicked that empties');
+    ok(!!st.inventory[slots[0]] && !!st.inventory[slots[1]],
+       'the ones above it are left alone');
+    ok(st.inventory[slots[3]] === null, 'and the shortfall comes from below it');
+
+    // and wraps back to the top when there is not enough below
+    slots = load(5);
+    state.bankDeposit(st, slots[4], 3);
+    ok(state.invCount(st, bulk) === 2, 'clicking the last of 5 and asking for 3 leaves 2');
+    ok(st.inventory[slots[4]] === null && st.inventory[slots[0]] === null &&
+       st.inventory[slots[1]] === null, 'having wrapped round to the top for the rest');
+
+    // -- the shop --
+    const shop = game.SHOPS.general;
+    slots = load(5);
+    const coinsBefore = state.invCount(st, stackable);
+    const sold = sell(st, shop, slots[3], 4, null);
+    ok(sold.sold === 4, `selling 4 of 5 sold ${sold.sold}`);
+    ok(state.invCount(st, bulk) === 1, 'and one is left');
+    ok(st.inventory[slots[3]] === null, 'the clicked slot went first');
+    ok(state.invCount(st, stackable) === coinsBefore + sold.price * 4,
+       'and the money is for four of them');
+
+    // asking for more than you have is not an error, it is however many you had
+    slots = load(3);
+    ok(sell(st, shop, slots[0], 99, null).sold === 3, 'asking to sell 99 of 3 sells 3');
+
+    // -- and a stackable is still one slot, taken from that slot --
+    for (let i = 0; i < st.inventory.length; i++) st.inventory[i] = null;
+    st.bank.length = 0;
+    state.addItem(st, stackable, 5000);
+    const coinSlot = st.inventory.findIndex(s => s && s.id === stackable);
+    state.bankDeposit(st, coinSlot, 1200);
+    ok(state.invCount(st, stackable) === 3800, 'depositing 1200 of 5000 coins leaves 3800');
+    ok(st.bank[0]?.n === 1200, 'and banks 1200');
+
+    // -- removeFrom on its own, since three counters lean on it --
+    slots = load(4);
+    ok(state.removeFrom(st, slots[1], 3) === 3, 'removeFrom takes what it is asked for');
+    ok(state.invCount(st, bulk) === 1, 'leaving the rest');
+    ok(state.removeFrom(st, slots[1], 3) === 0, 'and an empty slot yields nothing');
+
+    /*
+     * A quantity that is not a whole positive number takes nothing. The wire
+     * cannot deliver one - sim.js runs every count through int() - but a NaN
+     * reaching the arithmetic would not throw, it would bank NaN of something
+     * and leave the vault entry broken for good, and 1.7 would leave fractional
+     * coins in the pack. Cheaper to refuse it here than to trust four callers.
+     */
+    for (let i = 0; i < st.inventory.length; i++) st.inventory[i] = null;
+    st.bank.length = 0;
+    state.addItem(st, stackable, 1000);
+    const cs = st.inventory.findIndex(s => s && s.id === stackable);
+    // `undefined` is left out on purpose: that is the default argument, and one
+    // is the right answer. `Infinity` is left out too - it means all of them.
+    for (const bad of [NaN, 'abc', -5, 0, null]) state.bankDeposit(st, cs, bad);
+    ok(state.invCount(st, stackable) === 1000,
+       'a count that is not a whole positive number moves nothing');
+    ok(st.bank.length === 0, 'and leaves no broken entry in the vault');
+
+    state.bankDeposit(st, cs, 2.7);
+    ok(state.invCount(st, stackable) === 998 && st.bank[0]?.n === 2,
+       'and 2.7 of something banks 2, not 2.7');
+
+    sim.sessions.delete('smoke_qty');
+  }
+
   /* ---- nothing exists that cannot be got ------------------- */
 
   /*
