@@ -1,0 +1,43 @@
+{
+  "id": "tick_shell_gauntlets",
+  "version": "2026.08.09",
+  "date": "2026-08-09",
+  "beat": "arsenal",
+  "title": "Tick-shell Gauntlets",
+  "summary": "Something to carry the grip in, forged from chalkbone and what the ticks leave behind.",
+  "author": "claude",
+
+  "notes": [
+    "content: Marrow's Forge will now work chalkbone bar and tick shells into a pair of gauntlets, to go with the cleaver and the plate.",
+    "content: Marrow's Forge has started stocking bone tick shells, for anyone who would rather buy than dig them out of a tick."
+  ],
+
+  "items": [
+    {
+      "id": "tick_shell_gauntlets",
+      "name": "Tick-shell gauntlets",
+      "slot": "hands",
+      "value": 2200,
+      "req": { "warding": 38 },
+      "examine": "Plates off a tick shell, strapped down where the wrist takes the worst of it.",
+      "b": { "dStab": 9, "dSlash": 10, "dCrush": 9, "dRange": 9, "dMagic": -2, "str": 5 },
+      "art": { "k": "gloves", "c": "#cbb896" }
+    }
+  ],
+
+  "recipes": [
+    {
+      "station": "forging",
+      "skill": "forging",
+      "level": 38,
+      "xp": 112,
+      "need": { "chalkbone_bar": 2, "bone_tick_shell": 3 },
+      "out": "tick_shell_gauntlets",
+      "count": 1
+    }
+  ],
+
+  "shopStock": [
+    { "shop": "forge", "item": "bone_tick_shell", "n": 10 }
+  ]
+}
