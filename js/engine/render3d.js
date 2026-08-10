@@ -509,6 +509,17 @@ export class Renderer3D {
    * Which way a built thing faces. A door in a wall has to open along the
    * wall, and a bank booth has to have its counter towards the room, so the
    * answer comes from the tiles around it rather than from the map data.
+   *
+   * Failing a wall, it takes the line from its own neighbours. A bank is a row
+   * of booths and a ward is a row of beds; furniture in a row lines up with the
+   * row, and any of it turned across the others reads as broken because it is.
+   *
+   * There is still a hash at the end, for a thing standing on its own with
+   * nothing to take a cue from. It used to be reached by every bank booth in
+   * the game - not one of them has a wall beside it - so each row came out
+   * however the hash happened to fall. In the ward bank three booths agreed and
+   * the fourth sat square across the counter; in the deep bank it was the other
+   * way about, four against one.
    */
   facingOf(o) {
     const key = o.x * 100000 + o.y;
@@ -521,9 +532,23 @@ export class Renderer3D {
       const t = w.tileAt(o.x + dx, o.y + dy);
       return t === T.WALL || t === T.CAVEWALL;
     };
-    let a = 0;
+    /* Three tiles, because furniture in a row is spaced rather than shoulder to
+       shoulder: the ward's booths stand at x = 19, 21, 23, 25 and its beds at
+       x = 21, 24, 27, 30. Far enough to find the row, near enough that two
+       unrelated things do not invent one. */
+    const alike = (dx, dy) => {
+      for (let d = 1; d <= 3; d++) {
+        const other = w.objectAt(o.x + dx * d, o.y + dy * d);
+        if (other && other.type === o.type) return true;
+      }
+      return false;
+    };
+
+    let a;
     if (solid(-1, 0) || solid(1, 0)) a = 0;             // wall runs east-west
     else if (solid(0, -1) || solid(0, 1)) a = Math.PI / 2;
+    else if (alike(1, 0) || alike(-1, 0)) a = 0;        // a row running east-west
+    else if (alike(0, 1) || alike(0, -1)) a = Math.PI / 2;
     else a = (hash2(o.x, o.y, 91) > 0.5 ? 0 : Math.PI / 2);
     this._facing.set(key, a);
     return a;

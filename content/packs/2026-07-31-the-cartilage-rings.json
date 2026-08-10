@@ -18,7 +18,7 @@
     {
       "id": "rings",
       "name": "The Cartilage Rings",
-      "x": 184, "y": 6, "w": 48, "h": 44,
+      "x": 184, "y": 6, "w": 96, "h": 92,
       "base": "CHALK",
       "tint": "#9a9186",
       "blurb": "Pale rings of it, standing in rows, going on.",

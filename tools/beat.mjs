@@ -20,7 +20,8 @@
 
 import { readFile } from 'node:fs/promises';
 import {
-  loadGame, envelope, artKinds, readJson, writeJson, rel, today, listPackFiles, say
+  loadGame, envelope, artKinds, readJson, writeJson, rel, today, listPackFiles, say,
+  TILES_PER_CREATURE
 } from './lib.mjs';
 
 /* ============================================================
@@ -99,6 +100,22 @@ export function census(game, world, regionId) {
 
   const levels = [...hostiles].map(id => game.NPCS[id]?.lvl || 0).filter(Boolean);
 
+  /*
+   * How full the place already is. The validator refuses a region holding a
+   * creature per fewer than TILES_PER_CREATURE walkable tiles, and the only way
+   * an author can aim below that ceiling is to be told where it is - otherwise
+   * a bestiary day writes thirty creatures, gets rejected, and the whole
+   * delivery is lost to arithmetic nobody could see.
+   */
+  let walkable = 0, living = 0;
+  if (R) {
+    for (let y = R.y; y < R.y + R.h; y++) {
+      for (let x = R.x; x < R.x + R.w; x++) if (world.isWalkable(x, y)) walkable++;
+    }
+    living = world.npcSpawns.filter(s =>
+      s.x >= R.x && s.x < R.x + R.w && s.y >= R.y && s.y < R.y + R.h).length;
+  }
+
   return {
     id: regionId,
     name: R?.name || regionId,
@@ -106,6 +123,11 @@ export function census(game, world, regionId) {
     bounds: R ? { x: R.x, y: R.y, w: R.w, h: R.h } : null,
     safe: !!R?.safe,
     fromPack: !!R?.fromPack,
+    walkable,
+    living,
+    tilesEach: living ? Math.floor(walkable / living) : null,
+    /** How many more creatures this region can take before it is too crowded. */
+    roomForMore: Math.max(0, Math.floor(walkable / TILES_PER_CREATURE) - living),
     hostileKinds: hostiles.size,
     friendlyKinds: friendlies.size,
     gatherKinds: gathers.size,
@@ -223,7 +245,22 @@ export async function brief(opts = {}) {
       existingCreatures: target.creatures,
       existingGatherables: target.gatherables,
       combatLevelBand: band,
-      suggestedRequirementLevel: req
+      suggestedRequirementLevel: req,
+      /*
+       * How full it already is. Without this an author picks a spawn count out
+       * of the air, and the validator - which refuses a region holding a
+       * creature per fewer than TILES_PER_CREATURE walkable tiles - throws away
+       * the whole delivery over arithmetic nobody could see.
+       */
+      crowding: {
+        walkableTiles: target.walkable,
+        creaturesAlready: target.living,
+        tilesEachNow: target.tilesEach,
+        roomForMoreCreatures: target.roomForMore,
+        note: `Every creature in a region needs ${TILES_PER_CREATURE} walkable tiles to itself. ` +
+              `${target.name} has room for ${target.roomForMore} more; spawn counts across this ` +
+              `pack must add up to no more than that, or the gate refuses it.`
+      }
     },
 
     /* what the validator will and will not accept, at the levels in play */

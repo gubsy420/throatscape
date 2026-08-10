@@ -16,7 +16,8 @@
 
 import { readFile } from 'node:fs/promises';
 import {
-  rel, readJson, loadGame, envelope, artKinds, listPackFiles, baseOnly
+  rel, readJson, loadGame, envelope, artKinds, listPackFiles, baseOnly,
+  TILES_PER_CREATURE
 } from './lib.mjs';
 
 const TOP_KEYS = new Set([
@@ -33,6 +34,7 @@ const LIMITS = {
   regions: 1, sites: 2, spawns: 6, scatter: 6, shopStock: 4,
   siteArea: 26 * 26, spawnCount: 24, scatterCount: 30, notes: 12
 };
+
 
 /**
  * What each beat is allowed to touch. A day that was supposed to add a
@@ -300,8 +302,18 @@ export async function validate(pack, opts = {}) {
 
   for (const r of pack.regions || []) {
     need(r.name && r.blurb, `region "${r.id}" needs a name and a blurb`);
-    need(r.w >= 24 && r.h >= 24, `region "${r.id}" is too small to be worth the trip`);
-    need(r.w <= 96 && r.h <= 96, `region "${r.id}" is too large for one delivery`);
+    /*
+     * Sized for what will end up in it, not for the delivery that opens it. A
+     * region is furnished by four or five later packs - creatures, then more
+     * creatures, then something to gather, then a boss and a quest - and the old
+     * floor of 24×24 was small enough that a single bestiary day could make it
+     * unwalkable. See TILES_PER_CREATURE.
+     */
+    need(r.w >= 72 && r.h >= 72,
+         `region "${r.id}" is ${r.w}×${r.h}, which is too small for what will end up in it — ` +
+         `72×72 is the floor, and a region that fills up needs room for a creature ` +
+         `per ${TILES_PER_CREATURE} walkable tiles`);
+    need(r.w <= 112 && r.h <= 112, `region "${r.id}" is too large for one delivery`);
     need(!r.safe, `region "${r.id}": new ground may not be a safe zone`);
 
     /*
@@ -481,6 +493,38 @@ export async function validate(pack, opts = {}) {
     for (const n of pack.npcs || []) {
       const count = world.npcSpawns.filter(s => s.npc === n.id).length;
       need(count > 0, `creature "${n.id}" is defined but never appears in the world`);
+    }
+
+    /*
+     * How crowded each region this delivery touches has ended up. Counted over
+     * everything in the region rather than what this pack added, because the
+     * damage is cumulative: each of the three deliveries that filled the
+     * Cartilage Rings was reasonable on its own.
+     */
+    const touched = new Set([
+      ...(pack.spawns || []).map(s => s.region),
+      ...(pack.sites || []).flatMap(s => (s.spawns || []).length ? [s.region] : []),
+      ...(pack.regions || []).map(r => r.id)
+    ].filter(Boolean));
+
+    for (const id of touched) {
+      const r = game.world.regionById(id);
+      if (!r) continue;
+      let walkable = 0;
+      for (let y = r.y; y < r.y + r.h; y++) {
+        for (let x = r.x; x < r.x + r.w; x++) if (world.isWalkable(x, y)) walkable++;
+      }
+      const living = world.npcSpawns.filter(s =>
+        s.x >= r.x && s.x < r.x + r.w && s.y >= r.y && s.y < r.y + r.h).length;
+      if (!living) continue;
+
+      const each = Math.floor(walkable / living);
+      const room = Math.floor(walkable / TILES_PER_CREATURE);
+      need(each >= TILES_PER_CREATURE,
+           `"${r.name}" would hold ${living} creatures in ${walkable} walkable tiles — ` +
+           `one every ${each}, and ${TILES_PER_CREATURE} is the floor. ` +
+           `That region has room for ${room}; either put fewer in it, or make it bigger ` +
+           `(it is ${r.w}×${r.h} now).`);
     }
     // a quest whose giver is nowhere on the map is a quest nobody can start
     for (const [questId, giverId] of quest.givers) {

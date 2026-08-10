@@ -42,6 +42,24 @@ ceilings the validator will enforce. Read it before writing anything.
 A delivery only brings what its beat is for. A `bestiary` day that also adds a
 region is rejected. The budgets are in `content/schedule.json`.
 
+## How much a region can hold
+
+Every creature standing in a region needs **60 walkable tiles to itself**, counted
+across everything in that region rather than what your pack adds. The brief tells
+you how much headroom is left in `target.crowding`; spawn counts across the whole
+pack must add up to no more than that, or the gate refuses the delivery.
+
+This is not a style rule. The Cartilage Rings opened at 48×44 holding twenty-two
+creatures, which was fine, and then two bestiary days put thirty more in each.
+Eighty-four creatures in under two thousand walkable tiles is one every
+twenty-four, with half of them within three tiles of another — ground you cannot
+cross rather than ground you fight through. The region had to be rebuilt at
+96×92 afterwards.
+
+So when an `expansion` day opens new ground, size it for everything that will
+end up there over the four or five deliveries that furnish it, not for the one
+that opens it. The floor is 72×72 and the ceiling 112×112.
+
 ## What a delivery may touch
 
 One pack, under `content/packs/`, and nothing else. `tools/guard.mjs` checks

@@ -1,5 +1,17 @@
 [
   {
+    "version": "2026.08.09.3",
+    "date": "2026-08-09",
+    "title": "Room to move, and the booths stand straight",
+    "beat": "fix",
+    "notes": [
+      "fix: The bank booths line up. One booth in the ward bank stood square across the counter, and one in the deep bank stood the other way from its four — none of them had a wall to take a line from, so each row came out however a hash of its coordinates happened to fall. The ward beds were doing the same thing.",
+      "content: The Cartilage Rings are four times the size. Eighty-four creatures had been added to a region of 48 by 44, which is one every twenty-four walkable tiles and half of them within three tiles of another — ground you could not cross rather than ground you fought through. The Rings are now 96 by 92, with the same contents spread through them.",
+      "fix: Creatures and resources are placed apart from one another rather than wherever the numbers fell. This was making knots everywhere, not only in the Rings — a tenth of the Palate Wilds population stood within two tiles of another creature.",
+      "content: New ground now opens at least 72 by 72, and no region may hold more than one creature per 60 walkable tiles. The Rings filled up over four deliveries and nothing was counting."
+    ]
+  },
+  {
     "version": "2026.08.09.2",
     "date": "2026-08-09",
     "title": "The benches work again",

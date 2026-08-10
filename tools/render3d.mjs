@@ -395,6 +395,78 @@ head('the camera keys stay inside their limits');
    The ground
    ============================================================ */
 
+/* ============================================================
+   Furniture stands in line
+   ------------------------------------------------------------
+   Built things take their facing from what is around them - a
+   door from its wall, a bank booth from the row of booths it is
+   part of. Nothing in the map data says which way any of them
+   points, so this is the only place the answer exists.
+
+   Not one bank booth in the game has a wall beside it, so every
+   one of them used to fall through to a hash of its own
+   coordinates and each row came out however that happened to
+   fall: three booths agreeing and a fourth turned across the
+   counter in the ward, and four against one in the deep bank.
+   ============================================================ */
+
+head('furniture in a row faces the same way');
+{
+  const world = game.world.buildWorld();
+  const { Renderer3D } = await import('../js/engine/render3d.js');
+  const facingOf = o =>
+    Renderer3D.prototype.facingOf.call({ world, _facing: new Map() }, o);
+
+  /** Objects of one type, grouped into runs that share a row or a column. */
+  const rows = type => {
+    const all = world.objects.filter(o => o.type === type);
+    const out = [];
+    for (const line of ['y', 'x']) {
+      const other = line === 'y' ? 'x' : 'y';
+      const by = new Map();
+      for (const o of all) {
+        if (!by.has(o[line])) by.set(o[line], []);
+        by.get(o[line]).push(o);
+      }
+      for (const [, group] of by) {
+        if (group.length < 2) continue;
+        group.sort((a, b) => a[other] - b[other]);
+        // a run is furniture within three tiles of the next one along
+        let run = [group[0]];
+        for (let i = 1; i < group.length; i++) {
+          if (group[i][other] - run[run.length - 1][other] <= 3) run.push(group[i]);
+          else { if (run.length > 1) out.push({ line, run }); run = [group[i]]; }
+        }
+        if (run.length > 1) out.push({ line, run });
+      }
+    }
+    return out;
+  };
+
+  let checked = 0;
+  for (const type of ['bank_booth', 'bed']) {
+    for (const { run } of rows(type)) {
+      const angles = [...new Set(run.map(o => facingOf(o).toFixed(3)))];
+      const where = `${run.length} × ${type} at ${run[0].x},${run[0].y}`;
+      ok(angles.length === 1, angles.length === 1
+        ? `${where} all face the same way`
+        : `${where} face ${angles.length} different ways — one of them is turned across the others`);
+      checked++;
+    }
+  }
+  ok(checked >= 3, `${checked} run(s) of furniture to check`);
+
+  // and a door still takes its wall over any neighbouring door
+  const doors = world.objects.filter(o => o.type === 'door');
+  const byWall = doors.filter(o => {
+    const t = (dx, dy) => world.tileAt(o.x + dx, o.y + dy);
+    const W = game.world.T.WALL, C = game.world.T.CAVEWALL;
+    return [t(-1, 0), t(1, 0), t(0, -1), t(0, 1)].some(v => v === W || v === C);
+  });
+  ok(byWall.length === doors.length,
+     `all ${doors.length} doors are in a wall, which is what decides them`);
+}
+
 head('the ground');
 {
   const world = game.world.buildWorld();

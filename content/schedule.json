@@ -1,39 +1,68 @@
 {
   "note": "How often each kind of delivery may happen, and how much it may bring. Edit this to change the rhythm of the game's growth; tools/beat.mjs reads it and nothing else decides.",
-
   "beats": {
     "bestiary": {
       "summary": "A handful of new creatures for somewhere that is too quiet.",
       "minDaysBetween": 2,
-      "budget": { "npcs": 4, "items": 2, "spawns": 4 }
+      "budget": {
+        "npcs": 4,
+        "items": 2,
+        "spawns": 4
+      }
     },
     "arsenal": {
       "summary": "A weapon or a piece of armour, and the recipe to make it.",
       "minDaysBetween": 2,
-      "budget": { "items": 3, "recipes": 2, "shopStock": 2 }
+      "budget": {
+        "items": 3,
+        "recipes": 2,
+        "shopStock": 2
+      }
     },
     "resource": {
       "summary": "Something new to gather, and something to turn it into.",
       "minDaysBetween": 4,
-      "budget": { "items": 3, "objects": 2, "recipes": 2, "scatter": 3 }
+      "budget": {
+        "items": 3,
+        "objects": 2,
+        "recipes": 2,
+        "scatter": 3
+      }
     },
     "boss": {
       "summary": "One large thing in a lair, with a drop worth the trip.",
       "minDaysBetween": 10,
-      "budget": { "npcs": 2, "items": 3, "sites": 1, "spawns": 2 }
+      "budget": {
+        "npcs": 2,
+        "items": 3,
+        "sites": 1,
+        "spawns": 2
+      }
     },
     "quest": {
       "summary": "A reason to visit what has been added lately.",
       "minDaysBetween": 6,
-      "budget": { "quests": 1, "npcs": 2, "items": 3, "sites": 1 }
+      "budget": {
+        "quests": 1,
+        "npcs": 2,
+        "items": 3,
+        "sites": 1
+      }
     },
     "expansion": {
       "summary": "New ground: a region attached to the edge of the map, with a way in.",
       "minDaysBetween": 21,
-      "budget": { "regions": 1, "sites": 1, "npcs": 3, "items": 2, "objects": 2, "spawns": 4, "scatter": 4 }
+      "budget": {
+        "regions": 1,
+        "sites": 1,
+        "npcs": 3,
+        "items": 2,
+        "objects": 2,
+        "spawns": 4,
+        "scatter": 4
+      }
     }
   },
-
   "furnished": {
     "note": "A region is considered finished — and the map may then grow again — once it holds at least this much.",
     "hostileKinds": 3,
@@ -41,10 +70,16 @@
     "bosses": 1,
     "quests": 1
   },
-
   "expansion": {
     "note": "New regions attach east or south only. Every coordinate in every save is measured from the same origin, so opening ground to the north or west would move every player in the world.",
-    "minSize": [32, 32],
-    "maxSize": [64, 72]
+    "minSize": [
+      72,
+      72
+    ],
+    "maxSize": [
+      112,
+      112
+    ],
+    "sizeNote": "Big enough for everything that will end up in it, not just for the delivery that opens it. A region is filled by four or five later deliveries, and the validator refuses any region holding a creature per fewer than 60 walkable tiles. The Cartilage Rings opened at 48x44 and had to be rebuilt at 96x92 once it was furnished."
   }
 }

@@ -548,6 +548,66 @@ async function playtest(candidate) {
     }
   }
 
+  /* ---- room to move ---------------------------------------- */
+
+  /*
+   * The Cartilage Rings opened at 48×44 with twenty-two creatures in it, which
+   * was reasonable, and then two bestiary deliveries put thirty more in each.
+   * Eighty-four creatures in 1,992 walkable tiles is one every twenty-four, and
+   * half of them within three tiles of another - ground you cannot cross rather
+   * than ground you fight through. Nothing related what a pack added to how
+   * much room there was, and nothing measured how far apart it ended up.
+   */
+  head('Every region has room to move in');
+  {
+    const { TILES_PER_CREATURE } = await import('./lib.mjs');
+    for (const r of game.REGIONS) {
+      let walkable = 0;
+      for (let y = r.y; y < r.y + r.h; y++) {
+        for (let x = r.x; x < r.x + r.w; x++) if (world.isWalkable(x, y)) walkable++;
+      }
+      const here = world.npcSpawns.filter(s =>
+        s.x >= r.x && s.x < r.x + r.w && s.y >= r.y && s.y < r.y + r.h);
+      if (!here.length) continue;
+
+      const each = Math.floor(walkable / here.length);
+      ok(each >= TILES_PER_CREATURE,
+         `${r.name}: ${here.length} creatures in ${walkable} tiles — one every ${each}` +
+         (each >= TILES_PER_CREATURE ? '' : `, and ${TILES_PER_CREATURE} is the floor`));
+    }
+  }
+
+  /*
+   * And that they are spread through it rather than heaped. Size and spacing are
+   * separate faults: giving the Rings four times the room still left creatures
+   * standing on the same tile as each other, because placement picked positions
+   * at random and never looked at what was already there.
+   */
+  head('Creatures are spread through a region, not heaped in it');
+  {
+    for (const r of game.REGIONS) {
+      const here = world.npcSpawns.filter(s =>
+        s.x >= r.x && s.x < r.x + r.w && s.y >= r.y && s.y < r.y + r.h);
+      // the hand-placed people of a settlement stand where they are put
+      if (here.length < 8 || r.safe) continue;
+
+      let touching = 0;
+      for (const a of here) {
+        let nearest = Infinity;
+        for (const b of here) {
+          if (a === b) continue;
+          const d = Math.max(Math.abs(a.x - b.x), Math.abs(a.y - b.y));
+          if (d < nearest) nearest = d;
+        }
+        if (nearest <= 2) touching++;
+      }
+      ok(touching === 0,
+         touching === 0
+           ? `${r.name}: none of its ${here.length} creatures stands within two tiles of another`
+           : `${r.name}: ${touching} of ${here.length} creatures are within two tiles of another — that is a knot, not a population`);
+    }
+  }
+
   /* ---- shelves are finite ---------------------------------- */
 
   /*

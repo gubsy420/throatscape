@@ -439,15 +439,54 @@ export function buildWorld() {
   /* --- Resource scatter ----------------------------------- */
   const scatterable = (x, y, ...ok) => ok.includes(get(x, y)) && !objAt.has(x + ',' + y);
 
+  /**
+   * How far apart to try to keep things of one kind, given how many are going
+   * into how much room.
+   *
+   * Placing at uniformly random positions is what made the Cartilage Rings
+   * unplayable: eighty-four creatures dropped into a region with under two
+   * thousand walkable tiles, each one landing wherever the numbers fell, so
+   * they arrived in knots with nothing between them. Spreading them out is a
+   * separate problem from having room for them, and both were wrong.
+   *
+   * Derived rather than fixed, because a fixed distance is either unsatisfiable
+   * in a small region or pointless in a large one. `sqrt(area / count)` is the
+   * spacing of a perfect grid of that many things; asking for two thirds of it
+   * leaves the placement room to look natural while refusing the knots.
+   */
+  const spacingFor = (R, count) =>
+    Math.max(2, Math.floor(Math.sqrt((R.w * R.h) / Math.max(1, count)) * 0.66));
+
+  /** True if something of this kind already sits within `d` tiles. */
+  const crowded = (placed, x, y, d) => {
+    for (const p of placed) {
+      if (Math.abs(p.x - x) < d && Math.abs(p.y - y) < d) return true;
+    }
+    return false;
+  };
+
   const scatter = (type, regionId, count, allow, tries = 60) => {
     const R = regionById(regionId);
+    const placed = [];
+    /*
+     * Two passes. The first insists on the spacing; the second takes what it
+     * can get, so a region whose walkable ground is too broken to hold them all
+     * ends up crowded rather than short. Better a tight corner than a resource
+     * a pack promised and the map never delivered.
+     */
     for (let n = 0; n < count; n++) {
-      for (let t = 0; t < tries; t++) {
-        const x = R.x + 1 + Math.floor(rng() * (R.w - 2));
-        const y = R.y + 1 + Math.floor(rng() * (R.h - 2));
-        if (!scatterable(x, y, ...allow)) continue;
-        if (regionGrid[idx(x, y)] !== REGIONS.indexOf(R)) continue;
-        if (addObj(type, x, y)) break;
+      for (let pass = 0; pass < 2; pass++) {
+        const d = pass === 0 ? spacingFor(R, count) : 0;
+        let done = false;
+        for (let t = 0; t < tries; t++) {
+          const x = R.x + 1 + Math.floor(rng() * (R.w - 2));
+          const y = R.y + 1 + Math.floor(rng() * (R.h - 2));
+          if (!scatterable(x, y, ...allow)) continue;
+          if (regionGrid[idx(x, y)] !== REGIONS.indexOf(R)) continue;
+          if (d && crowded(placed, x, y, d)) continue;
+          if (addObj(type, x, y)) { placed.push({ x, y }); done = true; break; }
+        }
+        if (done) break;
       }
     }
   };
@@ -510,17 +549,36 @@ export function buildWorld() {
   scatter('crate', 'vellumhaven', 8, [T.STONE]);
 
   /* --- Monster spawns ------------------------------------- */
+  /*
+   * Spread against every spawn already in the region, not just this creature's
+   * own kind. What makes a place unwalkable is the total number of things that
+   * will come at you, and a rat knot beside a maggot knot is one knot as far as
+   * anybody crossing it is concerned.
+   */
   const mobScatter = (id, regionId, count, allow) => {
     const R = regionById(regionId);
     const ri = REGIONS.indexOf(R);
+    const here = npcSpawns.filter(s =>
+      s.x >= R.x && s.x < R.x + R.w && s.y >= R.y && s.y < R.y + R.h);
+
     for (let n = 0; n < count; n++) {
-      for (let t = 0; t < 80; t++) {
-        const x = R.x + 2 + Math.floor(rng() * (R.w - 4));
-        const y = R.y + 2 + Math.floor(rng() * (R.h - 4));
-        if (!allow.includes(get(x, y)) || objAt.has(x + ',' + y)) continue;
-        if (regionGrid[idx(x, y)] !== ri) continue;
-        npcSpawns.push({ npc: id, x, y });
-        break;
+      for (let pass = 0; pass < 2; pass++) {
+        // spacing for everything that will be in the region, not just this lot
+        const d = pass === 0 ? spacingFor(R, here.length + (count - n)) : 0;
+        let done = false;
+        for (let t = 0; t < 80; t++) {
+          const x = R.x + 2 + Math.floor(rng() * (R.w - 4));
+          const y = R.y + 2 + Math.floor(rng() * (R.h - 4));
+          if (!allow.includes(get(x, y)) || objAt.has(x + ',' + y)) continue;
+          if (regionGrid[idx(x, y)] !== ri) continue;
+          if (d && crowded(here, x, y, d)) continue;
+          const spot = { npc: id, x, y };
+          npcSpawns.push(spot);
+          here.push(spot);
+          done = true;
+          break;
+        }
+        if (done) break;
       }
     }
   };

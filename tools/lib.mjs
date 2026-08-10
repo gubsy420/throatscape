@@ -194,6 +194,25 @@ export async function artKinds() {
    Misc
    ============================================================ */
 
+/**
+ * Walkable tiles a region must keep for every creature standing in it.
+ *
+ * Nothing used to relate what a pack added to how much room there was. The
+ * Cartilage Rings opened at 48×44 holding twenty-two creatures, which was fine;
+ * then two bestiary deliveries put thirty more in each, and eighty-four
+ * creatures in under two thousand walkable tiles is one every twenty-four -
+ * ground you cannot cross rather than ground you fight through.
+ *
+ * The busiest region in the base game is the Palate Wilds at 88 tiles each and
+ * the calmest inhabited one is around 260. Sixty leaves a delivery real room to
+ * fill new ground while refusing what happened to the Rings. One number for
+ * everywhere on purpose: a rule per region is a rule nobody remembers.
+ *
+ * tools/validate.mjs enforces it and tools/beat.mjs tells the author how much
+ * headroom is left, so they must agree - hence living here.
+ */
+export const TILES_PER_CREATURE = 60;
+
 export const today = (d = new Date()) => d.toISOString().slice(0, 10);
 
 export const slug = s => String(s).toLowerCase()
