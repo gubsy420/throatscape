@@ -483,15 +483,23 @@ export class Sim {
   petOf(session) { return this.pets.find(p => p.key === session.key) || null; }
   petByUid(uid) { return this.pets.find(p => p.uid === uid) || null; }
 
-  /** The nearest tile to (x, y) somebody can stand on, (x, y) itself included. */
-  freeTileNear(x, y, radius = 3) {
-    for (let r = 0; r <= radius; r++) {
+  /**
+   * The nearest tile to (x, y) somebody can stand on, searching outwards from
+   * `min` rings out. Players count as occupying their tile here even though a
+   * companion does not block one: a companion placed on top of her owner is
+   * drawn inside them and reads as a graphical fault rather than as closeness,
+   * so both places she can be put down - the summon and the catch-up - ask for
+   * `min: 1` and get a tile beside them instead.
+   */
+  freeTileNear(x, y, radius = 3, min = 0) {
+    for (let r = min; r <= radius; r++) {
       for (let dy = -r; dy <= r; dy++) {
         for (let dx = -r; dx <= r; dx++) {
           if (Math.max(Math.abs(dx), Math.abs(dy)) !== r) continue;
           const tx = x + dx, ty = y + dy;
           if (!this.world.isWalkable(tx, ty)) continue;
           if (npcAt({ npcs: this.npcs }, tx, ty)) continue;
+          if (this.playerAt(tx, ty)) continue;
           return { x: tx, y: ty };
         }
       }
@@ -505,7 +513,7 @@ export class Sim {
     this.dismissPet(session);                 // one at a time, whatever the locket says
 
     const p = session.p;
-    const spot = this.freeTileNear(p.x, p.y) || { x: p.x, y: p.y };
+    const spot = this.freeTileNear(p.x, p.y, 3, 1) || { x: p.x, y: p.y };
     const pet = {
       key: session.key, id, dead: false,
       /*
@@ -546,11 +554,22 @@ export class Sim {
        * there - which is also what the locket implies.
        */
       if (gap > 12) {
-        const spot = this.freeTileNear(p.x, p.y) || { x: p.x, y: p.y };
+        const spot = this.freeTileNear(p.x, p.y, 3, 1) || { x: p.x, y: p.y };
         pet.x = spot.x; pet.y = spot.y; pet.path = [];
         continue;
       }
-      if (gap <= 1) { pet.path = []; continue; }
+      /*
+       * Sharing a tile is not "close enough" - she is drawn inside her owner and
+       * neither of them can be told apart. Nothing blocks her from standing
+       * there, so this is the only thing that moves her off it.
+       */
+      if (gap === 0) {
+        const spot = this.freeTileNear(p.x, p.y, 3, 1);
+        if (spot) { pet.x = spot.x; pet.y = spot.y; }
+        pet.path = [];
+        continue;
+      }
+      if (gap === 1) { pet.path = []; continue; }
 
       const free = (x, y) => this.world.isWalkable(x, y);
       if (!pet.path.length || this.tick % 2 === 0) {

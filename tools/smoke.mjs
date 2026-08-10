@@ -911,7 +911,15 @@ async function playtest(candidate) {
     const pet = sim.petOf(her);
     ok(!!pet, 'opening the locket puts her in the world');
     ok(her.state.pet === locket.companion, 'and the save knows who is out');
-    ok(pet && cheb(pet.x, pet.y, p.x, p.y) <= 3, 'she arrives beside you, not across the ward');
+    /*
+     * Beside, and not on top of. `<= 3` alone let a companion be placed on her
+     * owner's own tile, where she is drawn inside them and invisible - which is
+     * exactly what happened on the first log in after a save restored her, and
+     * this check passed the whole time.
+     */
+    const arrived = pet ? cheb(pet.x, pet.y, p.x, p.y) : -1;
+    ok(arrived >= 1 && arrived <= 3, `she arrives beside you, not across the ward (gap ${arrived})`);
+    ok(arrived !== 0, 'and not standing inside you');
     ok(pet && pet.uid < 0, `her uid is negative (${pet?.uid}), so no world creature shares it`);
 
     /*
@@ -968,7 +976,17 @@ async function playtest(candidate) {
     p.x = p.ix = 92; p.y = p.iy = 71;                 // the wayside altar
     sim.step();
     gap = cheb(pet.x, pet.y, p.x, p.y);
-    ok(gap <= 3, `and a teleport across the Throat does not lose her (gap ${gap})`);
+    ok(gap >= 1 && gap <= 3, `and a teleport across the Throat does not lose her (gap ${gap})`);
+
+    /*
+     * And if she does end up sharing a tile - a save restored her there, a
+     * player walked onto her, anything - the next tick moves her off it. Nothing
+     * blocks her from standing there, so this is the only thing that does.
+     */
+    pet.x = p.x; pet.y = p.y;
+    sim.step();
+    ok(cheb(pet.x, pet.y, p.x, p.y) === 1,
+       'and standing on the same tile is corrected on the next tick');
 
     /* the locket is a toggle, not a purchase */
     const idx2 = her.state.inventory.findIndex(s => s && s.id === locket.id);
