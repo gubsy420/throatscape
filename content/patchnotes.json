@@ -1,5 +1,14 @@
 [
   {
+    "version": "2026.08.09.2",
+    "date": "2026-08-09",
+    "title": "The benches work again",
+    "beat": "fix",
+    "notes": [
+      "fix: Every crafting bench opens its menu again. Yesterday's change to the deposit and sell menus tidied away an import that one line of the crafting window still needed, so clicking a furnace, anvil, cauldron, sewing table or range did nothing at all. Nothing else was affected, which is why only crafting looked broken."
+    ]
+  },
+  {
     "version": "2026.08.09.1",
     "date": "2026-08-09",
     "title": "Five of something means five",

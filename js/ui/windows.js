@@ -2,7 +2,7 @@
    Overlay windows - dialogue, bank, shop, and production
    ============================================================ */
 
-import { ITEMS, toolName } from '../data/items.js';
+import { ITEMS, itemName, toolName } from '../data/items.js';
 import { RECIPES, STATION_TITLE, STATION_SKILL, STATION_TOOL } from '../data/recipes.js';
 import { SHOPS, buyPrice, sellPrice } from '../data/shops.js';
 import { SKILL_BY_ID } from '../data/skills.js';

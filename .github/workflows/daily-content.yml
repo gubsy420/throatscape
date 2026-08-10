@@ -74,6 +74,7 @@ jobs:
       # which runs after the pipeline has already pushed.
       - name: Confirm the game is healthy before adding to it
         run: |
+          node tools/refs.mjs
           node tools/smoke.mjs --no-server
           node tools/quests.mjs
           node tools/render3d.mjs

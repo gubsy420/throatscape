@@ -22,6 +22,13 @@ jobs:
         with:
           node-version: '22'
 
+      # Cheapest check here and the first to run: a module that calls a helper
+      # it forgot to import loads fine, renders fine, and throws the moment that
+      # one line runs. Tidying an import out of windows.js took `itemName` with
+      # it and every crafting bench stopped opening, while nothing else did.
+      - name: Every name a module uses is a name it has
+        run: node tools/refs.mjs
+
       - name: Every pack validates
         run: |
           if [ -n "$(ls -A content/packs 2>/dev/null)" ]; then
