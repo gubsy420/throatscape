@@ -559,16 +559,13 @@ export class Sim {
         continue;
       }
       /*
-       * Sharing a tile is not "close enough" - she is drawn inside her owner and
-       * neither of them can be told apart. Nothing blocks her from standing
-       * there, so this is the only thing that moves her off it.
+       * Exactly one, not "one or fewer". Sharing a tile is not close enough -
+       * she is drawn inside her owner and neither of them can be made out - and
+       * nothing blocks her from standing there, so resting at a gap of zero
+       * would leave her invisible until her owner happened to walk off. Falling
+       * through to the walk below is what steps her back out: from her owner's
+       * own tile the shortest path to a tile beside them is one step.
        */
-      if (gap === 0) {
-        const spot = this.freeTileNear(p.x, p.y, 3, 1);
-        if (spot) { pet.x = spot.x; pet.y = spot.y; }
-        pet.path = [];
-        continue;
-      }
       if (gap === 1) { pet.path = []; continue; }
 
       const free = (x, y) => this.world.isWalkable(x, y);
