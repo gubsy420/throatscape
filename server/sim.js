@@ -117,6 +117,16 @@ class Session {
     });
     b.on('openmake', station => this.send({ t: 'ui', kind: 'make', station }));
 
+    /*
+     * Shared code decides whether a companion is out; the sim decides where she
+     * is standing. Same split as the bank and the shop counter above, and the
+     * reason the locket does not have to know what a tile is.
+     */
+    b.on('pet', id => {
+      if (id) this.sim.summonPet(this, id);
+      else this.sim.dismissPet(this);
+    });
+
     // quests advance on kills; in the browser main.js wired this up
     b.on('kill', ({ npcId }) => {
       this.send({ t: 'cue', name: 'kill' });
@@ -180,6 +190,19 @@ export class Sim {
     this.trades = new Trades(this);
     // what is on the shelves, shared by everyone — see js/game/shopstock.js
     this.stock = new ShopStock();
+    /*
+     * Companions. Deliberately not part of this.npcs: that list is the world's
+     * own population, built once at boot and respawned forever, whereas a
+     * companion belongs to one session and must leave with it. Mixing the two
+     * is how you end up with somebody's girlfriend standing in the ward for the
+     * rest of the server's life because their connection dropped.
+     *
+     * The consequence worth knowing: nothing in npcAt sees a pet, so she blocks
+     * no tiles and no creature paths around her. That is the intent - a
+     * companion who could wedge you in a doorway would be a bug, not a feature.
+     */
+    this.pets = [];
+    this.petUid = 0;
 
     // spawnNpcs writes into state.npcs, so lend it a shim
     const shim = { npcs: [] };
@@ -195,6 +218,9 @@ export class Sim {
     this.sessions.set(key, s);
     s.state.npcs = this.npcs;
     s.state.ground = this.ground;
+    // she was with them when they logged out, so she is there when they log in.
+    // After the session is registered, or tickPets would not find her owner.
+    if (s.state.pet) this.summonPet(s, s.state.pet);
     this.sendFriends(s);
     this.announceToFriends(key, name, true);
     return s;
@@ -206,6 +232,8 @@ export class Sim {
     // hand the escrow back before anything else, so the save that follows
     // this includes it in the pack rather than in a trade that no longer exists
     if (s.trade) this.trades.close(s.trade, `${s.name} went off shift.`);
+    // she leaves with them; state.pet is what remembers, and that is saved
+    this.dismissPet(s);
     for (const n of this.npcs) if (n.targetKey === key) { n.targetKey = null; n.path = []; }
     this.sessions.delete(key);
     this.announceToFriends(key, s.name, false);
@@ -281,6 +309,9 @@ export class Sim {
 
     this.trades.tick();
     this.tickNpcs();
+    // after the creatures and after every player has moved, so she follows this
+    // tick's position rather than last tick's
+    this.tickPets();
     this.tickDoors();
     tickGround({ ground: this.ground });
     this.tickResources();
@@ -447,6 +478,100 @@ export class Sim {
     n.x = next.x; n.y = next.y;
   }
 
+  /* ---------------- companions ---------------------------- */
+
+  petOf(session) { return this.pets.find(p => p.key === session.key) || null; }
+  petByUid(uid) { return this.pets.find(p => p.uid === uid) || null; }
+
+  /** The nearest tile to (x, y) somebody can stand on, (x, y) itself included. */
+  freeTileNear(x, y, radius = 3) {
+    for (let r = 0; r <= radius; r++) {
+      for (let dy = -r; dy <= r; dy++) {
+        for (let dx = -r; dx <= r; dx++) {
+          if (Math.max(Math.abs(dx), Math.abs(dy)) !== r) continue;
+          const tx = x + dx, ty = y + dy;
+          if (!this.world.isWalkable(tx, ty)) continue;
+          if (npcAt({ npcs: this.npcs }, tx, ty)) continue;
+          return { x: tx, y: ty };
+        }
+      }
+    }
+    return null;
+  }
+
+  summonPet(session, id) {
+    const d = NPCS[id];
+    if (!d || !d.companion) return null;
+    this.dismissPet(session);                 // one at a time, whatever the locket says
+
+    const p = session.p;
+    const spot = this.freeTileNear(p.x, p.y) || { x: p.x, y: p.y };
+    const pet = {
+      key: session.key, id, dead: false,
+      /*
+       * Negative. Every creature in the world takes its uid from its index in
+       * npcSpawns, so nothing there is ever below zero - which means a stale
+       * `attack` or `talk` naming a companion can never be resolved against the
+       * world population by accident. The client keys on it and does not care.
+       */
+      uid: -(++this.petUid),
+      x: spot.x, y: spot.y, path: []
+    };
+    this.pets.push(pet);
+    return pet;
+  }
+
+  dismissPet(session) {
+    const i = this.pets.findIndex(p => p.key === session.key);
+    if (i >= 0) this.pets.splice(i, 1);
+  }
+
+  /**
+   * Companions walk to heel. They fight nothing, block nothing and are blocked
+   * by nothing but the terrain, so this is only ever a question of catching up.
+   */
+  tickPets() {
+    for (let i = this.pets.length - 1; i >= 0; i--) {
+      const pet = this.pets[i];
+      const owner = this.sessions.get(pet.key);
+      if (!owner) { this.pets.splice(i, 1); continue; }
+
+      const p = owner.p;
+      const gap = cheb(pet.x, pet.y, p.x, p.y);
+
+      /*
+       * A teleport, a death and the walk back from one all move a player
+       * further in a single tick than anything can follow. Rather than trailing
+       * across the whole Throat for the next two minutes, she is simply already
+       * there - which is also what the locket implies.
+       */
+      if (gap > 12) {
+        const spot = this.freeTileNear(p.x, p.y) || { x: p.x, y: p.y };
+        pet.x = spot.x; pet.y = spot.y; pet.path = [];
+        continue;
+      }
+      if (gap <= 1) { pet.path = []; continue; }
+
+      const free = (x, y) => this.world.isWalkable(x, y);
+      if (!pet.path.length || this.tick % 2 === 0) {
+        pet.path = pathAdjacentFrom(pet.x, pet.y, p.x, p.y, free, 400).slice(0, 8);
+      }
+
+      /*
+       * Two steps when she has fallen behind. A running nurse covers two tiles a
+       * tick, so a companion who only ever takes one can never close the gap -
+       * she would drift to the twelve-tile limit and teleport, over and over,
+       * for the whole run.
+       */
+      for (let s = 0, steps = gap > 3 ? 2 : 1; s < steps; s++) {
+        const next = pet.path.shift();
+        if (!next) break;
+        if (!free(next.x, next.y)) { pet.path = []; break; }
+        pet.x = next.x; pet.y = next.y;
+      }
+    }
+  }
+
   npcAttack(n, d, session) {
     const st = session.state;
     const p = st.player;
@@ -507,6 +632,19 @@ export class Sim {
       if (n.dead || !near(n.x, n.y)) continue;
       snap.npcs.push({ u: n.uid, i: n.id, x: n.x, y: n.y, hp: n.hp, mx: n.maxHp,
                        sw: n.swingAt === this.tick ? 1 : 0 });
+    }
+
+    /*
+     * Companions ride in the same list. They are drawn, named and examined by
+     * exactly the code that handles every other creature, which is the whole
+     * reason they are ordinary NPC definitions - a separate wire format would
+     * have meant a separate painter, a separate hit test and a separate bug.
+     * Everyone nearby sees them; a follower only her owner could see would be a
+     * stranger walking through the ward on her own.
+     */
+    for (const pet of this.pets) {
+      if (!near(pet.x, pet.y)) continue;
+      snap.npcs.push({ u: pet.uid, i: pet.id, x: pet.x, y: pet.y, hp: 1, mx: 1, sw: 0 });
     }
 
     for (const other of this.sessions.values()) {
@@ -748,7 +886,9 @@ export class Sim {
       }
 
       case 'talk': {
-        const n = this.npcByUid.get(int(msg.u));
+        // companions have negative uids and live in their own list, so they can
+        // only ever be found here - never by `attack`, which asks npcByUid
+        const n = this.npcByUid.get(int(msg.u)) || this.petByUid(int(msg.u));
         if (!n || n.dead || NPCS[n.id].hostile) return;
         this.startTalk(s, n);
         break;

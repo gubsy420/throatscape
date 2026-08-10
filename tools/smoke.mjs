@@ -854,6 +854,149 @@ async function playtest(candidate) {
     sim.sessions.delete('smoke_qty');
   }
 
+  /* ---- company --------------------------------------------- */
+
+  /*
+   * A companion is the only creature in the game that is not part of the world:
+   * she is conjured per session, walks to heel, fights nothing, and has to
+   * disappear when her owner does. Every one of those is a way to leak a
+   * creature into the ward permanently, so all of them are checked here.
+   */
+  head('A thousand coins buys company, and the locket shuts again');
+  {
+    const { cheb } = await import('../js/util.js');
+    const combat = await import('../js/game/combat.js');
+    const companions = Object.values(game.NPCS).filter(n => n.companion);
+    const lockets = Object.values(game.ITEMS).filter(i => i.companion);
+    ok(companions.length > 0, `${companions.length} companion(s) defined`);
+
+    // both directions, so neither a companion nobody can fetch nor a locket
+    // naming somebody who was renamed out from under it can survive a run
+    for (const c of companions) {
+      ok(lockets.some(i => i.companion === c.id), `${c.name} has a locket that fetches her`);
+    }
+    for (const i of lockets) {
+      ok(!!game.NPCS[i.companion]?.companion, `${i.name} names a companion that exists`);
+    }
+    // she must not also be scattered across the map: a companion standing in the
+    // Fen on her own would be counted by every density check as a creature
+    for (const c of companions) {
+      ok(!world.npcSpawns.some(s => s.npc === c.id), `${c.name} is not spawned into the world`);
+      ok(!sim.npcs.some(n => n.id === c.id), 'and is not part of the population at boot');
+    }
+
+    const locket = lockets[0];
+    const shopId = Object.keys(game.SHOPS)
+      .find(id => game.SHOPS[id].stock.some(([it]) => it === locket.id));
+    ok(!!shopId, `${locket.name} is on a shelf (${shopId})`);
+    const keeper = sim.npcs.find(n => !n.dead && game.NPCS[n.id].shop === shopId);
+    ok(!!keeper, `and somebody stands behind it at ${keeper?.x}, ${keeper?.y}`);
+    const reg = world.regionAt(keeper.x, keeper.y);
+    ok(!!reg?.safe, `in ${reg?.name}, which is a safe region`);
+    ok(game.shops.buyPrice(game.SHOPS[shopId], locket.value) === 1000,
+       'and the price is a round thousand coins');
+
+    const her = sim.add('smoke_gf', 'Smokegf', null);
+    const p = her.state.player;
+    p.x = p.ix = keeper.x; p.y = p.iy = keeper.y + 1;
+
+    // bought through the real handler, so the range check and the shelf count
+    state.addItem(her.state, 'coins', 1000);
+    sim.handle(her, { t: 'buy', shop: shopId, item: locket.id, n: 1 });
+    const idx = her.state.inventory.findIndex(s => s && s.id === locket.id);
+    ok(idx >= 0, 'a nurse with exactly a thousand coins can buy one');
+    ok(state.invCount(her.state, 'coins') === 0, 'and it costs her all of it');
+
+    sim.handle(her, { t: 'use', idx });
+    const pet = sim.petOf(her);
+    ok(!!pet, 'opening the locket puts her in the world');
+    ok(her.state.pet === locket.companion, 'and the save knows who is out');
+    ok(pet && cheb(pet.x, pet.y, p.x, p.y) <= 3, 'she arrives beside you, not across the ward');
+    ok(pet && pet.uid < 0, `her uid is negative (${pet?.uid}), so no world creature shares it`);
+
+    /*
+     * The doorway question. Companions must block nothing: shopkeepers occupy
+     * their tile and a follower who did the same could wedge her owner into a
+     * corner they cannot walk out of.
+     */
+    ok(!combat.npcAt({ npcs: sim.npcs }, pet.x, pet.y), 'she occupies no tile as far as the world is concerned');
+    ok(!combat.tileBlocked(her.state, pet.x, pet.y), 'and nothing is blocked by standing where she stands');
+
+    // she cannot be fought, whatever a client asks for
+    const before = { ...pet };
+    sim.handle(her, { t: 'attack', u: pet.uid });
+    ok(her.state.target === null, 'asking to attack her does nothing');
+    ok(pet.x === before.x && pet.y === before.y, 'and she is not moved by being asked');
+
+    // she can be spoken to, which needs the uid to resolve outside npcByUid
+    her.outbox.length = 0;
+    sim.handle(her, { t: 'talk', u: pet.uid });
+    for (let i = 0; i < 4; i++) sim.step();
+    ok(her.outbox.some(m => m.t === 'dialogue' && m.text), 'and she can be spoken to');
+
+    /* she is drawn by whatever draws every other creature */
+    her.outbox.length = 0;
+    sim.buildSnapshot(her);
+    const snap = her.outbox.find(m => m.t === 'snap');
+    ok(snap.npcs.some(n => n.u === pet.uid && n.i === pet.id),
+       'she rides in the snapshot alongside the creatures, so the same painter draws her');
+
+    /*
+     * Following, on the open road through Lumbrisdale so the distance is the
+     * only thing being measured. Both ends are pinned: talking to her queues a
+     * walk towards her, and a nurse still drifting along a stale path while the
+     * gap is measured makes this check say whatever it likes.
+     */
+    her.state.action = null;
+    her.state.target = null;
+    p.path.length = 0;
+    p.x = p.ix = 44; p.y = p.iy = 152;
+    pet.x = 34; pet.y = 152; pet.path = [];
+    let gap = cheb(pet.x, pet.y, p.x, p.y);
+    ok(gap === 10, `ten tiles apart on the ward road (gap ${gap})`);
+    /*
+     * Ten tiles in six ticks is only possible at two steps a tick. At one - the
+     * rate every creature in the game moves - she would still be four tiles back
+     * here, and against a nurse who keeps running she would drift out to the
+     * twelve-tile limit and teleport, over and over, for the whole journey.
+     */
+    for (let i = 0; i < 6; i++) sim.step();
+    gap = cheb(pet.x, pet.y, p.x, p.y);
+    ok(gap <= 2, `she closes it at a run within six ticks (gap ${gap})`);
+
+    /* a teleport is further than anyone can walk in a tick */
+    p.x = p.ix = 92; p.y = p.iy = 71;                 // the wayside altar
+    sim.step();
+    gap = cheb(pet.x, pet.y, p.x, p.y);
+    ok(gap <= 3, `and a teleport across the Throat does not lose her (gap ${gap})`);
+
+    /* the locket is a toggle, not a purchase */
+    const idx2 = her.state.inventory.findIndex(s => s && s.id === locket.id);
+    sim.handle(her, { t: 'use', idx: idx2 });
+    ok(sim.petOf(her) === null, 'shutting the locket sends her away');
+    ok(her.state.pet === null, 'and the save agrees');
+    ok(her.state.inventory.some(s => s && s.id === locket.id), 'the locket is not spent');
+
+    /* she comes back with you */
+    sim.handle(her, { t: 'use', idx: idx2 });
+    const saved = state.serialize(her.state);
+    ok(saved.pet === locket.companion, 'a save written now remembers her');
+    const reloaded = state.deserialize(saved);
+    ok(reloaded.pet === locket.companion, 'and reading it back brings her out again');
+    ok(state.deserialize({ ...saved, pet: 'nobody_by_that_name' }).pet === null,
+       'while a save naming somebody who no longer exists quietly forgets her');
+
+    /*
+     * The leak that matters. A dropped connection removes the session without
+     * anybody shutting the locket, and a companion left behind would stand in
+     * the ward for the rest of the server's life.
+     */
+    ok(sim.petOf(her) !== null, 'she is out when the connection drops');
+    sim.sessions.delete('smoke_gf');
+    sim.step();
+    ok(sim.pets.length === 0, 'and the next tick clears her rather than leaving her standing there');
+  }
+
   /* ---- nothing exists that cannot be got ------------------- */
 
   /*

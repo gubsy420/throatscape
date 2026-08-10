@@ -7,6 +7,8 @@ import { ITEMS, item, EQUIP_SLOTS } from '../data/items.js';
 import { SKILLS, SKILL_IDS, startingSkills, levelForXp, xpForLevel,
          combatLevel, MAX_XP, MAX_LEVEL } from '../data/skills.js';
 import { QUESTS, QUEST_BY_ID, DONE } from '../data/quests.js';
+// npcs.js imports nothing, so this adds no cycle to an already tangled graph
+import { NPCS } from '../data/npcs.js';
 import { SPAWN } from '../data/world.js';
 
 export const INV_SIZE = 28;
@@ -47,6 +49,8 @@ export function createState(name) {
     vigil: { points: 1, max: 1, active: [] },
     attackStyle: 'accurate',
     autocast: null,
+    /** The companion whose locket is open, if any. See useItem in actions.js. */
+    pet: null,
 
     /* runtime-only, never saved */
     npcs: [],
@@ -523,6 +527,7 @@ export function serialize(state) {
     vigilPoints: state.vigil.points,
     attackStyle: state.attackStyle,
     autocast: state.autocast,
+    pet: state.pet,
     settings: state.settings
   };
 }
@@ -563,6 +568,13 @@ export function deserialize(data) {
   s.vigil.points = clamp(data.vigilPoints ?? s.vigil.max, 0, s.vigil.max);
   s.attackStyle = data.attackStyle || 'accurate';
   s.autocast = data.autocast || null;
+  /*
+   * Checked against the roster rather than trusted. A save written while a
+   * companion existed must not be able to conjure one after the definition has
+   * been renamed or withdrawn - that would put a creature in the world that
+   * nothing can draw and nobody can dismiss.
+   */
+  s.pet = NPCS[data.pet]?.companion ? data.pet : null;
   Object.assign(s.settings, data.settings || {});
   return s;
 }

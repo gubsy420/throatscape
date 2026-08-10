@@ -402,10 +402,20 @@ hollis: {
       opts: [
         { label: 'Open my bank.', to: 'bank' },
         { label: 'Is it safe here?', to: 'safe' },
+        { label: 'What is written on your wall?', to: 'wall' },
         { label: 'Goodbye.', to: 'end' }
       ] },
     bank: { act: g => g.openBank(), text: '', to: 'end' },
-    safe: { text: 'Safer than you are. The vault has never been opened by anything with a pulse.', to: 'main' }
+    safe: { text: 'Safer than you are. The vault has never been opened by anything with a pulse.', to: 'main' },
+    /*
+     * Hollis is the neater hand on the plaster. He signed it "H." and he has
+     * been re-plastering over it for years, which is the only correct reaction
+     * anyone has ever had to that particular corner of any bank anywhere.
+     */
+    wall: { text: 'I have had that corner replastered four times. It comes back within the week. '
+      + 'A ward full of nurses who can set a shattered femur, and their courting is done at volume, '
+      + 'to a room, at a price. If you want the woman, Comfrey is at the crossroads and she '
+      + 'keeps a proper ledger. Do not haggle with her either.', to: 'main' }
   }
 },
 
@@ -561,6 +571,66 @@ patient: {
         { label: 'Rest now.', to: 'end' }
       ] },
     feel: { text: 'Better than the ceiling looks.', to: 'idle' }
+  }
+},
+
+/* ---------------- Mistress Comfrey -------------------------- */
+comfrey: {
+  start: () => 'main',
+  nodes: {
+    main: { text: 'You have the look. Twelve-hour round, nobody waiting at the end of it.',
+      opts: [
+        { label: 'What are you selling?', to: 'shop' },
+        { label: 'How does this work, exactly?', to: 'how' },
+        { label: 'Buying gf. One coin.', to: 'meme' },
+        { label: 'Who is Ilsabet?', to: 'who' },
+        { label: 'I am fine, thank you.', to: 'fine' }
+      ] },
+    /*
+     * The reason this shop exists. Twenty years of people standing at a bank
+     * shouting "buying gf 1gp" at strangers, and somebody in the Throat has
+     * finally decided to undercut the shouting with a ledger and a price.
+     */
+    meme: { text: 'One coin. There are four booths in this ward and I have heard '
+      + '"buying gf, one coin" bellowed at every one of them by nurses who would not '
+      + 'know what to do with a yes. A thousand, and she comes because she was asked '
+      + 'properly. That is the entire difference, and it is worth every coin of it.',
+      to: 'main' },
+    shop: { act: g => g.openShop('introductions'), text: '', to: 'end' },
+    /*
+     * Said plainly on purpose. A thousand coins buys the locket and nothing
+     * else, and the person who turns up is under no obligation whatsoever -
+     * which is the whole of the arrangement and the joke about it at once.
+     */
+    how: { text: 'A locket, a thousand coins, and my word that she has agreed to it. '
+      + 'You are buying the brass, nurse. Her company she gives away free, or not at all.',
+      to: 'main' },
+    who: { text: 'Ilsabet. Came in with a crushed hand, stayed eight months, walked out mended '
+      + 'and found she had nowhere she would rather be. She likes the corridors. She likes '
+      + 'somebody to walk them with. I only do the introducing.', to: 'main' },
+    fine: { text: 'They all say that. Ledger is open if the round gets long.', to: 'end' }
+  }
+},
+
+/* ---------------- Ilsabet ----------------------------------- */
+ilsabet: {
+  start: () => 'main',
+  nodes: {
+    main: { text: 'Go on, then. I will keep up.',
+      opts: [
+        { label: 'Are you all right back there?', to: 'fine' },
+        { label: 'Why do you do this?', to: 'why' },
+        { label: 'Someone at the bank offered one coin for you.', to: 'onecoin' },
+        { label: 'Stay close.', to: 'close' }
+      ] },
+    onecoin: { text: 'They always do. I have been standing near those booths for eight months '
+      + 'and not one of them has ever said it to me — only over my head, at the room. '
+      + 'You paid Comfrey a thousand and then asked me. Keep walking, nurse.', to: 'main' },
+    fine: { text: 'I have been carried through this ward on a board. Walking it is a holiday.',
+      to: 'main' },
+    why: { text: 'Eight months of a ceiling, and then a door, and then nothing on the other '
+      + 'side of it that wanted me. I would rather be behind somebody useful.', to: 'main' },
+    close: { text: 'I am not going anywhere. Shut the locket if you want the quiet.', to: 'end' }
   }
 }
 

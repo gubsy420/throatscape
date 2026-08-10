@@ -129,9 +129,16 @@ function lump(gl, build, height, kind = 'lump') {
 }
 
 const CREATURES = {
+  /*
+   * `scale` and `thin` come through from the art so a definition can differ in
+   * build as well as in colour. Without them every person in the Throat is the
+   * same body with a different coat, and a companion walking at your heel is the
+   * one figure on screen that gets looked at closely.
+   */
   humanoid: (gl, art) => humanoid(gl, {
     body: art.c || '#b8a68f', hat: art.hat || null,
-    trim: art.trim || null, hair: art.hair || null
+    trim: art.trim || null, hair: art.hair || null,
+    scale: art.scale || 1, thin: art.thin || 1
   }),
 
   patient: (gl, art) => humanoid(gl, {

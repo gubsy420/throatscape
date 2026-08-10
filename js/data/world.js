@@ -330,6 +330,12 @@ export function buildWorld() {
   building(16, 156, 14, 9, [{ x: 22, y: 164 }], T.CARPET, 'Lumbrisdale bank');
   addObj('bank_booth', 19, 158); addObj('bank_booth', 21, 158);
   addObj('bank_booth', 23, 158); addObj('bank_booth', 25, 158);
+  // In the corner, out of the queue. Every bank in every world has this wall.
+  addObj('sign', 27, 162, { text:
+    'Scratched into the plaster in a dozen different hands, one on top of the last: '
+    + '"BUYING GF 1GP". "BUYING GF 1GP". "SELLING GF 2GP". Underneath, in a much '
+    + 'neater hand and much deeper: "SHE IS NOT STOCK. SHE IS NOT ON MY LEDGER. '
+    + 'TAKE IT OUTSIDE." — H.' });
 
   building(36, 158, 12, 10, [{ x: 41, y: 167 }], T.STONE, 'Forge');
   addObj('furnace', 39, 160); addObj('anvil', 43, 161); addObj('anvil', 45, 163);
@@ -338,6 +344,13 @@ export function buildWorld() {
   addObj('altar', 23, 170);
 
   addObj('well', 31, 155);
+  /*
+   * Comfrey stands on the turf a tile north of the crossroads rather than on
+   * the road itself. NPCs block the tile they occupy, and a stall in the middle
+   * of the only east-west road through the starting ward narrows it for
+   * everybody who never wanted an introduction.
+   */
+  addObj('sign', 36, 148, { text: 'INTRODUCTIONS — enquire within. No shouting.' });
   addObj('sign', 29, 160, { text: 'LUMBRISDALE — Mercy House, north. Fen road, west. Vellumhaven, east.' });
   addObj('sign', 30, 129, { text: 'North: the Gullet Road. Travellers are advised not to.' });
 
@@ -353,7 +366,8 @@ export function buildWorld() {
     { npc: 'quartermaster_sceld', x: 44, y: 147 },
     { npc: 'banker_hollis', x: 22, y: 160 },
     { npc: 'smith_marrow', x: 42, y: 164 },
-    { npc: 'tomas', x: 33, y: 172 }
+    { npc: 'tomas', x: 33, y: 172 },
+    { npc: 'matchmaker_comfrey', x: 34, y: 148 }
   );
 
   /* --- Vellumhaven ---------------------------------------- */

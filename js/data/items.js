@@ -320,6 +320,21 @@ def({ id: 'recall_ring', name: 'Ring of recall', slot: 'ring', value: 2400,
   examine: 'Rub it and the ward pulls you home. Three charges left.',
   b: {}, charges: 3, teleport: 'lumbrisdale', art: { k: 'ring', c: '#86b7e0' } });
 
+/* ---------------- Company ----------------------------------- */
+
+/*
+ * `companion` names an NPC that walks with you while the locket is open.
+ * Nothing else in the item is special: it is not worn, it is not spent, and
+ * using it a second time shuts it again. The sim owns where she stands - see
+ * the pet handling in server/sim.js - and all this does is say whether she is
+ * out, which is why the id lives on the item rather than in the summon code.
+ */
+def({ id: 'sweetheart_locket', name: 'Sweetheart\'s locket', value: 1000,
+  companion: 'ilsabet',
+  examine: 'A hinged brass locket. Open it and she knows to come. Beats shouting '
+    + '"buying gf" across the bank for a thousandth of the price.',
+  art: { k: 'amulet', c: '#d4948a' } });
+
 /* ---------------- Quest & key items ------------------------- */
 
 const quest = (id, name, examine, art) =>

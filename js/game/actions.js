@@ -463,6 +463,25 @@ export function useItem(state, idx) {
     return;
   }
 
+  /*
+   * Company. The item is neither spent nor worn - opening the locket a second
+   * time shuts it - so all this does is set who is walking with you and say so.
+   * Where she actually stands is not this module's business: the sim owns the
+   * entity and listens for 'pet', exactly as it does for 'openbank'.
+   */
+  if (def.companion) {
+    if (state.pet === def.companion) {
+      state.pet = null;
+      state.bus.emit('pet', null);
+      log(state, 'You close the locket. She squeezes your arm and goes.', 'game');
+    } else {
+      state.pet = def.companion;
+      state.bus.emit('pet', def.companion);
+      log(state, 'You open the locket. She is beside you before it is fully open.', 'good');
+    }
+    return;
+  }
+
   if (def.slot) { equipFromSlot(state, idx); return; }
 
   if (def.teleport && def.charges) {

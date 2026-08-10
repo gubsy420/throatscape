@@ -28,6 +28,15 @@ export const SHOPS = {
     ]
   },
 
+  introductions: {
+    id: 'introductions', name: "Comfrey's Introductions",
+    greeting: 'Nobody in this ward should have to be alone in it.',
+    buyMult: 1.0, sellMult: 0.30,
+    stock: [
+      ['sweetheart_locket', 3]
+    ]
+  },
+
   forge: {
     id: 'forge', name: "Marrow's Forge",
     greeting: 'If it cuts, I made it or I can fix it.',

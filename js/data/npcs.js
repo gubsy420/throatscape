@@ -170,6 +170,25 @@ npc('patient_row', 'Bedbound patient', {
   examine: 'Breathing. Barely. Could use a nurse.',
   art: { k: 'patient', c: '#c9b48f' }, talk: 'patient', patient: true
 });
+npc('matchmaker_comfrey', 'Mistress Comfrey', {
+  examine: 'Keeps a ledger of lonely people and charges both ends.',
+  art: { k: 'humanoid', c: '#8f5f7a', hat: '#d9c0e0' }, talk: 'comfrey', shop: 'introductions'
+});
+
+/* ---------------- Companions -------------------------------- */
+
+/**
+ * Nobody scatters these across the map: a companion exists only while some
+ * nurse has her locket open, and the sim conjures one on demand. `companion`
+ * is the flag that says so, and it is what keeps her out of the checks that
+ * expect every creature to have somewhere it lives.
+ */
+npc('ilsabet', 'Ilsabet', {
+  companion: true,
+  examine: 'Discharged eight months ago. Never quite left.',
+  art: { k: 'humanoid', c: '#b06a7a', hair: '#4a2a30', thin: 0.86, scale: 0.96 },
+  talk: 'ilsabet'
+});
 
 export const NPCS = Object.fromEntries(LIST.map(n => [n.id, n]));
 export const npcDef = id => NPCS[id];
