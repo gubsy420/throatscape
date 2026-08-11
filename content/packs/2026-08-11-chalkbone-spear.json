@@ -1,0 +1,44 @@
+{
+  "id": "chalkbone_spear",
+  "version": "2026.08.11",
+  "date": "2026-08-11",
+  "beat": "arsenal",
+  "title": "The Chalkbone Spear",
+  "summary": "Something to carry out of the Rings that reaches further than the cleaver does.",
+  "author": "claude",
+
+  "notes": [
+    "content: Marrow's Forge will now work a chalkbone bar and a pair of chalk spurs into a spear, stab where the cleaver is slash, and longer besides.",
+    "content: Marrow's Forge has started stocking chalk spurs, for anyone who would rather buy than dig one out of whatever used to walk on it."
+  ],
+
+  "items": [
+    {
+      "id": "chalkbone_spear",
+      "name": "Chalkbone spear",
+      "slot": "weapon",
+      "value": 4200,
+      "req": { "lancing": 38 },
+      "speed": 5,
+      "examine": "Ground down from a chalkbone bar into a point. Better at a distance you can still see coming.",
+      "b": { "aStab": 62, "aSlash": 12, "str": 46 },
+      "art": { "k": "spear", "c": "#c7bda6", "hilt": "#4a4038" }
+    }
+  ],
+
+  "recipes": [
+    {
+      "station": "forging",
+      "skill": "forging",
+      "level": 38,
+      "xp": 112,
+      "need": { "chalkbone_bar": 3, "chalk_spur": 2 },
+      "out": "chalkbone_spear",
+      "count": 1
+    }
+  ],
+
+  "shopStock": [
+    { "shop": "forge", "item": "chalk_spur", "n": 8 }
+  ]
+}
