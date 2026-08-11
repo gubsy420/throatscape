@@ -183,6 +183,29 @@ async function playtest(candidate) {
 
   /* ---- every new recipe can be made ------------------------ */
 
+  /**
+   * Empties a test nurse's pack, leaving what she is wearing.
+   *
+   * Any check that hands her something has to start from a known pack, or the
+   * suite's own leavings become the thing under test. canBeMade puts a recipe's
+   * ingredients in twice over plus the bench's tool on every call, and the
+   * wearable loop unequips each piece straight back into the pack - so both grew
+   * by one delivery's worth every time a pack was published, and neither ever
+   * put anything away.
+   *
+   * On 2026-08-11 that finally crossed 28 slots. The run failed with "My
+   * inventory is full" and seven red checks against a pack that was perfectly
+   * sound, and it would have failed against any pack at all: the gate had been
+   * walking towards this since the first arsenal delivery. Growth that depends
+   * on how many packs exist is not something to leave to luck, so every check
+   * that fills her now clears her first.
+   */
+  const clearPack = session => {
+    session.state.inventory.fill(null);
+    session.state.bus.emit('inv');
+    return session.state.inventory.length;
+  };
+
   /*
    * Walk a nurse up to the right bench with everything the recipe asks for and
    * see whether the thing comes out. One function, used both for what a pack
@@ -204,6 +227,8 @@ async function playtest(candidate) {
     const at = world.objects.find(o => o.type === bench);
     if (!at) return { why: `there is no ${bench} in the world` };
 
+    // a clean pack, so the last recipe's ingredients are not this one's problem
+    clearPack(session);
     equip(session);
     const p = session.state.player;
     const spot = beside(world, at.x, at.y) || { x: at.x, y: at.y + 1 };
@@ -267,6 +292,41 @@ async function playtest(candidate) {
     ok(made, made
       ? `the ${bench} works: ${name}`
       : `the ${bench} cannot be worked even with the game's own ${name} — ${why}`);
+  }
+
+  /* ---- the gate's own housekeeping ------------------------- */
+
+  /*
+   * Whether this file can keep testing as the game grows.
+   *
+   * Every check above is written as though it runs alone, but they all share two
+   * nurses with 28 pockets between them, and the number of bench checks is the
+   * number of recipes every pack has ever added. That is a gate whose own
+   * footprint grows with the content it is meant to be judging, and on
+   * 2026-08-11 it ran out of room and failed a sound delivery.
+   *
+   * So the property is not "five recipes fit" - it is that the check does not
+   * care how many times it has already run. Thirty is far more than the game
+   * has, which is the point: it has to stay green as deliveries arrive rather
+   * than come back the day the count creeps past the pockets.
+   */
+  head('The gate does not fill its own nurse up');
+  {
+    const own = (game.RECIPES.forging || [])[0];
+    const label = game.ITEMS[own.out]?.name || own.out;
+    let firstWhy = '', lastWhy = '', passes = 0;
+    for (let i = 0; i < 30; i++) {
+      const r = canBeMade(A, 'forging', own.out);
+      if (r.made) passes++;
+      else if (!firstWhy) firstWhy = `run ${i + 1}: ${r.why}`;
+      else lastWhy = `run ${i + 1}: ${r.why}`;
+    }
+    ok(passes === 30, passes === 30
+      ? `${label} can be made thirty times running, so a delivery does not use up the gate`
+      : `${label} only made ${passes} of 30 — ${firstWhy}${lastWhy ? '; ' + lastWhy : ''}`);
+
+    const free = A.state.inventory.filter(s => !s).length;
+    ok(free >= 20, `and the nurse still has room to be handed things (${free} of ${A.state.inventory.length} free)`);
   }
 
   /* ---- what the client is told about scenery --------------- */
@@ -438,6 +498,8 @@ async function playtest(candidate) {
     equip(A);
     for (const id of wearable) {
       const def = game.ITEMS[id];
+      // unequipping puts the last piece back in the pack, so start each one empty
+      clearPack(A);
       state.addItem(A.state, id, 1);
       const idx = A.state.inventory.findIndex(s => s && s.id === id);
       sim.handle(A, { t: 'equip', idx });
@@ -447,6 +509,9 @@ async function playtest(candidate) {
       ok(Number.isFinite(b.str), `and its bonuses add up`);
       sim.handle(A, { t: 'unequip', slot: def.slot });
     }
+    // the same growth trap as the bench checks: one piece per delivery, for ever
+    const free = A.state.inventory.filter(s => !s).length;
+    ok(free >= 20, `and ${wearable.length} pieces later she still has room (${free} of ${A.state.inventory.length} free)`);
   }
 
   /* ---- every new quest can be finished --------------------- */
