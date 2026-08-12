@@ -1,0 +1,129 @@
+{
+  "id": "ring_haulers",
+  "version": "2026.08.12",
+  "date": "2026-08-12",
+  "beat": "bestiary",
+  "title": "The Ring Haulers",
+  "summary": "Four more things are dragging loads through the Cartilage Rings, and none of them ever seem to arrive.",
+  "author": "claude",
+
+  "notes": [
+    "content: Four more things are hauling loads through the Cartilage Rings — a litter-bearer still dragging an empty stretcher, a hod carrier bent under a load of chalk, a bone drayman clearing what the diggers won't touch, and a barrow wretch pushing something too heavy to have anywhere left to go.",
+    "content: Chalk hods and dray straps can both be picked off what you kill out there."
+  ],
+
+  "items": [
+    {
+      "id": "chalk_hod",
+      "name": "Chalk hod",
+      "stack": true,
+      "value": 210,
+      "examine": "Half full. Nobody ever hauls it the other half.",
+      "art": { "k": "bucket", "c": "#d8d2c4" }
+    },
+    {
+      "id": "dray_strap",
+      "name": "Dray strap",
+      "stack": true,
+      "value": 560,
+      "examine": "Worn smooth by a shoulder that stopped complaining.",
+      "art": { "k": "thread", "c": "#6b5a4a" }
+    }
+  ],
+
+  "npcs": [
+    {
+      "id": "litter_bearer",
+      "name": "Litter-bearer",
+      "hostile": true,
+      "lvl": 58,
+      "stats": { "att": 38, "str": 36, "def": 33, "hp": 62 },
+      "bon": { "atk": 32, "str": 30, "def": 27 },
+      "examine": "Still hauling the litter. Whoever was on it stopped needing one a while back.",
+      "art": { "k": "humanoid", "c": "#a89478" },
+      "wander": 4,
+      "aggroRange": 3,
+      "speed": 4,
+      "respawn": 24,
+      "drops": [
+        { "id": "bones", "n": [1, 1], "weight": 100 },
+        { "id": "coins", "n": [20, 430], "weight": 42 },
+        { "id": "chalk_lump", "n": [1, 2], "weight": 14 },
+        { "id": "dray_strap", "n": [1, 2], "weight": 14 },
+        { "id": null, "weight": 30 }
+      ]
+    },
+    {
+      "id": "hod_carrier",
+      "name": "Hod carrier",
+      "hostile": true,
+      "lvl": 61,
+      "stats": { "att": 44, "str": 46, "def": 38, "hp": 76 },
+      "bon": { "atk": 38, "str": 40, "def": 32 },
+      "examine": "Bent double under a hod of chalk that never gets any lighter.",
+      "art": { "k": "humanoid", "c": "#c2a25a" },
+      "wander": 4,
+      "aggroRange": 4,
+      "speed": 4,
+      "respawn": 27,
+      "drops": [
+        { "id": "bones", "n": [1, 1], "weight": 100 },
+        { "id": "coins", "n": [30, 620], "weight": 40 },
+        { "id": "chalk_lump", "n": [1, 3], "weight": 16 },
+        { "id": "chalk_hod", "n": [1, 2], "weight": 18 },
+        { "id": null, "weight": 26 }
+      ]
+    },
+    {
+      "id": "bone_drayman",
+      "name": "Bone drayman",
+      "hostile": true,
+      "lvl": 64,
+      "stats": { "att": 50, "str": 48, "def": 44, "hp": 88 },
+      "bon": { "atk": 44, "str": 42, "def": 38 },
+      "examine": "Clears what the diggers leave. Never asked, never stops.",
+      "art": { "k": "humanoid", "c": "#948872" },
+      "wander": 4,
+      "aggroRange": 5,
+      "speed": 4,
+      "respawn": 30,
+      "drops": [
+        { "id": "thick_bones", "n": [1, 1], "weight": 100 },
+        { "id": "coins", "n": [70, 980], "weight": 40 },
+        { "id": "chalk_hod", "n": [1, 2], "weight": 14 },
+        { "id": "dray_strap", "n": [1, 2], "weight": 14 },
+        { "id": "cartilage_shard", "n": [1, 2], "weight": 10 },
+        { "id": null, "weight": 26 }
+      ]
+    },
+    {
+      "id": "barrow_wretch",
+      "name": "Barrow wretch",
+      "hostile": true,
+      "lvl": 68,
+      "stats": { "att": 56, "str": 60, "def": 50, "hp": 106 },
+      "bon": { "atk": 50, "str": 54, "def": 44 },
+      "examine": "Pushes a barrow loaded past sense. Never once sets it down.",
+      "art": { "k": "brute", "c": "#5a5248" },
+      "wander": 3,
+      "aggroRange": 7,
+      "speed": 4,
+      "respawn": 38,
+      "drops": [
+        { "id": "thick_bones", "n": [1, 1], "weight": 100 },
+        { "id": "coins", "n": [150, 1500], "weight": 40 },
+        { "id": "chalk_hod", "n": [1, 3], "weight": 16 },
+        { "id": "dray_strap", "n": [1, 2], "weight": 12 },
+        { "id": "greater_salve", "n": [1, 2], "weight": 10 },
+        { "id": null, "weight": 26 }
+      ]
+    }
+  ],
+
+  "spawns": [
+    { "npc": "litter_bearer", "region": "rings", "count": 8, "allow": ["CHALK", "STONE"] },
+    { "npc": "hod_carrier", "region": "rings", "count": 6, "allow": ["CHALK", "STONE"] },
+    { "npc": "bone_drayman", "region": "rings", "count": 5, "allow": ["CHALK", "MOSS"] },
+    { "npc": "barrow_wretch", "region": "rings", "count": 4, "allow": ["CHALK", "STONE"] }
+  ]
+}
