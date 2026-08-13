@@ -1,0 +1,43 @@
+{
+  "id": "chalkbone_greaves",
+  "version": "2026.08.13",
+  "date": "2026-08-13",
+  "beat": "arsenal",
+  "title": "The Chalkbone Greaves",
+  "summary": "Something to wear out of the Rings, legs to go with the rest of the set.",
+  "author": "claude",
+
+  "notes": [
+    "content: Marrow's Forge will now work a chalkbone bar and a pair of hollow teeth into greaves, to go with the cleaver, the plate and the gauntlets.",
+    "content: Marrow's Forge has started stocking hollow teeth, for anyone who would rather buy than dig one out of whatever grew it."
+  ],
+
+  "items": [
+    {
+      "id": "chalkbone_greaves",
+      "name": "Chalkbone greaves",
+      "slot": "legs",
+      "value": 3600,
+      "req": { "warding": 38 },
+      "examine": "Plated down the shin in chalkbone, backed with teeth that already knew how to hold an edge.",
+      "b": { "dStab": 22, "dSlash": 25, "dCrush": 22, "dRange": 22, "dMagic": -5 },
+      "art": { "k": "legs", "c": "#c7bda6" }
+    }
+  ],
+
+  "recipes": [
+    {
+      "station": "forging",
+      "skill": "forging",
+      "level": 39,
+      "xp": 118,
+      "need": { "chalkbone_bar": 3, "hollow_tooth": 2 },
+      "out": "chalkbone_greaves",
+      "count": 1
+    }
+  ],
+
+  "shopStock": [
+    { "shop": "forge", "item": "hollow_tooth", "n": 8 }
+  ]
+}
