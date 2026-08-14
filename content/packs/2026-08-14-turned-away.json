@@ -1,0 +1,105 @@
+{
+  "id": "turned_away",
+  "version": "2026.08.14",
+  "date": "2026-08-14",
+  "beat": "bestiary",
+  "title": "The Turned-Away",
+  "summary": "The Cartilage Rings stopped taking anyone new a while back. The tunnel is where they went instead.",
+  "author": "claude",
+
+  "notes": [
+    "content: The Cartilage Rings ran out of room for anyone new some time ago, and the ones turned away at the door are still stuck in the tunnel through the Larynx Deep — three of them have stopped being polite about it.",
+    "content: Tally stubs and bent bed frames can both be picked off what you kill down there."
+  ],
+
+  "items": [
+    {
+      "id": "tally_stub",
+      "name": "Tally stub",
+      "stack": true,
+      "value": 95,
+      "examine": "Torn off a longer list. Whoever needed the rest of it already knows.",
+      "art": { "k": "scroll", "c": "#d8d2c0" }
+    },
+    {
+      "id": "bent_bed_frame",
+      "name": "Bent bed frame",
+      "value": 640,
+      "examine": "Pulled off a cot that will not be slept in again.",
+      "art": { "k": "bar", "c": "#8f8f8f" }
+    }
+  ],
+
+  "npcs": [
+    {
+      "id": "sent_back_patient",
+      "name": "Sent-back patient",
+      "hostile": true,
+      "lvl": 58,
+      "stats": { "att": 40, "str": 38, "def": 35, "hp": 64 },
+      "bon": { "atk": 34, "str": 32, "def": 29 },
+      "examine": "Turned back at the Rings' door. Never told where else to go.",
+      "art": { "k": "patient", "c": "#a89478" },
+      "wander": 4,
+      "aggroRange": 3,
+      "speed": 4,
+      "respawn": 24,
+      "drops": [
+        { "id": "bones", "n": [1, 1], "weight": 100 },
+        { "id": "coins", "n": [20, 420], "weight": 42 },
+        { "id": "tally_stub", "n": [1, 3], "weight": 18 },
+        { "id": "lint", "n": [1, 2], "weight": 12 },
+        { "id": null, "weight": 28 }
+      ]
+    },
+    {
+      "id": "queue_squatter",
+      "name": "Queue squatter",
+      "hostile": true,
+      "lvl": 62,
+      "stats": { "att": 46, "str": 44, "def": 41, "hp": 78 },
+      "bon": { "atk": 40, "str": 38, "def": 35 },
+      "examine": "Has been waiting long enough to stop counting the days.",
+      "art": { "k": "humanoid", "c": "#7a6f5a" },
+      "wander": 4,
+      "aggroRange": 5,
+      "speed": 4,
+      "respawn": 28,
+      "drops": [
+        { "id": "bones", "n": [1, 1], "weight": 100 },
+        { "id": "coins", "n": [35, 700], "weight": 40 },
+        { "id": "tally_stub", "n": [1, 3], "weight": 16 },
+        { "id": "bent_bed_frame", "n": [1, 1], "weight": 12 },
+        { "id": null, "weight": 32 }
+      ]
+    },
+    {
+      "id": "struck_off_orderly",
+      "name": "Struck-off orderly",
+      "hostile": true,
+      "lvl": 67,
+      "stats": { "att": 54, "str": 56, "def": 49, "hp": 100 },
+      "bon": { "atk": 48, "str": 50, "def": 43 },
+      "examine": "Still checks the muster. Nobody checks his.",
+      "art": { "k": "humanoid", "c": "#5f6b5a" },
+      "wander": 4,
+      "aggroRange": 6,
+      "speed": 4,
+      "respawn": 34,
+      "drops": [
+        { "id": "thick_bones", "n": [1, 1], "weight": 100 },
+        { "id": "coins", "n": [80, 1500], "weight": 40 },
+        { "id": "tally_stub", "n": [1, 2], "weight": 14 },
+        { "id": "bent_bed_frame", "n": [1, 2], "weight": 14 },
+        { "id": "gauze_wrap", "n": [1, 2], "weight": 10 },
+        { "id": null, "weight": 28 }
+      ]
+    }
+  ],
+
+  "spawns": [
+    { "npc": "sent_back_patient", "region": "larynx", "count": 8, "allow": ["CAVE", "BLOOD"] },
+    { "npc": "queue_squatter", "region": "larynx", "count": 6, "allow": ["CAVE", "BLOOD"] },
+    { "npc": "struck_off_orderly", "region": "larynx", "count": 4, "allow": ["CAVE", "BLOOD"] }
+  ]
+}
