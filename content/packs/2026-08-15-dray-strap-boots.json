@@ -1,0 +1,43 @@
+{
+  "id": "dray_strap_boots",
+  "version": "2026.08.15",
+  "date": "2026-08-15",
+  "beat": "arsenal",
+  "title": "Dray-strap Boots",
+  "summary": "Something to wear out of the Rings, boots laced from straps the haulers wear through.",
+  "author": "claude",
+
+  "notes": [
+    "content: Marrow's Forge will now work a chalkbone bar and a pair of dray straps into boots, to go with the plate, the greaves and the gauntlets.",
+    "content: Marrow's Forge has started stocking dray straps, for anyone who would rather buy than pull them off a hauler."
+  ],
+
+  "items": [
+    {
+      "id": "dray_strap_boots",
+      "name": "Dray-strap boots",
+      "slot": "feet",
+      "value": 2400,
+      "req": { "warding": 38 },
+      "examine": "Chalkbone soles, laced with straps pulled off something that carried more than you ever will.",
+      "b": { "dStab": 10, "dSlash": 11, "dCrush": 10, "dRange": 10, "dMagic": -2 },
+      "art": { "k": "boots", "c": "#c7bda6" }
+    }
+  ],
+
+  "recipes": [
+    {
+      "station": "forging",
+      "skill": "forging",
+      "level": 38,
+      "xp": 114,
+      "need": { "chalkbone_bar": 2, "dray_strap": 3 },
+      "out": "dray_strap_boots",
+      "count": 1
+    }
+  ],
+
+  "shopStock": [
+    { "shop": "forge", "item": "dray_strap", "n": 8 }
+  ]
+}
