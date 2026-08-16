@@ -1,0 +1,128 @@
+{
+  "id": "past_the_bend",
+  "version": "2026.08.16",
+  "date": "2026-08-16",
+  "beat": "bestiary",
+  "title": "Past the Bend",
+  "summary": "The queue for the Cartilage Rings still hasn't moved. Further back, in the tunnel through the Larynx Deep, it has stopped pretending to.",
+  "author": "claude",
+
+  "notes": [
+    "content: Four more shapes have settled into the tunnel through the Larynx Deep, further back than the ones already turned away at the Rings' door — the queue goes still, and stays still, the further in you walk.",
+    "content: Queue chits and unclaimed parcels can both be picked off what you kill there."
+  ],
+
+  "items": [
+    {
+      "id": "queue_chit",
+      "name": "Queue chit",
+      "stack": true,
+      "value": 24,
+      "examine": "A numbered ticket. The number stopped mattering some time ago.",
+      "art": { "k": "scroll", "c": "#c9c2a8" }
+    },
+    {
+      "id": "unclaimed_parcel",
+      "name": "Unclaimed parcel",
+      "value": 480,
+      "examine": "Wrapped for somebody who never came back to claim it.",
+      "art": { "k": "blob", "c": "#8f7c5a" }
+    }
+  ],
+
+  "npcs": [
+    {
+      "id": "line_holder",
+      "name": "Line-holder",
+      "hostile": true,
+      "lvl": 58,
+      "stats": { "att": 42, "str": 40, "def": 36, "hp": 66 },
+      "bon": { "atk": 36, "str": 34, "def": 30 },
+      "examine": "Holding a place in a line that ended hours ago.",
+      "art": { "k": "patient", "c": "#9c8a70" },
+      "wander": 4,
+      "aggroRange": 3,
+      "speed": 4,
+      "respawn": 24,
+      "drops": [
+        { "id": "bones", "n": [1, 1], "weight": 100 },
+        { "id": "coins", "n": [20, 440], "weight": 42 },
+        { "id": "queue_chit", "n": [1, 3], "weight": 18 },
+        { "id": "lint", "n": [1, 2], "weight": 12 },
+        { "id": null, "weight": 28 }
+      ]
+    },
+    {
+      "id": "chit_counter",
+      "name": "Chit-counter",
+      "hostile": true,
+      "lvl": 62,
+      "stats": { "att": 48, "str": 46, "def": 42, "hp": 80 },
+      "bon": { "atk": 42, "str": 40, "def": 36 },
+      "examine": "Recounts the same handful of chits until the number comes out right.",
+      "art": { "k": "humanoid", "c": "#8f8266" },
+      "wander": 4,
+      "aggroRange": 5,
+      "speed": 4,
+      "respawn": 28,
+      "drops": [
+        { "id": "bones", "n": [1, 1], "weight": 100 },
+        { "id": "coins", "n": [30, 660], "weight": 40 },
+        { "id": "queue_chit", "n": [1, 4], "weight": 18 },
+        { "id": "unclaimed_parcel", "n": [1, 1], "weight": 10 },
+        { "id": null, "weight": 32 }
+      ]
+    },
+    {
+      "id": "overdue_orderly",
+      "name": "Overdue orderly",
+      "hostile": true,
+      "lvl": 66,
+      "stats": { "att": 54, "str": 52, "def": 48, "hp": 92 },
+      "bon": { "atk": 48, "str": 46, "def": 42 },
+      "examine": "Was meant to relieve the queue hours ago. Nobody has come to relieve him either.",
+      "art": { "k": "humanoid", "c": "#6b6152" },
+      "wander": 4,
+      "aggroRange": 6,
+      "speed": 4,
+      "respawn": 32,
+      "drops": [
+        { "id": "thick_bones", "n": [1, 1], "weight": 100 },
+        { "id": "coins", "n": [60, 1000], "weight": 40 },
+        { "id": "unclaimed_parcel", "n": [1, 2], "weight": 14 },
+        { "id": "queue_chit", "n": [1, 3], "weight": 14 },
+        { "id": "gauze_wrap", "n": [1, 2], "weight": 10 },
+        { "id": null, "weight": 28 }
+      ]
+    },
+    {
+      "id": "bend_warden",
+      "name": "Bend warden",
+      "hostile": true,
+      "lvl": 70,
+      "stats": { "att": 58, "str": 60, "def": 53, "hp": 108 },
+      "bon": { "atk": 52, "str": 56, "def": 45 },
+      "examine": "The tunnel bends here. Nothing has gotten past him in longer than anyone remembers.",
+      "art": { "k": "brute", "c": "#4a463c" },
+      "wander": 3,
+      "aggroRange": 7,
+      "speed": 4,
+      "respawn": 36,
+      "drops": [
+        { "id": "thick_bones", "n": [1, 1], "weight": 100 },
+        { "id": "coins", "n": [150, 1500], "weight": 40 },
+        { "id": "unclaimed_parcel", "n": [1, 2], "weight": 16 },
+        { "id": "queue_chit", "n": [1, 3], "weight": 12 },
+        { "id": "greater_salve", "n": [1, 2], "weight": 10 },
+        { "id": null, "weight": 26 }
+      ]
+    }
+  ],
+
+  "spawns": [
+    { "npc": "line_holder", "region": "larynx", "count": 8, "allow": ["CAVE", "BLOOD"] },
+    { "npc": "chit_counter", "region": "larynx", "count": 6, "allow": ["CAVE", "BLOOD"] },
+    { "npc": "overdue_orderly", "region": "larynx", "count": 5, "allow": ["CAVE", "BLOOD"] },
+    { "npc": "bend_warden", "region": "larynx", "count": 4, "allow": ["CAVE", "BLOOD"] }
+  ]
+}
