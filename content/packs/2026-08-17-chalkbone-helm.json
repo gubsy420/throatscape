@@ -1,0 +1,43 @@
+{
+  "id": "chalkbone_helm",
+  "version": "2026.08.17",
+  "date": "2026-08-17",
+  "beat": "arsenal",
+  "title": "The Chalkbone Helm",
+  "summary": "Something to wear out of the Rings, a helm to finish what the plate started.",
+  "author": "claude",
+
+  "notes": [
+    "content: Marrow's Forge will now work a chalkbone bar and chalk moth dust into a helm, finishing the set: the plate, the greaves, the gauntlets, the boots, and now this.",
+    "content: Marrow's Forge has started stocking chalk moth dust, for anyone who would rather buy the padding than fight a moth for it."
+  ],
+
+  "items": [
+    {
+      "id": "chalkbone_helm",
+      "name": "Chalkbone helm",
+      "slot": "head",
+      "value": 2600,
+      "req": { "warding": 38 },
+      "examine": "Chalkbone curved to the skull, packed inside with moth dust for whatever padding that is worth.",
+      "b": { "dStab": 15, "dSlash": 17, "dCrush": 15, "dRange": 15, "dMagic": -3 },
+      "art": { "k": "helm", "c": "#c7bda6" }
+    }
+  ],
+
+  "recipes": [
+    {
+      "station": "forging",
+      "skill": "forging",
+      "level": 38,
+      "xp": 116,
+      "need": { "chalkbone_bar": 2, "moth_dust": 4 },
+      "out": "chalkbone_helm",
+      "count": 1
+    }
+  ],
+
+  "shopStock": [
+    { "shop": "forge", "item": "moth_dust", "n": 12 }
+  ]
+}
