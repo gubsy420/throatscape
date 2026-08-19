@@ -1,0 +1,44 @@
+{
+  "id": "chalkbone_maul",
+  "version": "2026.08.19",
+  "date": "2026-08-19",
+  "beat": "arsenal",
+  "title": "The Chalkbone Maul",
+  "summary": "Something to carry out of the Rings, crush where the cleaver is slash and the spear is stab.",
+  "author": "claude",
+
+  "notes": [
+    "content: Marrow's Forge will now band a chalk hod's frame in chalkbone bar to build a maul, crush where the cleaver is slash and the spear is stab.",
+    "content: Marrow's Forge has started stocking chalk hods, for anyone who would rather buy than dig one out from under a hauler."
+  ],
+
+  "items": [
+    {
+      "id": "chalkbone_maul",
+      "name": "Chalkbone maul",
+      "slot": "weapon",
+      "value": 4600,
+      "req": { "lancing": 38 },
+      "speed": 6,
+      "examine": "A chalk hod's frame, banded in chalkbone and swung the other way.",
+      "b": { "aCrush": 58, "aSlash": 10, "str": 56 },
+      "art": { "k": "hammer", "c": "#c7bda6" }
+    }
+  ],
+
+  "recipes": [
+    {
+      "station": "forging",
+      "skill": "forging",
+      "level": 40,
+      "xp": 118,
+      "need": { "chalkbone_bar": 3, "chalk_hod": 2 },
+      "out": "chalkbone_maul",
+      "count": 1
+    }
+  ],
+
+  "shopStock": [
+    { "shop": "forge", "item": "chalk_hod", "n": 10 }
+  ]
+}
