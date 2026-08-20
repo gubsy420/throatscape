@@ -1,0 +1,127 @@
+{
+  "id": "the_overladen",
+  "version": "2026.08.20",
+  "date": "2026-08-20",
+  "beat": "bestiary",
+  "title": "The Overladen",
+  "summary": "Four more things have taken up what the convoys dropped in the tunnel through the Larynx Deep, and are carrying it deeper in rather than handing it over.",
+  "author": "claude",
+
+  "notes": [
+    "content: Something is carrying the Rings' missing shipments deeper into the tunnel through the Larynx Deep rather than delivering them — a snatcher that grabs what it can reach, a bearer that will not put its load down even to fight, an orderly who picked up someone else's job and kept it, and a warden standing over the pile the others have made.",
+    "content: Cargo tags and hoarded loads can both be picked off what you kill there."
+  ],
+
+  "items": [
+    {
+      "id": "cargo_tag",
+      "name": "Cargo tag",
+      "stack": true,
+      "value": 130,
+      "examine": "Numbered, for a shipment that is not arriving.",
+      "art": { "k": "scroll", "c": "#b0a688" }
+    },
+    {
+      "id": "hoarded_load",
+      "name": "Hoarded load",
+      "value": 500,
+      "examine": "Still bound for the Rings. It is not going to get there now.",
+      "art": { "k": "blob", "c": "#6e5f4a" }
+    }
+  ],
+
+  "npcs": [
+    {
+      "id": "load_snatcher",
+      "name": "Load-snatcher",
+      "hostile": true,
+      "lvl": 58,
+      "stats": { "att": 41, "str": 39, "def": 34, "hp": 65 },
+      "bon": { "atk": 35, "str": 33, "def": 28 },
+      "examine": "Grabbed a load off the tunnel floor and has not put it down since.",
+      "art": { "k": "crawler", "c": "#7a6a52" },
+      "wander": 4,
+      "aggroRange": 4,
+      "speed": 4,
+      "respawn": 24,
+      "drops": [
+        { "id": "bones", "n": [1, 1], "weight": 100 },
+        { "id": "coins", "n": [20, 420], "weight": 42 },
+        { "id": "cargo_tag", "n": [1, 3], "weight": 20 },
+        { "id": null, "weight": 32 }
+      ]
+    },
+    {
+      "id": "load_bearer",
+      "name": "Load-bearer",
+      "hostile": true,
+      "lvl": 62,
+      "stats": { "att": 47, "str": 45, "def": 40, "hp": 79 },
+      "bon": { "atk": 41, "str": 39, "def": 35 },
+      "examine": "Carries more than it should. Will not put any of it down, even to fight.",
+      "art": { "k": "humanoid", "c": "#6b6152" },
+      "wander": 4,
+      "aggroRange": 5,
+      "speed": 4,
+      "respawn": 28,
+      "drops": [
+        { "id": "bones", "n": [1, 1], "weight": 100 },
+        { "id": "coins", "n": [30, 640], "weight": 40 },
+        { "id": "cargo_tag", "n": [1, 4], "weight": 18 },
+        { "id": "hoarded_load", "n": [1, 1], "weight": 10 },
+        { "id": null, "weight": 30 }
+      ]
+    },
+    {
+      "id": "overladen_orderly",
+      "name": "Overladen orderly",
+      "hostile": true,
+      "lvl": 66,
+      "stats": { "att": 54, "str": 53, "def": 47, "hp": 93 },
+      "bon": { "atk": 48, "str": 47, "def": 41 },
+      "examine": "Was meant to relieve a bearer somewhere back along the line. Picked up the load instead and kept walking.",
+      "art": { "k": "humanoid", "c": "#5a5248" },
+      "wander": 3,
+      "aggroRange": 6,
+      "speed": 4,
+      "respawn": 33,
+      "drops": [
+        { "id": "thick_bones", "n": [1, 1], "weight": 100 },
+        { "id": "coins", "n": [60, 1000], "weight": 40 },
+        { "id": "hoarded_load", "n": [1, 2], "weight": 14 },
+        { "id": "cargo_tag", "n": [1, 3], "weight": 14 },
+        { "id": "gauze_wrap", "n": [1, 2], "weight": 10 },
+        { "id": null, "weight": 28 }
+      ]
+    },
+    {
+      "id": "load_warden",
+      "name": "Load warden",
+      "hostile": true,
+      "lvl": 70,
+      "stats": { "att": 59, "str": 58, "def": 54, "hp": 107 },
+      "bon": { "atk": 53, "str": 55, "def": 46 },
+      "examine": "Stands over what the others have carried this far. Nothing gets past this point.",
+      "art": { "k": "brute", "c": "#4a463c" },
+      "wander": 3,
+      "aggroRange": 7,
+      "speed": 4,
+      "respawn": 37,
+      "drops": [
+        { "id": "thick_bones", "n": [1, 1], "weight": 100 },
+        { "id": "coins", "n": [150, 1500], "weight": 40 },
+        { "id": "hoarded_load", "n": [1, 2], "weight": 16 },
+        { "id": "cargo_tag", "n": [1, 3], "weight": 12 },
+        { "id": "greater_salve", "n": [1, 2], "weight": 10 },
+        { "id": null, "weight": 26 }
+      ]
+    }
+  ],
+
+  "spawns": [
+    { "npc": "load_snatcher", "region": "larynx", "count": 8, "allow": ["CAVE", "BLOOD"] },
+    { "npc": "load_bearer", "region": "larynx", "count": 5, "allow": ["CAVE", "BLOOD"] },
+    { "npc": "overladen_orderly", "region": "larynx", "count": 4, "allow": ["CAVE", "BLOOD"] },
+    { "npc": "load_warden", "region": "larynx", "count": 3, "allow": ["CAVE", "BLOOD"] }
+  ]
+}
