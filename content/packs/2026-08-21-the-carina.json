@@ -1,0 +1,177 @@
+{
+  "id": "the_carina",
+  "version": "2026.08.21",
+  "date": "2026-08-21",
+  "beat": "expansion",
+  "title": "The Carina",
+  "summary": "East of the Cartilage Rings, the Throat forks. New ground, and a road in.",
+  "author": "claude",
+
+  "notes": [
+    "content: East of the Cartilage Rings, the Throat forks in two. The Carina is open ground now.",
+    "content: Fork crawlers keep to the dry rock, forked patients wander the damp side, and something bigger answers from further in.",
+    "content: The ridge between the two branches can be mined for keel shards. One of the things living out there carries a plate cut from the same ridge.",
+    "content: A watch post stands where the road comes in. Kept, but not manned."
+  ],
+
+  "regions": [
+    {
+      "id": "carina",
+      "name": "The Carina",
+      "x": 280, "y": 6, "w": 72, "h": 92,
+      "base": "CHALK",
+      "tint": "#9a8478",
+      "blurb": "Where the tube splits in two. Not an equal split.",
+      "terrain": {
+        "rules": [
+          { "tile": "CAVEWALL", "coarse": { "below": 0.30 } },
+          { "tile": "BLOOD", "fine": { "above": 0.78 } },
+          { "tile": "MOSS", "fine": { "below": 0.20 } }
+        ]
+      },
+      "links": [
+        { "x1": 272, "y1": 52, "x2": 300, "y2": 52, "w": 4 }
+      ]
+    }
+  ],
+
+  "objects": [
+    {
+      "id": "keel_seam",
+      "name": "Keel seam",
+      "act": "Mine",
+      "skill": "delving",
+      "level": 40,
+      "xp": 210,
+      "yield": "keel_shard",
+      "tool": "delving",
+      "respawn": 110,
+      "art": "rock",
+      "c": "#c7bda9",
+      "examine": "The ridge gives up a shard, then closes over where it was."
+    }
+  ],
+
+  "items": [
+    {
+      "id": "keel_shard",
+      "name": "Keel shard",
+      "stack": true,
+      "value": 85,
+      "examine": "Broken off the ridge that splits the airway. Still shaped like a blade.",
+      "art": { "k": "ore", "c": "#c7bda9" }
+    },
+    {
+      "id": "keel_plate",
+      "name": "Keel plate",
+      "slot": "shield",
+      "value": 3400,
+      "req": { "warding": 38 },
+      "examine": "Cut from the ridge itself. Holds a shape it was never meant to.",
+      "b": { "dStab": 22, "dSlash": 24, "dCrush": 21, "dRange": 22, "dMagic": -3 },
+      "art": { "k": "shield", "c": "#c7bda9" }
+    }
+  ],
+
+  "npcs": [
+    {
+      "id": "fork_crawler",
+      "name": "Fork crawler",
+      "hostile": true,
+      "lvl": 58,
+      "stats": { "att": 52, "str": 54, "def": 48, "hp": 96 },
+      "bon": { "atk": 46, "str": 48, "def": 42 },
+      "examine": "Something with too many legs, keeping to the fork in the dark.",
+      "art": { "k": "crawler", "c": "#8f7d6a" },
+      "wander": 5,
+      "aggroRange": 6,
+      "speed": 3,
+      "respawn": 34,
+      "drops": [
+        { "id": "bones", "n": [1, 1], "weight": 100 },
+        { "id": "coins", "n": [250, 1000], "weight": 42 },
+        { "id": "keel_shard", "n": [1, 2], "weight": 18 },
+        { "id": "chalk_lump", "n": [1, 3], "weight": 12 },
+        { "id": null, "weight": 30 }
+      ]
+    },
+    {
+      "id": "forked_patient",
+      "name": "Forked patient",
+      "hostile": true,
+      "lvl": 64,
+      "stats": { "att": 56, "str": 58, "def": 52, "hp": 102 },
+      "bon": { "atk": 50, "str": 52, "def": 46 },
+      "examine": "Told to go left. Went right. Has not stopped since.",
+      "art": { "k": "patient", "c": "#9c8a6a" },
+      "wander": 4,
+      "aggroRange": 6,
+      "speed": 4,
+      "respawn": 38,
+      "drops": [
+        { "id": "bones", "n": [1, 1], "weight": 100 },
+        { "id": "coins", "n": [350, 1300], "weight": 40 },
+        { "id": "gauze_wrap", "n": [1, 2], "weight": 16 },
+        { "id": "numbthistle", "n": [1, 1], "weight": 10 },
+        { "id": "keel_shard", "n": [1, 1], "weight": 12 },
+        { "id": null, "weight": 28 }
+      ]
+    },
+    {
+      "id": "twin_howler",
+      "name": "Twin howler",
+      "hostile": true,
+      "lvl": 70,
+      "stats": { "att": 57, "str": 56, "def": 53, "hp": 108 },
+      "bon": { "atk": 52, "str": 54, "def": 48 },
+      "examine": "It only howls once. The fork answers back.",
+      "art": { "k": "howler", "c": "#6a4a5f" },
+      "wander": 6,
+      "aggroRange": 7,
+      "speed": 4,
+      "respawn": 42,
+      "drops": [
+        { "id": "gasper_skull", "n": [1, 1], "weight": 100 },
+        { "id": "coins", "n": [500, 1550], "weight": 38 },
+        { "id": "keel_plate", "n": [1, 1], "weight": 6 },
+        { "id": "greater_salve", "n": [1, 3], "weight": 10 },
+        { "id": "keel_shard", "n": [2, 4], "weight": 18 },
+        { "id": null, "weight": 24 }
+      ]
+    }
+  ],
+
+  "sites": [
+    {
+      "id": "fork_watch",
+      "name": "The Fork Watch",
+      "region": "carina",
+      "x": 288, "y": 46, "w": 11, "h": 9,
+      "ground": "STONE",
+      "building": {
+        "x": 290, "y": 47, "w": 7, "h": 5,
+        "floor": "FLOOR",
+        "doors": [{ "x": 293, "y": 51 }]
+      },
+      "objects": [
+        { "type": "bed", "x": 291, "y": 48 },
+        { "type": "crate", "x": 295, "y": 48 },
+        { "type": "brazier", "x": 289, "y": 53 }
+      ],
+      "sign": {
+        "x": 297, "y": 53,
+        "text": "FORK WATCH — count them in. Count fewer out."
+      }
+    }
+  ],
+
+  "spawns": [
+    { "npc": "fork_crawler", "region": "carina", "count": 10, "allow": ["CHALK", "BLOOD"] },
+    { "npc": "forked_patient", "region": "carina", "count": 8, "allow": ["CHALK", "MOSS"] },
+    { "npc": "twin_howler", "region": "carina", "count": 6, "allow": ["BLOOD", "MOSS"] }
+  ],
+
+  "scatter": [
+    { "type": "keel_seam", "region": "carina", "count": 14, "allow": ["CHALK", "BLOOD"] }
+  ]
+}
