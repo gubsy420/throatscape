@@ -1,0 +1,66 @@
+{
+  "id": "the_damp_branch",
+  "version": "2026.08.22",
+  "date": "2026-08-22",
+  "beat": "resource",
+  "title": "Damp Growth",
+  "summary": "The short side of the fork has its own crop, and its own use for it.",
+  "author": "claude",
+
+  "notes": [
+    "content: Damp growth has taken root on the shorter branch of the Carina fork, where the drainage never keeps up.",
+    "content: Brew damp moss into a damp draught at the cauldron. Steadies the hand for injection work."
+  ],
+
+  "items": [
+    {
+      "id": "damp_moss",
+      "name": "Damp moss",
+      "stack": true,
+      "value": 140,
+      "examine": "Grows only where the smaller branch never quite drains.",
+      "art": { "k": "herb", "c": "#7a9a76" }
+    },
+    {
+      "id": "damp_draught",
+      "name": "Damp draught",
+      "value": 160,
+      "examine": "Tastes exactly like it grew somewhere the drainage gave out.",
+      "potion": { "boost": "injection", "base": 3, "pct": 0.10 },
+      "art": { "k": "vial", "fill": "#5a7a6a" }
+    }
+  ],
+
+  "objects": [
+    {
+      "id": "damp_growth",
+      "name": "Damp growth",
+      "act": "Gather",
+      "skill": "foraging",
+      "level": 38,
+      "xp": 175,
+      "yield": "damp_moss",
+      "respawn": 55,
+      "art": "bush",
+      "c": "#7a9a76",
+      "block": false,
+      "examine": "Feeds on standing water the shorter branch never drains."
+    }
+  ],
+
+  "recipes": [
+    {
+      "station": "apothecary",
+      "skill": "apothecary",
+      "level": 38,
+      "xp": 115,
+      "need": { "vial_of_water": 1, "damp_moss": 2 },
+      "out": "damp_draught",
+      "count": 1
+    }
+  ],
+
+  "scatter": [
+    { "type": "damp_growth", "region": "carina", "count": 14, "allow": ["MOSS", "BLOOD"] }
+  ]
+}
