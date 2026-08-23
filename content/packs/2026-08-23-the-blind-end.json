@@ -1,0 +1,102 @@
+{
+  "id": "the_blind_end",
+  "version": "2026.08.23",
+  "date": "2026-08-23",
+  "beat": "boss",
+  "title": "The Blind End",
+  "summary": "The short branch of the fork was marked a dead end. Something settled where the marking stopped being true.",
+  "author": "claude",
+
+  "notes": [
+    "content: The short branch off the Carina fork does not lead anywhere. It never did. That is not the same as being empty.",
+    "content: The Blind End keeps the chamber where the branch stops. It drops a clotted growth every time, and sometimes a spear or a wrap cut from itself.",
+    "content: A sign stands at the chamber mouth. It is more honest than the one at the fork."
+  ],
+
+  "items": [
+    {
+      "id": "clotted_growth",
+      "name": "Clotted growth",
+      "stack": true,
+      "value": 650,
+      "examine": "Grew in a branch that goes nowhere. Nobody was meant to find it.",
+      "art": { "k": "blob", "c": "#5a2a2e" }
+    },
+    {
+      "id": "blind_end_spear",
+      "name": "Blind-end spear",
+      "slot": "weapon",
+      "value": 4500,
+      "req": { "lancing": 38 },
+      "speed": 5,
+      "examine": "Cut from the branch that never went anywhere. Still finds an end.",
+      "b": { "aStab": 62, "aSlash": 18, "str": 52, "dStab": 4 },
+      "art": { "k": "spear", "c": "#5a2a2e" }
+    },
+    {
+      "id": "blind_end_wrap",
+      "name": "Blind-end wrap",
+      "slot": "cape",
+      "value": 3200,
+      "req": { "warding": 38 },
+      "examine": "Wound from the lining of a branch that was never meant to be opened.",
+      "b": { "dStab": 18, "dSlash": 20, "dCrush": 19, "dMagic": 8, "str": 6 },
+      "art": { "k": "cape", "c": "#5a2a2e" }
+    }
+  ],
+
+  "npcs": [
+    {
+      "id": "blind_end",
+      "name": "The Blind End",
+      "hostile": true,
+      "lvl": 70,
+      "stats": { "att": 58, "str": 60, "def": 56, "hp": 110 },
+      "bon": { "atk": 52, "str": 54, "def": 48 },
+      "examine": "The short branch was marked a dead end. Nothing was meant to be waiting in it.",
+      "art": { "k": "boss", "c": "#5a2a2e" },
+      "wander": 2,
+      "aggroRange": 8,
+      "speed": 4,
+      "respawn": 80,
+      "size": 2,
+      "boss": true,
+      "drops": [
+        { "id": "bones", "n": [1, 1], "weight": 100 },
+        { "id": "clotted_growth", "n": [1, 1], "weight": 100 },
+        { "id": "coins", "n": [900, 1700], "weight": 45 },
+        { "id": "keel_shard", "n": [2, 4], "weight": 15 },
+        { "id": "greater_salve", "n": [1, 3], "weight": 12 },
+        { "id": "blind_end_spear", "n": [1, 1], "weight": 4 },
+        { "id": "blind_end_wrap", "n": [1, 1], "weight": 4 },
+        { "id": null, "weight": 20 }
+      ]
+    }
+  ],
+
+  "sites": [
+    {
+      "id": "blind_end_chamber",
+      "name": "The Blind End",
+      "region": "carina",
+      "x": 325, "y": 75, "w": 13, "h": 11,
+      "ground": "CAVE",
+      "building": {
+        "x": 327, "y": 77, "w": 9, "h": 7,
+        "floor": "STONE",
+        "doors": [{ "x": 331, "y": 83 }]
+      },
+      "objects": [
+        { "type": "rubble", "x": 328, "y": 78 },
+        { "type": "brazier", "x": 334, "y": 78 }
+      ],
+      "spawns": [
+        { "npc": "blind_end", "x": 331, "y": 80 }
+      ],
+      "sign": {
+        "x": 331, "y": 85,
+        "text": "BLIND END — marked on every chart as a dead stop. Go and check, if you like."
+      }
+    }
+  ]
+}
