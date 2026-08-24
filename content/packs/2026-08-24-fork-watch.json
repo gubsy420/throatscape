@@ -1,0 +1,117 @@
+{
+  "id": "the_fork_watch",
+  "version": "2026.08.24",
+  "date": "2026-08-24",
+  "beat": "quest",
+  "title": "The Fork Watch",
+  "summary": "The watch post at the mouth of the fork finally has someone in it. The sign still owes them a count.",
+  "author": "claude",
+
+  "notes": [
+    "content: The Fork Watch has a sentry posted now. Sentry Hask wants a real count for that sign, and has nothing to go on yet.",
+    "content: New quest — The Fork Watch. Patients forked the wrong way at the split, and the dead end kept more of them than it should have.",
+    "content: A split ring can be earned from the quest, cut in two and joined back together."
+  ],
+
+  "items": [
+    {
+      "id": "count_chit",
+      "name": "Count chit",
+      "value": 0,
+      "questItem": true,
+      "examine": "Numbers on one side. Nothing on the other. Somebody stopped counting.",
+      "art": { "k": "scroll", "c": "#d9d2c0" }
+    },
+    {
+      "id": "split_ring",
+      "name": "Split ring",
+      "slot": "ring",
+      "value": 3600,
+      "req": { "vigil": 38 },
+      "examine": "Cut in two and joined back together. Counts as one, technically.",
+      "b": { "dStab": 14, "dSlash": 14, "dCrush": 14, "dRange": 10, "dMagic": 10 },
+      "art": { "k": "ring", "c": "#7a6a70" }
+    }
+  ],
+
+  "npcs": [
+    {
+      "id": "sentry_hask",
+      "name": "Sentry Hask",
+      "hostile": false,
+      "examine": "Just drew the Fork Watch. Has no numbers yet, and does not like that.",
+      "art": { "k": "humanoid", "c": "#8a7a6a", "hat": "#d9d2c0" },
+      "talk": "the_fork_watch"
+    }
+  ],
+
+  "spawns": [
+    { "npc": "sentry_hask", "x": 293, "y": 49 }
+  ],
+
+  "quests": [
+    {
+      "id": "the_fork_watch",
+      "name": "The Fork Watch",
+      "difficulty": "Experienced",
+      "length": "Short",
+      "qp": 2,
+      "start": "Speak to Sentry Hask at the Fork Watch, where the road comes into the Carina.",
+      "desc": "Three patients forked off the road before Sentry Hask ever drew the post, and nobody logged which branch they took. Hask wants numbers for the sign, and something to show the post is worth keeping manned.",
+      "reqs": { "skills": { "vigil": 25 }, "quests": ["missing_muster"] },
+
+      "dialogue": {
+        "tree": "the_fork_watch",
+        "intro": [
+          "New to the post. Somebody scratched 'count fewer out' on that sign and never finished it — I don't even have a fewer to count from.",
+          "Three patients forked off the road before I got here. Nobody logged which branch, or what came back.",
+          "I need numbers. You look like you can get me some."
+        ],
+        "accept": "I'll get you numbers.",
+        "refuse": "Ask someone who isn't busy.",
+        "briefing": "Start with whoever's still out there wandering the wrong branch. Then see what the dead end kept.",
+        "nudge": "Still no numbers. That sign isn't going to fill itself in.",
+        "finish": [
+          "Five accounted for, and something pulled out of that dead end besides.",
+          "The shard proves the ridge is holding, for now. Take this — least I can do for someone who counts."
+        ],
+        "after": "Post's still mine. The numbers are better than they were.",
+        "locked": "Come back once you've kept a vigil or two. I'm not sending anyone green past this sign."
+      },
+
+      "steps": [
+        {
+          "kind": "kill",
+          "npc": "forked_patient",
+          "count": 5,
+          "text": "Find out what happened to the patients who forked off the wrong way.",
+          "tick": "One less wandering the wrong branch.",
+          "done": "Five accounted for. None of them turned back."
+        },
+        {
+          "kind": "search",
+          "obj": "rubble",
+          "item": "count_chit",
+          "text": "Search the rubble at the dead end for anything left of them.",
+          "done": "A count chit, torn before it finished. Somebody else looked, once."
+        },
+        {
+          "kind": "fetch",
+          "item": "keel_shard",
+          "count": 6,
+          "text": "Bring back six keel shards — the ridge needs proving before it goes on the sign as safe.",
+          "done": "That is proof enough. The post can log it as sound."
+        }
+      ],
+
+      "reportText": "Five found, a chit recovered, and shard enough to prove the ridge. Sentry Hask should hear all of it.",
+      "doneText": "The Fork Watch has numbers now, and a chit filed away from the dead end nobody else came back to check.",
+
+      "rewards": {
+        "qp": 2,
+        "xp": { "vigil": 2200, "vitality": 500, "delving": 400 },
+        "items": [["coins", 1400], ["split_ring", 1]]
+      }
+    }
+  ]
+}
