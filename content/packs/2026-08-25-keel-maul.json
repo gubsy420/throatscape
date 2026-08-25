@@ -1,0 +1,44 @@
+{
+  "id": "keel_maul",
+  "version": "2026.08.25",
+  "date": "2026-08-25",
+  "beat": "arsenal",
+  "title": "The Keel Maul",
+  "summary": "Something to carry out of the Carina, if the shards can be bound to a bar instead of just a plate.",
+  "author": "claude",
+
+  "notes": [
+    "content: Marrow's Forge will now bind keel shards to a bloodstone bar and swing the result. Crush, where the blind-end spear is stab.",
+    "content: Marrow's Forge has started stocking bloodstone bar, for anyone who would rather buy than smelt."
+  ],
+
+  "items": [
+    {
+      "id": "keel_maul",
+      "name": "Keel maul",
+      "slot": "weapon",
+      "value": 4700,
+      "req": { "lancing": 38 },
+      "speed": 6,
+      "examine": "Shards off the ridge, bound to a bar and swung the slow way.",
+      "b": { "aCrush": 58, "aStab": 10, "str": 56 },
+      "art": { "k": "hammer", "c": "#c7bda9" }
+    }
+  ],
+
+  "recipes": [
+    {
+      "station": "forging",
+      "skill": "forging",
+      "level": 42,
+      "xp": 130,
+      "need": { "keel_shard": 4, "bloodstone_bar": 1 },
+      "out": "keel_maul",
+      "count": 1
+    }
+  ],
+
+  "shopStock": [
+    { "shop": "forge", "item": "bloodstone_bar", "n": 6 }
+  ]
+}
