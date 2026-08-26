@@ -1,0 +1,132 @@
+{
+  "id": "ridge_haulers",
+  "version": "2026.08.26",
+  "date": "2026-08-26",
+  "beat": "bestiary",
+  "title": "The Ridge Haulers",
+  "summary": "Four more things live in the fork, and none of them travel light.",
+  "author": "claude",
+
+  "notes": [
+    "content: Fork drags keep to the dry rock and drag whatever they grab in with them, keel widows wrap what they catch and haul it under the ridge, and yoke patients still wear whatever they were carrying when they stopped answering to their names.",
+    "content: Something bigger holds the middle ground — a ridge hauler, carrying more of the Carina than it should be able to stand under.",
+    "content: Drag cords and keel yokes can both be picked off what you kill there."
+  ],
+
+  "items": [
+    {
+      "id": "drag_cord",
+      "name": "Drag cord",
+      "stack": true,
+      "value": 40,
+      "examine": "Chalk-stiff and frayed. Whatever end it was tied to came free.",
+      "art": { "k": "thread", "c": "#8f7d6a" }
+    },
+    {
+      "id": "keel_yoke",
+      "name": "Keel yoke",
+      "value": 480,
+      "examine": "Fits over one shoulder. The strap does not come off without an argument.",
+      "art": { "k": "plate", "c": "#a89a7a" }
+    }
+  ],
+
+  "npcs": [
+    {
+      "id": "fork_drag",
+      "name": "Fork drag",
+      "hostile": true,
+      "lvl": 58,
+      "stats": { "att": 48, "str": 46, "def": 42, "hp": 88 },
+      "bon": { "atk": 42, "str": 40, "def": 36 },
+      "examine": "Drags whatever it grabs into the dry side of the fork and does not let go.",
+      "art": { "k": "crawler", "c": "#7a6a52" },
+      "wander": 5,
+      "aggroRange": 5,
+      "speed": 3,
+      "respawn": 32,
+      "drops": [
+        { "id": "bones", "n": [1, 1], "weight": 100 },
+        { "id": "coins", "n": [30, 900], "weight": 42 },
+        { "id": "drag_cord", "n": [1, 3], "weight": 26 },
+        { "id": "keel_shard", "n": [1, 1], "weight": 10 },
+        { "id": null, "weight": 32 }
+      ]
+    },
+    {
+      "id": "keel_widow",
+      "name": "Keel widow",
+      "hostile": true,
+      "lvl": 61,
+      "stats": { "att": 50, "str": 48, "def": 46, "hp": 93 },
+      "bon": { "atk": 44, "str": 42, "def": 40 },
+      "examine": "Wraps its catch in chalk-dust silk and hauls it under the ridge.",
+      "art": { "k": "spinner", "c": "#6a5578" },
+      "wander": 4,
+      "aggroRange": 6,
+      "speed": 4,
+      "respawn": 36,
+      "venomous": true,
+      "drops": [
+        { "id": "bones", "n": [1, 1], "weight": 100 },
+        { "id": "coins", "n": [40, 1050], "weight": 40 },
+        { "id": "drag_cord", "n": [1, 2], "weight": 22 },
+        { "id": "silkgut", "n": [1, 1], "weight": 10 },
+        { "id": "keel_shard", "n": [1, 2], "weight": 12 },
+        { "id": null, "weight": 30 }
+      ]
+    },
+    {
+      "id": "yoke_patient",
+      "name": "Yoke patient",
+      "hostile": true,
+      "lvl": 65,
+      "stats": { "att": 53, "str": 55, "def": 48, "hp": 99 },
+      "bon": { "atk": 47, "str": 49, "def": 43 },
+      "examine": "Still wearing the yoke. Nobody remembers strapping it on.",
+      "art": { "k": "patient", "c": "#a89a7a" },
+      "wander": 4,
+      "aggroRange": 6,
+      "speed": 4,
+      "respawn": 40,
+      "drops": [
+        { "id": "bones", "n": [1, 1], "weight": 100 },
+        { "id": "coins", "n": [60, 1250], "weight": 40 },
+        { "id": "drag_cord", "n": [1, 3], "weight": 20 },
+        { "id": "keel_yoke", "n": [1, 1], "weight": 8 },
+        { "id": "gauze_wrap", "n": [1, 2], "weight": 12 },
+        { "id": null, "weight": 28 }
+      ]
+    },
+    {
+      "id": "ridge_hauler",
+      "name": "Ridge hauler",
+      "hostile": true,
+      "lvl": 70,
+      "stats": { "att": 57, "str": 58, "def": 53, "hp": 106 },
+      "bon": { "atk": 51, "str": 52, "def": 47 },
+      "examine": "Carries more of the ridge than it should be able to stand under.",
+      "art": { "k": "brute", "c": "#4f463c" },
+      "wander": 3,
+      "aggroRange": 7,
+      "speed": 4,
+      "respawn": 45,
+      "drops": [
+        { "id": "thick_bones", "n": [1, 1], "weight": 100 },
+        { "id": "coins", "n": [100, 1550], "weight": 38 },
+        { "id": "keel_yoke", "n": [1, 2], "weight": 10 },
+        { "id": "drag_cord", "n": [1, 4], "weight": 18 },
+        { "id": "keel_shard", "n": [1, 2], "weight": 12 },
+        { "id": "greater_salve", "n": [1, 2], "weight": 10 },
+        { "id": null, "weight": 26 }
+      ]
+    }
+  ],
+
+  "spawns": [
+    { "npc": "fork_drag", "region": "carina", "count": 10, "allow": ["CHALK", "BLOOD"] },
+    { "npc": "keel_widow", "region": "carina", "count": 8, "allow": ["CHALK", "MOSS"] },
+    { "npc": "yoke_patient", "region": "carina", "count": 7, "allow": ["CHALK", "BLOOD"] },
+    { "npc": "ridge_hauler", "region": "carina", "count": 5, "allow": ["CHALK", "BLOOD"] }
+  ]
+}
