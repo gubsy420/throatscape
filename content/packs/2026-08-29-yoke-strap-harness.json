@@ -1,0 +1,43 @@
+{
+  "id": "yoke_strap_harness",
+  "version": "2026.08.29",
+  "date": "2026-08-29",
+  "beat": "arsenal",
+  "title": "Yoke-strap Harness",
+  "summary": "Something to carry out of the Carina, the yoke turned to armour instead of a load.",
+  "author": "claude",
+
+  "notes": [
+    "content: Marrow's Forge will now strap a keel yoke down with drag cord into a harness, worn rather than carried.",
+    "content: Marrow's Forge has started stocking drag cord, for anyone who would rather buy than pull it off a fork drag."
+  ],
+
+  "items": [
+    {
+      "id": "yoke_strap_harness",
+      "name": "Yoke-strap harness",
+      "slot": "body",
+      "value": 4400,
+      "req": { "warding": 38 },
+      "examine": "A keel yoke worn instead of shouldered, strapped down until it stops sliding.",
+      "b": { "dStab": 26, "dSlash": 29, "dCrush": 26, "dRange": 27, "dMagic": -5 },
+      "art": { "k": "plate", "c": "#93876c" }
+    }
+  ],
+
+  "recipes": [
+    {
+      "station": "forging",
+      "skill": "forging",
+      "level": 40,
+      "xp": 116,
+      "need": { "keel_yoke": 3, "drag_cord": 5 },
+      "out": "yoke_strap_harness",
+      "count": 1
+    }
+  ],
+
+  "shopStock": [
+    { "shop": "forge", "item": "drag_cord", "n": 12 }
+  ]
+}
