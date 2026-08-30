@@ -1,0 +1,130 @@
+{
+  "id": "second_bend",
+  "version": "2026.08.30",
+  "date": "2026-08-30",
+  "beat": "bestiary",
+  "title": "The Second Bend",
+  "summary": "Past the ridge the fork goes quiet. Four more things live there anyway.",
+  "author": "claude",
+
+  "notes": [
+    "content: Keel creepers keep to the cracks in the ridge itself, and mute howlers go through the motions of a howl that stopped working years ago.",
+    "content: A chalk wretch is a patient who wandered as far as the ridge dust goes and never wandered back out of it.",
+    "content: Something heavier moves past all three — a ridge stalker, quiet for its size.",
+    "content: Chalk marrow and a hush plate can both be picked off what you kill out there."
+  ],
+
+  "items": [
+    {
+      "id": "chalk_marrow",
+      "name": "Chalk marrow",
+      "stack": true,
+      "value": 45,
+      "examine": "Pulled from something too used to the ridge. Brittle, and lighter than bone should be.",
+      "art": { "k": "bone", "c": "#d9d2c0" }
+    },
+    {
+      "id": "hush_plate",
+      "name": "Hush plate",
+      "value": 520,
+      "examine": "Shed whole. Does not ring when struck, which is the whole point of it.",
+      "art": { "k": "plate", "c": "#5f574c" }
+    }
+  ],
+
+  "npcs": [
+    {
+      "id": "keel_creeper",
+      "name": "Keel creeper",
+      "hostile": true,
+      "lvl": 58,
+      "stats": { "att": 51, "str": 49, "def": 45, "hp": 94 },
+      "bon": { "atk": 45, "str": 43, "def": 39 },
+      "examine": "Fits into cracks in the ridge that should not fit anything.",
+      "art": { "k": "crawler", "c": "#8a7d6a" },
+      "wander": 5,
+      "aggroRange": 5,
+      "speed": 3,
+      "respawn": 32,
+      "drops": [
+        { "id": "bones", "n": [1, 1], "weight": 100 },
+        { "id": "coins", "n": [200, 950], "weight": 42 },
+        { "id": "chalk_marrow", "n": [1, 3], "weight": 28 },
+        { "id": "chalk_lump", "n": [1, 2], "weight": 14 },
+        { "id": null, "weight": 30 }
+      ]
+    },
+    {
+      "id": "mute_howler",
+      "name": "Mute howler",
+      "hostile": true,
+      "lvl": 62,
+      "stats": { "att": 55, "str": 53, "def": 49, "hp": 100 },
+      "bon": { "atk": 49, "str": 47, "def": 43 },
+      "examine": "Throat closed years ago. Still goes through the motions of a howl.",
+      "art": { "k": "howler", "c": "#6a5f6a" },
+      "wander": 4,
+      "aggroRange": 6,
+      "speed": 4,
+      "respawn": 37,
+      "drops": [
+        { "id": "gasper_skull", "n": [1, 1], "weight": 100 },
+        { "id": "coins", "n": [280, 1150], "weight": 40 },
+        { "id": "chalk_marrow", "n": [1, 2], "weight": 22 },
+        { "id": "keel_shard", "n": [1, 2], "weight": 14 },
+        { "id": null, "weight": 28 }
+      ]
+    },
+    {
+      "id": "chalk_wretch",
+      "name": "Chalk wretch",
+      "hostile": true,
+      "lvl": 65,
+      "stats": { "att": 54, "str": 57, "def": 50, "hp": 103 },
+      "bon": { "atk": 48, "str": 50, "def": 44 },
+      "examine": "Wandered as far as the ridge dust goes. Never wandered back out of it.",
+      "art": { "k": "patient", "c": "#b8ac94" },
+      "wander": 4,
+      "aggroRange": 6,
+      "speed": 4,
+      "respawn": 40,
+      "drops": [
+        { "id": "bones", "n": [1, 1], "weight": 100 },
+        { "id": "coins", "n": [320, 1300], "weight": 40 },
+        { "id": "chalk_marrow", "n": [2, 3], "weight": 20 },
+        { "id": "gauze_wrap", "n": [1, 2], "weight": 14 },
+        { "id": "hush_plate", "n": [1, 1], "weight": 6 },
+        { "id": null, "weight": 26 }
+      ]
+    },
+    {
+      "id": "ridge_stalker",
+      "name": "Ridge stalker",
+      "hostile": true,
+      "lvl": 70,
+      "stats": { "att": 58, "str": 59, "def": 54, "hp": 108 },
+      "bon": { "atk": 52, "str": 53, "def": 48 },
+      "examine": "Nothing this size should move this quietly.",
+      "art": { "k": "brute", "c": "#4a453c" },
+      "wander": 3,
+      "aggroRange": 7,
+      "speed": 4,
+      "respawn": 45,
+      "drops": [
+        { "id": "thick_bones", "n": [1, 1], "weight": 100 },
+        { "id": "coins", "n": [450, 1550], "weight": 38 },
+        { "id": "hush_plate", "n": [1, 2], "weight": 10 },
+        { "id": "chalk_marrow", "n": [2, 4], "weight": 20 },
+        { "id": "greater_salve", "n": [1, 2], "weight": 10 },
+        { "id": null, "weight": 24 }
+      ]
+    }
+  ],
+
+  "spawns": [
+    { "npc": "keel_creeper", "region": "carina", "count": 8, "allow": ["CHALK", "BLOOD", "MOSS"] },
+    { "npc": "mute_howler", "region": "carina", "count": 7, "allow": ["CHALK", "BLOOD", "MOSS"] },
+    { "npc": "chalk_wretch", "region": "carina", "count": 7, "allow": ["CHALK", "BLOOD", "MOSS"] },
+    { "npc": "ridge_stalker", "region": "carina", "count": 6, "allow": ["CHALK", "BLOOD", "MOSS"] }
+  ]
+}
