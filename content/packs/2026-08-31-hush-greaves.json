@@ -1,0 +1,43 @@
+{
+  "id": "hush_greaves",
+  "version": "2026.08.31",
+  "date": "2026-08-31",
+  "beat": "arsenal",
+  "title": "Hush Greaves",
+  "summary": "Something to carry out of the Carina, the hush plate flattened into leg armour.",
+  "author": "claude",
+
+  "notes": [
+    "content: Marrow's Forge will now hammer a hush plate flat into greaves, chalk marrow packed into the seams to keep them quiet.",
+    "content: Marrow's Forge has started stocking chalk marrow, for anyone who would rather buy than dig it out of a chalk wretch."
+  ],
+
+  "items": [
+    {
+      "id": "hush_greaves",
+      "name": "Hush greaves",
+      "slot": "legs",
+      "value": 3800,
+      "req": { "warding": 38 },
+      "examine": "Hush plate hammered flat and hinged at the knee. It does not so much as click when you walk.",
+      "b": { "dStab": 22, "dSlash": 24, "dCrush": 22, "dRange": 23, "dMagic": -4 },
+      "art": { "k": "legs", "c": "#6a6156" }
+    }
+  ],
+
+  "recipes": [
+    {
+      "station": "forging",
+      "skill": "forging",
+      "level": 40,
+      "xp": 118,
+      "need": { "hush_plate": 1, "chalk_marrow": 6 },
+      "out": "hush_greaves",
+      "count": 1
+    }
+  ],
+
+  "shopStock": [
+    { "shop": "forge", "item": "chalk_marrow", "n": 15 }
+  ]
+}
