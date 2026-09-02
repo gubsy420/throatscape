@@ -1,0 +1,43 @@
+{
+  "id": "carry_grip_gloves",
+  "version": "2026.09.02",
+  "date": "2026-09-02",
+  "beat": "arsenal",
+  "title": "Carry-grip Gloves",
+  "summary": "Something to carry out of the Carina, the carry net worked into a grip instead of a bag.",
+  "author": "claude",
+
+  "notes": [
+    "content: Marrow's Forge will now knot a carry net around packed silt into a pair of gloves, grip over cargo.",
+    "content: Marrow's Forge has started stocking packed silt, for anyone who would rather buy than kill a silt rat for it."
+  ],
+
+  "items": [
+    {
+      "id": "carry_grip_gloves",
+      "name": "Carry-grip gloves",
+      "slot": "hands",
+      "value": 2600,
+      "req": { "warding": 38 },
+      "examine": "Carry net knotted tight across the knuckles, packed silt worked into the weave for grip.",
+      "b": { "dStab": 11, "dSlash": 12, "dCrush": 11, "dRange": 11, "dMagic": -2, "str": 6 },
+      "art": { "k": "gloves", "c": "#8a7a5f" }
+    }
+  ],
+
+  "recipes": [
+    {
+      "station": "forging",
+      "skill": "forging",
+      "level": 40,
+      "xp": 118,
+      "need": { "carry_net": 2, "packed_silt": 6 },
+      "out": "carry_grip_gloves",
+      "count": 1
+    }
+  ],
+
+  "shopStock": [
+    { "shop": "forge", "item": "packed_silt", "n": 18 }
+  ]
+}
