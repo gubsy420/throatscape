@@ -1,0 +1,132 @@
+{
+  "id": "overspill",
+  "version": "2026.09.03",
+  "date": "2026-09-03",
+  "beat": "bestiary",
+  "title": "The Overspill",
+  "summary": "The split at the Carina is not an equal one, and what the wide side won't carry ends up on the narrow side instead.",
+  "author": "claude",
+
+  "notes": [
+    "content: A hitch crawler drags a line nobody remembers tying to it, and an overspill wretch carries what the wide side of the fork wouldn't take.",
+    "content: A tow howler never puts its load down, not even to howl.",
+    "content: Something bigger moves the heaviest of it now — a cargo stalker, unbothered by the weight.",
+    "content: Tow cord and a loading hook can both be picked off what you kill out there."
+  ],
+
+  "items": [
+    {
+      "id": "tow_cord",
+      "name": "Tow cord",
+      "stack": true,
+      "value": 38,
+      "examine": "Frayed at both ends from something pulling harder than it should.",
+      "art": { "k": "thread", "c": "#7a6a52" }
+    },
+    {
+      "id": "loading_hook",
+      "name": "Loading hook",
+      "value": 560,
+      "examine": "Meant for cargo. Works just as well on anything else that needs moving.",
+      "art": { "k": "gaff", "c": "#5f574c" }
+    }
+  ],
+
+  "npcs": [
+    {
+      "id": "hitch_crawler",
+      "name": "Hitch crawler",
+      "hostile": true,
+      "lvl": 58,
+      "stats": { "att": 48, "str": 46, "def": 42, "hp": 90 },
+      "bon": { "atk": 42, "str": 40, "def": 36 },
+      "examine": "Drags a hitch line nobody remembers tying to it.",
+      "art": { "k": "crawler", "c": "#8a7a5f" },
+      "wander": 5,
+      "aggroRange": 4,
+      "speed": 3,
+      "respawn": 32,
+      "drops": [
+        { "id": "bones", "n": [1, 1], "weight": 100 },
+        { "id": "coins", "n": [20, 700], "weight": 42 },
+        { "id": "tow_cord", "n": [1, 3], "weight": 28 },
+        { "id": "chalk_lump", "n": [1, 2], "weight": 12 },
+        { "id": null, "weight": 30 }
+      ]
+    },
+    {
+      "id": "overspill_wretch",
+      "name": "Overspill wretch",
+      "hostile": true,
+      "lvl": 62,
+      "stats": { "att": 53, "str": 55, "def": 48, "hp": 99 },
+      "bon": { "atk": 47, "str": 49, "def": 42 },
+      "examine": "Carries what the wide side of the fork wouldn't take.",
+      "art": { "k": "patient", "c": "#b0a68f" },
+      "wander": 4,
+      "aggroRange": 6,
+      "speed": 4,
+      "respawn": 36,
+      "drops": [
+        { "id": "bones", "n": [1, 1], "weight": 100 },
+        { "id": "coins", "n": [40, 950], "weight": 40 },
+        { "id": "tow_cord", "n": [1, 3], "weight": 26 },
+        { "id": "gauze_wrap", "n": [1, 2], "weight": 12 },
+        { "id": null, "weight": 28 }
+      ]
+    },
+    {
+      "id": "tow_howler",
+      "name": "Tow howler",
+      "hostile": true,
+      "lvl": 66,
+      "stats": { "att": 56, "str": 58, "def": 52, "hp": 104 },
+      "bon": { "atk": 50, "str": 52, "def": 46 },
+      "examine": "Howls the whole way, and never puts the load down.",
+      "art": { "k": "howler", "c": "#6a5f52" },
+      "wander": 4,
+      "aggroRange": 6,
+      "speed": 4,
+      "respawn": 40,
+      "drops": [
+        { "id": "gasper_skull", "n": [1, 1], "weight": 100 },
+        { "id": "coins", "n": [80, 1250], "weight": 38 },
+        { "id": "tow_cord", "n": [1, 2], "weight": 22 },
+        { "id": "loading_hook", "n": [1, 1], "weight": 8 },
+        { "id": "vial", "n": [1, 1], "weight": 10 },
+        { "id": null, "weight": 26 }
+      ]
+    },
+    {
+      "id": "cargo_stalker",
+      "name": "Cargo stalker",
+      "hostile": true,
+      "lvl": 70,
+      "stats": { "att": 59, "str": 60, "def": 55, "hp": 109 },
+      "bon": { "atk": 53, "str": 55, "def": 49 },
+      "examine": "Moves like the crate strapped to its back weighs nothing. It does not.",
+      "art": { "k": "brute", "c": "#4a4038" },
+      "wander": 3,
+      "aggroRange": 7,
+      "speed": 4,
+      "respawn": 45,
+      "drops": [
+        { "id": "thick_bones", "n": [1, 1], "weight": 100 },
+        { "id": "coins", "n": [150, 1580], "weight": 36 },
+        { "id": "loading_hook", "n": [1, 1], "weight": 10 },
+        { "id": "tow_cord", "n": [2, 4], "weight": 20 },
+        { "id": "greater_salve", "n": [1, 2], "weight": 10 },
+        { "id": null, "weight": 24 }
+      ]
+    }
+  ],
+
+  "spawns": [
+    { "npc": "hitch_crawler", "x": 286, "y": 26 },
+    { "npc": "hitch_crawler", "x": 289, "y": 75 },
+    { "npc": "overspill_wretch", "x": 307, "y": 29 },
+    { "npc": "overspill_wretch", "x": 310, "y": 72 },
+    { "npc": "tow_howler", "x": 322, "y": 32 },
+    { "npc": "cargo_stalker", "x": 343, "y": 29 }
+  ]
+}
