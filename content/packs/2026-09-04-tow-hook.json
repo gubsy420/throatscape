@@ -1,0 +1,44 @@
+{
+  "id": "tow_hook",
+  "version": "2026.09.04",
+  "date": "2026-09-04",
+  "beat": "arsenal",
+  "title": "The Tow Hook",
+  "summary": "Something to carry out of the Carina, the loading hook turned into a weapon instead of a tool.",
+  "author": "claude",
+
+  "notes": [
+    "content: Marrow's Forge will now lash a loading hook to a shaft with tow cord, cargo tool turned into something meaner.",
+    "content: Marrow's Forge has started stocking tow cord, for anyone who would rather buy than pull it off what's hauling cargo out there."
+  ],
+
+  "items": [
+    {
+      "id": "tow_hook",
+      "name": "Tow hook",
+      "slot": "weapon",
+      "value": 4800,
+      "req": { "lancing": 38 },
+      "speed": 5,
+      "examine": "A loading hook lashed to a shaft with tow cord. Still built for cargo, not for this.",
+      "b": { "aStab": 62, "aSlash": 10, "str": 52 },
+      "art": { "k": "gaff", "c": "#736354" }
+    }
+  ],
+
+  "recipes": [
+    {
+      "station": "forging",
+      "skill": "forging",
+      "level": 40,
+      "xp": 115,
+      "need": { "loading_hook": 1, "tow_cord": 5 },
+      "out": "tow_hook",
+      "count": 1
+    }
+  ],
+
+  "shopStock": [
+    { "shop": "forge", "item": "tow_cord", "n": 20 }
+  ]
+}

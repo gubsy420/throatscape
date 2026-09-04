@@ -1,5 +1,15 @@
 [
   {
+    "version": "2026.09.04",
+    "date": "2026-09-04",
+    "title": "The Tow Hook",
+    "beat": "arsenal",
+    "notes": [
+      "content: Marrow's Forge will now lash a loading hook to a shaft with tow cord, cargo tool turned into something meaner.",
+      "content: Marrow's Forge has started stocking tow cord, for anyone who would rather buy than pull it off what's hauling cargo out there."
+    ]
+  },
+  {
     "version": "2026.09.03",
     "date": "2026-09-03",
     "title": "The Overspill",
