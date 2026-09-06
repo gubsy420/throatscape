@@ -1,0 +1,43 @@
+{
+  "id": "axle_ward",
+  "version": "2026.09.06",
+  "date": "2026-09-06",
+  "beat": "arsenal",
+  "title": "The Axle Ward",
+  "summary": "Something to carry out of the Carina, a trolley axle bent round into a shield instead of anything that rolls.",
+  "author": "claude",
+
+  "notes": [
+    "content: Marrow's Forge will now bend a trolley axle into an arc and lash it for the arm with stretcher webbing, cargo iron turned into cover.",
+    "content: Marrow's Forge has started stocking stretcher webbing, for anyone who would rather buy than cut it off what's dragging cargo out there."
+  ],
+
+  "items": [
+    {
+      "id": "axle_ward",
+      "name": "Axle ward",
+      "slot": "shield",
+      "value": 4600,
+      "req": { "warding": 38 },
+      "examine": "A trolley axle bent into an arc and strapped for the arm. Still faintly warm from the forge, not from use.",
+      "b": { "dStab": 25, "dSlash": 27, "dCrush": 28, "dRange": 26, "dMagic": -5 },
+      "art": { "k": "shield", "c": "#6b6156" }
+    }
+  ],
+
+  "recipes": [
+    {
+      "station": "forging",
+      "skill": "forging",
+      "level": 40,
+      "xp": 118,
+      "need": { "trolley_axle": 1, "stretcher_webbing": 6 },
+      "out": "axle_ward",
+      "count": 1
+    }
+  ],
+
+  "shopStock": [
+    { "shop": "forge", "item": "stretcher_webbing", "n": 20 }
+  ]
+}
