@@ -1,0 +1,63 @@
+{
+  "id": "keel_seam_set",
+  "version": "2026.09.08",
+  "date": "2026-09-08",
+  "beat": "arsenal",
+  "title": "The Keel-seam Set",
+  "summary": "Something to carry out of the Carina, keel shards worked into a mask and a pair of boots to round out the plate.",
+  "author": "claude",
+
+  "notes": [
+    "content: Marrow's Forge will now work keel shards and chalk marrow into a mask, and keel shards and drag cord into boots, to go with the keel plate.",
+    "content: Marrow's Forge has started stocking chalk marrow and drag cord, for anyone who would rather buy than pull them off whatever the Carina left standing."
+  ],
+
+  "items": [
+    {
+      "id": "keel_seam_mask",
+      "name": "Keel-seam mask",
+      "slot": "head",
+      "value": 3400,
+      "req": { "warding": 38 },
+      "examine": "Keel shards ground thin and fitted over the mouth. Breathes about as well as you would expect.",
+      "b": { "dStab": 15, "dSlash": 17, "dCrush": 15, "dRange": 15, "dMagic": -3 },
+      "art": { "k": "mask", "c": "#c7bda9" }
+    },
+    {
+      "id": "keel_seam_boots",
+      "name": "Keel-seam boots",
+      "slot": "feet",
+      "value": 3000,
+      "req": { "warding": 38 },
+      "examine": "Keel shards riveted to the sole, drag cord wound round the ankle until it stops moving.",
+      "b": { "dStab": 10, "dSlash": 11, "dCrush": 10, "dRange": 10, "dMagic": -2 },
+      "art": { "k": "boots", "c": "#c7bda9" }
+    }
+  ],
+
+  "recipes": [
+    {
+      "station": "forging",
+      "skill": "forging",
+      "level": 40,
+      "xp": 117,
+      "need": { "keel_shard": 3, "chalk_marrow": 4 },
+      "out": "keel_seam_mask",
+      "count": 1
+    },
+    {
+      "station": "forging",
+      "skill": "forging",
+      "level": 40,
+      "xp": 115,
+      "need": { "keel_shard": 3, "drag_cord": 4 },
+      "out": "keel_seam_boots",
+      "count": 1
+    }
+  ],
+
+  "shopStock": [
+    { "shop": "forge", "item": "chalk_marrow", "n": 16 },
+    { "shop": "forge", "item": "drag_cord", "n": 16 }
+  ]
+}
