@@ -1,0 +1,62 @@
+{
+  "id": "clotted_set",
+  "version": "2026.09.10",
+  "date": "2026-09-10",
+  "beat": "arsenal",
+  "title": "The Clotted Set",
+  "summary": "Something to carry out of the Carina, the clotted growth from the dead end worn instead of left there.",
+  "author": "claude",
+
+  "notes": [
+    "content: Marrow's Forge will now set a clotted growth into a charm for the neck and press a sliver of it into a band for the finger, keel shards worked in to hold the shape.",
+    "content: Marrow's Forge has started stocking keel shards, for anyone who would rather buy than mine them off the ridge."
+  ],
+
+  "items": [
+    {
+      "id": "clotted_charm",
+      "name": "Clotted charm",
+      "slot": "neck",
+      "value": 3200,
+      "req": { "warding": 38 },
+      "examine": "A clotted growth strung on cord, worn close to the throat.",
+      "b": { "dStab": 16, "dSlash": 16, "dCrush": 15, "dMagic": 12 },
+      "art": { "k": "charm", "c": "#5a2a2e" }
+    },
+    {
+      "id": "clotted_band",
+      "name": "Clotted band",
+      "slot": "ring",
+      "value": 2800,
+      "req": { "vigil": 38 },
+      "examine": "A sliver of clotted growth, bent round and closed. Fits like it grew there.",
+      "b": { "dStab": 12, "dSlash": 12, "dCrush": 11, "dRange": 9, "dMagic": 9 },
+      "art": { "k": "ring", "c": "#5a2a2e" }
+    }
+  ],
+
+  "recipes": [
+    {
+      "station": "forging",
+      "skill": "forging",
+      "level": 40,
+      "xp": 116,
+      "need": { "clotted_growth": 2, "keel_shard": 5 },
+      "out": "clotted_charm",
+      "count": 1
+    },
+    {
+      "station": "forging",
+      "skill": "forging",
+      "level": 40,
+      "xp": 112,
+      "need": { "clotted_growth": 1, "keel_shard": 4 },
+      "out": "clotted_band",
+      "count": 1
+    }
+  ],
+
+  "shopStock": [
+    { "shop": "forge", "item": "keel_shard", "n": 20 }
+  ]
+}
