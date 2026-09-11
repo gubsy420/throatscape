@@ -1,0 +1,178 @@
+{
+  "id": "the_mainstem",
+  "version": "2026.09.11",
+  "date": "2026-09-11",
+  "beat": "expansion",
+  "title": "The Mainstem",
+  "summary": "East of the Carina, the wider branch. New ground, and a road in.",
+  "author": "claude",
+
+  "notes": [
+    "content: East of the Carina, the wider branch of the fork opens up. The Mainstem is open ground now.",
+    "content: Everything the narrow branch turns away comes down this one — wheeze crawlers keep low in it, and something with a bigger voice answers from further in.",
+    "content: The sump wall along the passage can be worked for grit. One of the things living out there carries a spike cut from the same wall.",
+    "content: A watch post stands where the road comes in. Kept, but not manned."
+  ],
+
+  "regions": [
+    {
+      "id": "mainstem",
+      "name": "The Mainstem",
+      "x": 352, "y": 6, "w": 72, "h": 92,
+      "base": "BOG",
+      "tint": "#5c6b52",
+      "blurb": "The wider half of the fork. Whatever the narrow side turns away ends up down here.",
+      "terrain": {
+        "rules": [
+          { "tile": "CAVEWALL", "coarse": { "below": 0.28 } },
+          { "tile": "BLOOD", "fine": { "above": 0.76 } },
+          { "tile": "MOSS", "fine": { "below": 0.22 } }
+        ]
+      },
+      "links": [
+        { "x1": 344, "y1": 50, "x2": 372, "y2": 50, "w": 4 }
+      ]
+    }
+  ],
+
+  "objects": [
+    {
+      "id": "sump_vein",
+      "name": "Sump vein",
+      "act": "Mine",
+      "skill": "delving",
+      "level": 40,
+      "xp": 200,
+      "yield": "sump_grit",
+      "tool": "delving",
+      "respawn": 110,
+      "art": "rock",
+      "c": "#6b7a5f",
+      "examine": "The wall gives up a handful of grit, then closes back over."
+    }
+  ],
+
+  "items": [
+    {
+      "id": "sump_grit",
+      "name": "Sump grit",
+      "stack": true,
+      "value": 80,
+      "examine": "Scraped off the wall where the wider branch never quite dries.",
+      "art": { "k": "ore", "c": "#6b7a5f" }
+    },
+    {
+      "id": "sump_spike",
+      "name": "Sump spike",
+      "slot": "weapon",
+      "value": 3200,
+      "req": { "lancing": 38 },
+      "speed": 4,
+      "examine": "Pulled out of the sump wall. Still sharp enough to matter.",
+      "b": { "aStab": 50, "aSlash": 8, "str": 38 },
+      "art": { "k": "spear", "c": "#6b7a5f" }
+    }
+  ],
+
+  "npcs": [
+    {
+      "id": "wheeze_crawler",
+      "name": "Wheeze crawler",
+      "hostile": true,
+      "lvl": 58,
+      "stats": { "att": 50, "str": 52, "def": 46, "hp": 94 },
+      "bon": { "atk": 44, "str": 46, "def": 40 },
+      "examine": "Something wet-lunged, keeping low where the passage widens.",
+      "art": { "k": "crawler", "c": "#6b7a5f" },
+      "wander": 5,
+      "aggroRange": 6,
+      "speed": 3,
+      "respawn": 34,
+      "drops": [
+        { "id": "bones", "n": [1, 1], "weight": 100 },
+        { "id": "coins", "n": [200, 900], "weight": 42 },
+        { "id": "sump_grit", "n": [1, 2], "weight": 18 },
+        { "id": "chalk_lump", "n": [1, 2], "weight": 10 },
+        { "id": null, "weight": 30 }
+      ]
+    },
+    {
+      "id": "rattling_patient",
+      "name": "Rattling patient",
+      "hostile": true,
+      "lvl": 64,
+      "stats": { "att": 54, "str": 56, "def": 50, "hp": 100 },
+      "bon": { "atk": 48, "str": 50, "def": 44 },
+      "examine": "Swept down from somewhere upstream. Still breathing, technically.",
+      "art": { "k": "patient", "c": "#8a8a6a" },
+      "wander": 4,
+      "aggroRange": 6,
+      "speed": 4,
+      "respawn": 38,
+      "drops": [
+        { "id": "bones", "n": [1, 1], "weight": 100 },
+        { "id": "coins", "n": [300, 1100], "weight": 40 },
+        { "id": "gauze_wrap", "n": [1, 2], "weight": 16 },
+        { "id": "numbthistle", "n": [1, 1], "weight": 10 },
+        { "id": "sump_grit", "n": [1, 1], "weight": 12 },
+        { "id": null, "weight": 28 }
+      ]
+    },
+    {
+      "id": "draught_howler",
+      "name": "Draught howler",
+      "hostile": true,
+      "lvl": 70,
+      "stats": { "att": 56, "str": 55, "def": 52, "hp": 106 },
+      "bon": { "atk": 51, "str": 53, "def": 47 },
+      "examine": "Calls once, into the wider branch, and something always answers.",
+      "art": { "k": "howler", "c": "#4a5a4f" },
+      "wander": 6,
+      "aggroRange": 7,
+      "speed": 4,
+      "respawn": 42,
+      "drops": [
+        { "id": "gasper_skull", "n": [1, 1], "weight": 100 },
+        { "id": "coins", "n": [500, 1500], "weight": 38 },
+        { "id": "sump_spike", "n": [1, 1], "weight": 6 },
+        { "id": "greater_salve", "n": [1, 3], "weight": 10 },
+        { "id": "sump_grit", "n": [2, 4], "weight": 18 },
+        { "id": null, "weight": 24 }
+      ]
+    }
+  ],
+
+  "sites": [
+    {
+      "id": "low_watch",
+      "name": "The Low Watch",
+      "region": "mainstem",
+      "x": 356, "y": 46, "w": 11, "h": 9,
+      "ground": "STONE",
+      "building": {
+        "x": 358, "y": 47, "w": 7, "h": 5,
+        "floor": "FLOOR",
+        "doors": [{ "x": 361, "y": 51 }]
+      },
+      "objects": [
+        { "type": "bed", "x": 359, "y": 48 },
+        { "type": "crate", "x": 363, "y": 48 },
+        { "type": "brazier", "x": 357, "y": 53 }
+      ],
+      "sign": {
+        "x": 365, "y": 53,
+        "text": "LOW WATCH — mind the footing, mind the runoff."
+      }
+    }
+  ],
+
+  "spawns": [
+    { "npc": "wheeze_crawler", "region": "mainstem", "count": 10, "allow": ["BOG", "BLOOD"] },
+    { "npc": "rattling_patient", "region": "mainstem", "count": 8, "allow": ["BOG", "MOSS"] },
+    { "npc": "draught_howler", "region": "mainstem", "count": 6, "allow": ["BLOOD", "MOSS"] }
+  ],
+
+  "scatter": [
+    { "type": "sump_vein", "region": "mainstem", "count": 14, "allow": ["BOG", "BLOOD"] }
+  ]
+}
